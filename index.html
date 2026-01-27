@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flower Shop Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              admin: {
+                bg: '#F7F6F3',       // admin-bg-main
+                card: '#FFFFFF',     // admin-bg-card
+                muted: '#EFEAE4',    // admin-bg-muted / table-header
+                border: '#E2D9D0',   // admin-border
+                
+                text: {
+                  primary: '#4A3B32',   // admin-text-primary
+                  secondary: '#7A6A5E', // admin-text-secondary
+                  muted: '#A19287',     // admin-text-muted
+                  inverse: '#FFFFFF',   // admin-text-inverse
+                },
+                
+                sidebar: {
+                  bg: '#EFEAE4',
+                  text: '#5E4B3E',
+                  hover: '#E4DDD6',
+                  active: '#D6C8BE',
+                },
+
+                primary: {
+                  DEFAULT: '#6E5D4E', // admin-primary
+                  hover: '#5E4B3E',   // admin-primary-hover
+                },
+                
+                secondary: {
+                  DEFAULT: '#DCCFC6', // admin-secondary
+                  hover: '#CBBEB4',   // admin-secondary-hover
+                },
+
+                input: {
+                  border: '#D8CDC4',
+                  focus: '#6E5D4E',
+                },
+
+                status: {
+                  success: '#6F8F7B',
+                  warning: '#C2A46D',
+                  error: '#A45A52',
+                  info: '#7A8A94',
+                }
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              serif: ['Playfair Display', 'Georgia', 'serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+</head>
+  <body class="bg-admin-bg text-admin-text-primary antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+    <script>
+      // Initialize icons after React mounts
+      window.onload = function() {
+        lucide.createIcons();
+      };
+    </script>
+  </body>
+</html>
