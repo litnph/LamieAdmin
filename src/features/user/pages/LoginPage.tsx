@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Flower2, Mail, Lock, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -8,29 +9,46 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, validation and API calls would go here
     onLogin();
+    navigate('/admin');
   };
 
   return (
-    <div className="min-h-screen bg-admin-bg flex flex-col items-center justify-center p-4 font-sans text-admin-text-primary">
-      
-      {/* Brand Header */}
-      <div className="mb-8 text-center animate-fade-in-up">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-admin-muted mb-4 shadow-sm text-admin-primary">
-          <Flower2 size={32} />
+    <div className="min-h-screen bg-gradient-to-br from-[#F7F1EA] via-[#FDF7F2] to-[#F0E1D3] flex items-center justify-center p-4 font-sans text-admin-text-primary">
+      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-10 bg-admin-card/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-admin-border/60 overflow-hidden">
+        {/* Brand side */}
+        <div className="relative hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-[#E7D4C5] via-[#F3E4D6] to-[#F9F1E7]">
+          <div>
+            <h2 className="text-3xl font-serif font-bold text-admin-text-primary mb-4">
+              Lamie Flower Shop
+            </h2>
+            <p className="text-admin-text-secondary text-sm leading-relaxed max-w-sm">
+              Curate delicate floral experiences and manage your bouquets, colors and occasions
+              in a calm, focused admin crafted for Lamie.
+            </p>
+          </div>
+          <div className="text-xs text-admin-text-secondary">
+            Designed for florists who care about every petal.
+          </div>
         </div>
-        <h1 className="font-serif text-3xl font-bold text-admin-text-primary">Florist.</h1>
-        <p className="text-admin-text-secondary mt-2">Admin Management Dashboard</p>
-      </div>
 
-      {/* Login Card */}
-      <div className="w-full max-w-md bg-admin-card rounded-2xl shadow-xl border border-admin-border overflow-hidden">
-        <div className="p-8">
-          <h2 className="text-2xl font-serif font-semibold text-admin-text-primary mb-6 text-center">Welcome Back</h2>
+        {/* Login Card */}
+        <div className="p-8 md:p-10">
+          <div className="mb-8 text-center md:text-left">
+            <p className="text-xs font-medium tracking-[0.2em] uppercase text-admin-text-secondary mb-2">
+              Lamie Admin
+            </p>
+            <h2 className="text-2xl md:text-3xl font-serif font-semibold text-admin-text-primary">
+              Welcome back, Lamie.
+            </h2>
+            <p className="text-admin-text-secondary text-sm mt-2">
+              Sign in to manage products, master data and customers.
+            </p>
+          </div>
           
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -76,15 +94,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </form>
         </div>
         
-        <div className="bg-admin-muted/50 p-4 text-center border-t border-admin-border">
+        <div className="bg-admin-muted/50 p-4 text-center border-t border-admin-border md:col-span-2 md:border-t-0 md:border-l">
           <p className="text-sm text-admin-text-secondary">
             Don't have an account? <span className="font-medium text-admin-primary cursor-not-allowed">Contact Administrator</span>
           </p>
         </div>
-      </div>
-
-      <div className="mt-8 text-xs text-admin-text-muted">
-        &copy; 2024 Florist Inc. All rights reserved.
       </div>
     </div>
   );

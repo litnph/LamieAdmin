@@ -1,7 +1,7 @@
 import React from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
-import { Product } from '../../../types';
-import { Badge } from '../../../components/ui/Badge';
+import { Product } from '@/shared/types';
+import { Badge } from '@/shared/components/Badge';
 
 interface ProductTableProps {
   products: Product[];

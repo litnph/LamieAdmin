@@ -1,9 +1,9 @@
 import React from 'react';
 import { Plus, Filter, Download } from 'lucide-react';
-import { ProductTable } from '../features/product/components/ProductTable';
-import { mockProducts } from '../data/mockData';
+import { ProductTable } from '@/features/product/components/ProductTable';
+import { mockProducts } from '@/shared/constants/mockData';
 
-export const ProductPage: React.FC = () => {
+export const ProductListPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
