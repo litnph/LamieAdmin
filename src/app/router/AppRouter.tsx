@@ -4,10 +4,7 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 import { DashboardPage } from '@/app/pages/DashboardPage';
 import { ProductListPage } from '@/features/product/pages/ProductListPage';
 import { LoginPage } from '@/features/user/pages/LoginPage';
-import { LanguagePage } from '@/features/masterdata/pages/LanguagePage';
-import { TagPage } from '@/features/masterdata/pages/TagPage';
-import { ColorPage } from '@/features/masterdata/pages/ColorPage';
-import { CategoryPage } from '@/features/masterdata/pages/CategoryPage';
+import { AttributesPage } from '@/features/settings/attributes/pages/AttributesPage';
 
 export const AppRouter: React.FC = () => {
   const isAuthenticated = true;
@@ -29,10 +26,15 @@ export const AppRouter: React.FC = () => {
         <Route index element={<DashboardPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="products" element={<ProductListPage />} />
-        <Route path="masterdata/languages" element={<LanguagePage />} />
-        <Route path="masterdata/tags" element={<TagPage />} />
-        <Route path="masterdata/colors" element={<ColorPage />} />
-        <Route path="masterdata/categories" element={<CategoryPage />} />
+
+        <Route path="settings/attributes" element={<Navigate to="/admin/settings/attributes/categories" replace />} />
+        <Route path="settings/attributes/:attributeKey" element={<AttributesPage />} />
+
+        {/* Backward compatible routes */}
+        <Route path="masterdata/languages" element={<Navigate to="/admin/settings/attributes/languages" replace />} />
+        <Route path="masterdata/tags" element={<Navigate to="/admin/settings/attributes/tags" replace />} />
+        <Route path="masterdata/colors" element={<Navigate to="/admin/settings/attributes/colors" replace />} />
+        <Route path="masterdata/categories" element={<Navigate to="/admin/settings/attributes/categories" replace />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/admin" replace />} />

@@ -1,17 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/shared/components/Sidebar';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, PanelLeft } from 'lucide-react';
 
 export const AdminLayout: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-[#F7F1EA] via-[#FBF5EF] to-[#F0E2D2] overflow-hidden font-sans text-admin-text-primary">
-      <Sidebar />
+      <div className={sidebarOpen ? 'w-64' : 'w-0'} aria-hidden={!sidebarOpen}>
+        <Sidebar open={sidebarOpen} />
+      </div>
       
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="h-16 bg-admin-card/90 backdrop-blur-xl border-b border-admin-border flex items-center justify-between px-6 lg:px-10 z-10 shadow-sm">
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="p-2 text-admin-text-secondary hover:bg-admin-muted rounded-full transition-colors"
+              aria-label="Toggle sidebar"
+              title="Toggle sidebar"
+            >
+              <PanelLeft size={20} />
+            </button>
             <div className="hidden sm:flex w-9 h-9 rounded-full bg-admin-secondary/70 border border-admin-border/60 shadow-sm items-center justify-center text-[11px] font-semibold text-admin-text-primary">
               LM
             </div>
