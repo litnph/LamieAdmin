@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { Badge } from '@/shared/components/Badge';
+import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
 import { AttributesApi } from '../api/attributesApi';
 import type {
   AttributeItem,
@@ -488,30 +489,36 @@ export const AttributesPage: React.FC = () => {
                       <div key={`${t.languageCode}-${idx}`} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                         <div className="md:col-span-2">
                           <label className="block text-xs font-medium text-admin-text-secondary mb-1">Language</label>
-                          <select
-                            className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
-                            value={t.languageCode}
-                            onChange={(e) => updateTranslation(idx, { languageCode: e.target.value })}
-                            required
-                            disabled={loadingLanguages}
-                          >
-                            <option value="" disabled>
-                              {loadingLanguages ? 'Loading...' : 'Select'}
-                            </option>
-                            {languageOptions
+                          <AdminSelect<string>
+                            options={(languageOptions ?? [])
+                              .map(
+                                (opt): AdminSelectOption<string> => ({
+                                  value: opt.code,
+                                  label: `${opt.code} - ${opt.name}`,
+                                }),
+                              )
                               .filter((opt) => {
                                 const used = draft.translations
                                   .filter((_, i) => i !== idx)
                                   .map((x) => x.languageCode)
                                   .filter(Boolean);
-                                return !used.includes(opt.code);
-                              })
-                              .map((opt) => (
-                                <option key={opt.code} value={opt.code}>
-                                  {opt.code} - {opt.name}
-                                </option>
-                              ))}
-                          </select>
+                                return !used.includes(opt.value);
+                              })}
+                            isDisabled={loadingLanguages}
+                            isLoading={loadingLanguages}
+                            placeholder={loadingLanguages ? 'Loading...' : 'Select'}
+                            value={
+                              (languageOptions ?? [])
+                                .map(
+                                  (opt): AdminSelectOption<string> => ({
+                                    value: opt.code,
+                                    label: `${opt.code} - ${opt.name}`,
+                                  }),
+                                )
+                                .find((o) => o.value === t.languageCode) ?? null
+                            }
+                            onChange={(next) => updateTranslation(idx, { languageCode: next?.value ?? '' })}
+                          />
                         </div>
                         <div className="md:col-span-4">
                           <label className="block text-xs font-medium text-admin-text-secondary mb-1">Name</label>

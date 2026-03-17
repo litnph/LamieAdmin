@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { DashboardPage } from '@/app/pages/DashboardPage';
 import { ProductListPage } from '@/features/product/pages/ProductListPage';
+import { ProductCreatePage } from '@/features/product/pages/ProductCreatePage';
+import { ProductEditPage } from '@/features/product/pages/ProductEditPage';
 import { LoginPage } from '@/features/user/pages/LoginPage';
 import { AttributesPage } from '@/features/settings/attributes/pages/AttributesPage';
 
@@ -26,6 +28,8 @@ export const AppRouter: React.FC = () => {
         <Route index element={<DashboardPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="products" element={<ProductListPage />} />
+        <Route path="products/create" element={<ProductCreatePage />} />
+        <Route path="products/:id/edit" element={<ProductEditPage />} />
 
         <Route path="settings/attributes" element={<Navigate to="/admin/settings/attributes/categories" replace />} />
         <Route path="settings/attributes/:attributeKey" element={<AttributesPage />} />

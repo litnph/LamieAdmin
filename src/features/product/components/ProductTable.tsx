@@ -5,9 +5,11 @@ import { Badge } from '@/shared/components/Badge';
 
 interface ProductTableProps {
   products: Product[];
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
-export const ProductTable: React.FC<ProductTableProps> = ({ products }) => {
+export const ProductTable: React.FC<ProductTableProps> = ({ products, onEdit, onDelete }) => {
   return (
     <div className="bg-admin-card rounded-2xl shadow-sm border border-admin-border overflow-hidden">
       <div className="overflow-x-auto">
@@ -52,10 +54,18 @@ export const ProductTable: React.FC<ProductTableProps> = ({ products }) => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
-                    <button className="p-2 text-admin-text-secondary hover:text-admin-primary hover:bg-admin-muted rounded-lg transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => onEdit?.(product.id)}
+                      className="p-2 text-admin-text-secondary hover:text-admin-primary hover:bg-admin-muted rounded-lg transition-colors"
+                    >
                       <Edit2 size={16} />
                     </button>
-                    <button className="p-2 text-admin-text-secondary hover:text-admin-status-error hover:bg-admin-status-error/10 rounded-lg transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => onDelete?.(product.id)}
+                      className="p-2 text-admin-text-secondary hover:text-admin-status-error hover:bg-admin-status-error/10 rounded-lg transition-colors"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </div>
