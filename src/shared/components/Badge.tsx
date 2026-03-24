@@ -5,30 +5,29 @@ interface BadgeProps {
 }
 
 export const Badge: React.FC<BadgeProps> = ({ status }) => {
-  let colorClass = 'bg-admin-secondary/20 text-admin-text-secondary border border-admin-secondary';
+  let colorClass = 'bg-admin-secondary/30 text-admin-text-secondary';
 
-  // Using opacity/alpha modifiers for backgrounds to keep them subtle while using the strict palette
   switch (status) {
     case 'In Stock':
     case 'Completed':
-      colorClass = 'bg-admin-status-success/10 text-admin-status-success border border-admin-status-success/30';
+      colorClass = 'bg-admin-status-success/12 text-admin-status-success';
       break;
     case 'Low Stock':
     case 'Pending':
-      colorClass = 'bg-admin-status-warning/10 text-admin-status-warning border border-admin-status-warning/30';
+      colorClass = 'bg-admin-status-warning/12 text-admin-status-warning';
       break;
     case 'Out of Stock':
-      colorClass = 'bg-admin-status-error/10 text-admin-status-error border border-admin-status-error/30';
+      colorClass = 'bg-admin-status-error/12 text-admin-status-error';
       break;
     case 'Shipped':
-      colorClass = 'bg-admin-status-info/10 text-admin-status-info border border-admin-status-info/30';
+      colorClass = 'bg-admin-status-info/12 text-admin-status-info';
       break;
     default:
-      colorClass = 'bg-admin-secondary/20 text-admin-text-primary border border-admin-secondary';
+      colorClass = 'bg-admin-muted text-admin-text-secondary';
   }
 
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide ${colorClass}`}>
       {status}
     </span>
   );

@@ -76,6 +76,15 @@ export const ProductApi = {
     });
   },
 
+  /** Cập nhật sản phẩm (multipart). BE thường dùng PUT + Id trong URL hoặc form. */
+  updateWithFormData: async (id: number, formData: FormData): Promise<void> => {
+    await apiClient.put(`/api/settings/products/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
   getAll: async (): Promise<ProductDto[]> => {
     const { data } = await apiClient.get<ProductDto[]>('/api/settings/products');
     return data;

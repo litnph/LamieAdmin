@@ -4,9 +4,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { ProductCreatePage } from '@/features/product/pages/ProductCreatePage';
 
-// Tạm thời: hiển thị header + reuse form tạo sản phẩm như chế độ "clone",
-// khi backend cung cấp UpdateProductCommand ta sẽ tách form dùng chung cho create/edit.
-
 export const ProductEditPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useParams();
@@ -33,38 +30,30 @@ export const ProductEditPage: React.FC = () => {
     void load();
   }, [id]);
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/admin/products')}
-              className="p-2 rounded-xl border border-admin-border hover:bg-admin-muted transition-colors"
-              aria-label="Back"
-              title="Back"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <h2 className="text-2xl font-serif font-bold text-admin-text-primary">Edit product</h2>
-              <p className="text-admin-text-secondary mt-1 text-sm">
-                ID: <span className="font-mono">{id || 'N/A'}</span>
-              </p>
-            </div>
-          </div>
-          {error ? <p className="mt-3 text-sm text-admin-status-error">{error}</p> : null}
-        </div>
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 animate-fade-in">
+        <div className="w-4 h-4 border-2 border-admin-primary/30 border-t-admin-primary rounded-full animate-spin" />
+        <p className="text-sm text-admin-text-muted">Đang tải sản phẩm…</p>
       </div>
+    );
+  }
 
-      {loading ? (
-        <p className="text-sm text-admin-text-secondary">Loading product...</p>
-      ) : product ? (
-        // Tạm thời: dùng lại form tạo sản phẩm để tạo bản sao, do BE chưa cung cấp UpdateProductCommand.
-        <ProductCreatePage />
-      ) : null}
-    </div>
-  );
+  if (error || !product) {
+    return (
+      <div className="space-y-4 animate-fade-in-up">
+        <button
+          type="button"
+          onClick={() => navigate('/admin/products')}
+          className="inline-flex items-center gap-2 rounded-xl border border-admin-border bg-white/80 px-3 py-2 text-sm font-medium text-admin-text-secondary hover:bg-admin-muted/60"
+        >
+          <ArrowLeft size={18} />
+          Quay lại danh sách
+        </button>
+        <p className="text-sm text-admin-status-error">{error ?? 'Không tìm thấy sản phẩm.'}</p>
+      </div>
+    );
+  }
+
+  return <ProductCreatePage mode="edit" productId={id} initialProduct={product} />;
 };
-

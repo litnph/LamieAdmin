@@ -21,26 +21,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
 
   return (
     <aside
-      className={`w-64 bg-admin-sidebar-bg/95 backdrop-blur-xl border-r border-admin-border flex flex-col h-full transition-transform duration-200 ease-out ${
+      className={`w-64 glass-sidebar border-r border-white/30 flex flex-col h-full transition-transform duration-300 ease-out ${
         open ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
-      <div className="p-6 pb-4 border-b border-admin-border/70">
+      <div className="p-5 pb-4 border-b border-admin-border/40">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border border-admin-border/60 shadow-sm bg-admin-card flex items-center justify-center text-xs font-semibold text-admin-text-primary">
-            LM
+          <div className="w-10 h-10 rounded-xl bg-admin-primary/10 flex items-center justify-center text-sm font-bold text-admin-primary shadow-sm">
+            L
           </div>
           <div>
             <p className="text-sm font-serif font-semibold text-admin-text-primary leading-tight">Lamie</p>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-admin-text-secondary">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-admin-text-muted font-medium">
               Flower Shop
             </p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 px-4 py-4 space-y-4">
-        <div className="space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        <div className="space-y-0.5 stagger">
           {mainItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -48,14 +48,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
                 key={item.id}
                 to={item.to}
                 className={({ isActive }) =>
-                  `w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                  `w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 animate-slide-in-left ${
                     isActive
-                      ? 'bg-admin-sidebar-active text-admin-text-primary shadow-sm'
-                      : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover'
+                      ? 'bg-white/70 text-admin-primary shadow-sm border border-white/50'
+                      : 'text-admin-sidebar-text hover:bg-white/40 border border-transparent'
                   }`
                 }
               >
-                <Icon size={20} className="text-admin-text-secondary" />
+                <Icon size={18} strokeWidth={1.8} />
                 {item.label}
               </NavLink>
             );
@@ -63,10 +63,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
         </div>
 
         <div>
-          <p className="px-4 mb-2 text-xs font-semibold tracking-wide text-admin-text-secondary uppercase">
-            Cài đặt
+          <p className="px-3.5 mb-2 text-[10px] font-semibold tracking-[0.16em] text-admin-text-muted uppercase">
+            Quản lý
           </p>
-          <div className="space-y-1">
+          <div className="space-y-0.5 stagger">
             {settingsItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -74,14 +74,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
                   key={item.id}
                   to={item.to}
                   className={({ isActive }) =>
-                    `w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                    `w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 animate-slide-in-left ${
                       isActive
-                        ? 'bg-admin-sidebar-active text-admin-text-primary shadow-sm'
-                        : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover'
+                        ? 'bg-white/70 text-admin-primary shadow-sm border border-white/50'
+                        : 'text-admin-sidebar-text hover:bg-white/40 border border-transparent'
                     }`
                   }
                 >
-                  <Icon size={20} className="text-admin-text-secondary" />
+                  <Icon size={18} strokeWidth={1.8} />
                   {item.label}
                 </NavLink>
               );
@@ -90,12 +90,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
         </div>
       </nav>
 
-      <div className="p-4 border-t border-admin-border">
-        <button 
+      <div className="p-3 border-t border-admin-border/40">
+        <button
           onClick={() => navigate('/login')}
-          className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-admin-text-secondary hover:bg-admin-status-error/10 hover:text-admin-status-error rounded-xl transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-admin-text-muted hover:bg-admin-status-error/8 hover:text-admin-status-error rounded-xl transition-all duration-200"
         >
-          <LogOut size={20} />
+          <LogOut size={18} strokeWidth={1.8} />
           Sign Out
         </button>
       </div>

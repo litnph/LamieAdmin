@@ -11,59 +11,146 @@
           extend: {
             colors: {
               admin: {
-                bg: '#F7F6F3',       // admin-bg-main
-                card: '#FFFFFF',     // admin-bg-card
-                muted: '#EFEAE4',    // admin-bg-muted / table-header
-                border: '#E2D9D0',   // admin-border
-                
+                bg: '#FAF8F5',
+                card: '#FFFFFF',
+                muted: '#F2ECE6',
+                border: '#E8E0D8',
+
                 text: {
-                  primary: '#4A3B32',   // admin-text-primary
-                  secondary: '#7A6A5E', // admin-text-secondary
-                  muted: '#A19287',     // admin-text-muted
-                  inverse: '#FFFFFF',   // admin-text-inverse
+                  primary: '#2E2B28',
+                  secondary: '#7A746E',
+                  muted: '#A39D97',
+                  inverse: '#FFFFFF',
                 },
-                
+
                 sidebar: {
-                  bg: '#EFEAE4',
-                  text: '#5E4B3E',
-                  hover: '#E4DDD6',
-                  active: '#D6C8BE',
+                  bg: '#F2ECE6',
+                  text: '#6B655F',
+                  hover: '#EAE3DB',
+                  active: '#E0D7CD',
                 },
 
                 primary: {
-                  DEFAULT: '#6E5D4E', // admin-primary
-                  hover: '#5E4B3E',   // admin-primary-hover
+                  DEFAULT: 'rgb(var(--admin-primary-rgb) / <alpha-value>)',
+                  hover: 'rgb(var(--admin-primary-hover-rgb) / <alpha-value>)',
+                  light: 'rgb(var(--admin-primary-light-rgb) / <alpha-value>)',
                 },
-                
+
                 secondary: {
-                  DEFAULT: '#DCCFC6', // admin-secondary
-                  hover: '#CBBEB4',   // admin-secondary-hover
+                  DEFAULT: '#E2D8CE',
+                  hover: '#D5CAC0',
+                },
+
+                accent: {
+                  DEFAULT: '#C4956E',
+                  light: '#F8F0E8',
                 },
 
                 input: {
-                  border: '#D8CDC4',
-                  focus: '#6E5D4E',
+                  border: '#DDD5CB',
+                  focus: 'rgb(var(--admin-primary-rgb) / <alpha-value>)',
                 },
 
                 status: {
-                  success: '#6F8F7B',
-                  warning: '#C2A46D',
-                  error: '#A45A52',
-                  info: '#7A8A94',
+                  success: '#5A8F6A',
+                  warning: '#C4A36D',
+                  error: '#C06060',
+                  info: '#6B8A9E',
                 }
               }
             },
             fontFamily: {
               sans: ['Inter', 'system-ui', 'sans-serif'],
               serif: ['Playfair Display', 'Georgia', 'serif'],
-            }
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.5s ease-out both',
+              'fade-in': 'fadeIn 0.4s ease-out both',
+              'slide-in-left': 'slideInLeft 0.35s ease-out both',
+              'scale-in': 'scaleIn 0.3s cubic-bezier(0.16,1,0.3,1) both',
+              'slide-down': 'slideDown 0.3s ease-out both',
+            },
+            keyframes: {
+              fadeInUp: {
+                from: { opacity: '0', transform: 'translateY(16px)' },
+                to: { opacity: '1', transform: 'translateY(0)' },
+              },
+              fadeIn: {
+                from: { opacity: '0' },
+                to: { opacity: '1' },
+              },
+              slideInLeft: {
+                from: { opacity: '0', transform: 'translateX(-12px)' },
+                to: { opacity: '1', transform: 'translateX(0)' },
+              },
+              scaleIn: {
+                from: { opacity: '0', transform: 'scale(0.92)' },
+                to: { opacity: '1', transform: 'scale(1)' },
+              },
+              slideDown: {
+                from: { opacity: '0', transform: 'translateY(-8px)' },
+                to: { opacity: '1', transform: 'translateY(0)' },
+              },
+            },
           }
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+      :root {
+        --admin-primary-rgb: 107 123 139;
+        --admin-primary-hover-rgb: 92 106 119;
+        --admin-primary-light-rgb: 237 239 242;
+        --admin-primary-hex: #6B7B8B;
+        --admin-gradient-from: #6B7B8B;
+        --admin-gradient-via: #5a6575;
+        --admin-gradient-to: #4a5565;
+      }
+
+      ::-webkit-scrollbar { width: 5px; height: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #D5CAC0; border-radius: 99px; }
+      ::-webkit-scrollbar-thumb:hover { background: #C0B5AB; }
+
+      .glass {
+        background: rgba(255,255,255,0.55);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+      }
+      .glass-strong {
+        background: rgba(255,255,255,0.72);
+        backdrop-filter: blur(32px);
+        -webkit-backdrop-filter: blur(32px);
+      }
+      .glass-sidebar {
+        background: rgba(242,236,230,0.82);
+        backdrop-filter: blur(28px);
+        -webkit-backdrop-filter: blur(28px);
+      }
+
+      .hover-lift {
+        transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s ease;
+      }
+      .hover-lift:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+      }
+
+      .btn-press:active {
+        transform: scale(0.97);
+      }
+
+      .stagger > *:nth-child(1) { animation-delay: 0s; }
+      .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+      .stagger > *:nth-child(3) { animation-delay: 0.12s; }
+      .stagger > *:nth-child(4) { animation-delay: 0.18s; }
+      .stagger > *:nth-child(5) { animation-delay: 0.24s; }
+      .stagger > *:nth-child(6) { animation-delay: 0.30s; }
+      .stagger > *:nth-child(7) { animation-delay: 0.36s; }
+      .stagger > *:nth-child(8) { animation-delay: 0.42s; }
+    </style>
   <script type="importmap">
 {
   "imports": {
@@ -79,7 +166,6 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Initialize icons after React mounts
       window.onload = function() {
         lucide.createIcons();
       };

@@ -1,13 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ProductApi, type CreateProductRequest, type ProductImagePayload, type ProductTranslation } from '../api/productApi';
+import {
+  ProductApi,
+  type CreateProductRequest,
+  type ProductDto,
+  type ProductImagePayload,
+  type ProductTranslation,
+} from '../api/productApi';
 import { AttributesApi } from '@/features/settings/attributes/api/attributesApi';
 import type { AttributeItem, LanguageAttributeItem } from '@/features/settings/attributes/types/attributes.types';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
+import { AttributeMultiSelect } from '@/shared/components/AttributeMultiSelect';
 
-/** Ảnh chi tiết: FE chỉ lưu file + previewUrl (object URL) trên từng item để preview đúng khi kéo đổi thứ tự. */
-type ProductImageItem = ProductImagePayload & { file?: File; previewUrl?: string };
+type ProductImageItem = ProductImagePayload & {
+  file?: File;
+  previewUrl?: string;
+  /** true = ảnh đã có trên server (gửi Id khi update); false = ảnh mới thêm */
+  isFromServer?: boolean;
+};
 
 const formatFileSize = (bytes: number) => {
   const kb = bytes / 1024;
@@ -15,54 +26,56 @@ const formatFileSize = (bytes: number) => {
   return `${(kb / 1024).toFixed(1)} MB`;
 };
 
-interface AttributeChipMultiSelectProps {
-  label: string;
-  options: AttributeItem[];
-  selectedIds: number[];
-  onChange: (next: number[]) => void;
-  loading?: boolean;
-  placeholder?: string;
-}
+export type ProductFormMode = 'create' | 'edit';
 
-const AttributeChipMultiSelect: React.FC<AttributeChipMultiSelectProps> = ({
-  label,
-  options,
-  selectedIds,
-  onChange,
-  loading,
-  placeholder,
-}) => {
-  const selectOptions: AdminSelectOption<number>[] = useMemo(
-    () =>
-      options.map((opt) => ({
-        value: opt.id,
-        label: opt.translations?.[0]?.name ?? `#${opt.id}`,
-      })),
-    [options],
-  );
-
-  const selectedValue: AdminSelectOption<number>[] = useMemo(() => {
-    const map = new Map(selectOptions.map((o) => [o.value, o] as const));
-    return selectedIds.map((id) => map.get(id)).filter(Boolean) as AdminSelectOption<number>[];
-  }, [selectOptions, selectedIds]);
-
-  return (
-    <div className="space-y-1">
-      <label className="block text-xs font-medium text-admin-text-secondary mb-1">{label}</label>
-      <AdminSelect<number>
-        isMulti
-        isDisabled={!!loading}
-        isLoading={!!loading}
-        options={selectOptions}
-        value={selectedValue}
-        placeholder={loading ? 'Loading...' : placeholder ?? 'Select'}
-        onChange={(next) => onChange(next.map((x) => x.value))}
-      />
-    </div>
-  );
+export type ProductCreatePageProps = {
+  mode?: ProductFormMode;
+  /** Khi mode === 'edit', hiển thị trong tiêu đề phụ */
+  productId?: number;
+  /** Dữ liệu sản phẩm đã load (chỉ dùng khi edit) */
+  initialProduct?: ProductDto | null;
 };
 
-export const ProductCreatePage: React.FC = () => {
+function mapDtoToFormState(p: ProductDto): Omit<CreateProductRequest, 'translations' | 'images'> {
+  return {
+    sku: p.sku ?? '',
+    price: p.price ?? 0,
+    salePrice: p.salePrice ?? 0,
+    stock: p.stock ?? 0,
+    categoryId: p.categoryId ?? 0,
+    thumbnailUrl: p.thumbnailUrl ?? '',
+    tagIds: [...(p.tagIds ?? [])],
+    colorIds: [...(p.colorIds ?? [])],
+    collectionIds: [...(p.collectionIds ?? [])],
+    styleIds: [...(p.styleIds ?? [])],
+    occasionIds: [...(p.occasionIds ?? [])],
+  };
+}
+
+function mapDtoImagesToItems(p: ProductDto): ProductImageItem[] {
+  const list = [...(p.images ?? [])]
+    .filter((im) => im.isActive !== false)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  return list.map((im) => {
+    const url = im.imageUrl ?? '';
+    const tail = url.split('/').pop() || '';
+    return {
+      id: im.id,
+      imageUrl: url,
+      sortOrder: im.sortOrder,
+      content: '',
+      fileName: tail || `image-${im.id}`,
+      contentType: 'image/*',
+      isFromServer: true,
+    };
+  });
+}
+
+export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
+  mode = 'create',
+  productId,
+  initialProduct,
+}) => {
   const navigate = useNavigate();
 
   const [saving, setSaving] = useState(false);
@@ -99,7 +112,7 @@ export const ProductCreatePage: React.FC = () => {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailMeta, setThumbnailMeta] = useState<{ name: string; size: number } | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
-  const [draggingImageId, setDraggingImageId] = useState<number | null>(null);
+  const draggingImageIdRef = useRef<number | null>(null);
   const thumbnailPreviewRef = useRef<string | null>(null);
   const imagesRef = useRef<ProductImageItem[]>([]);
   thumbnailPreviewRef.current = thumbnailPreviewUrl;
@@ -127,7 +140,7 @@ export const ProductCreatePage: React.FC = () => {
     () =>
       languages.map((l) => ({
         value: l.code,
-        label: `${l.code} - ${l.name}`,
+        label: l.name?.trim() ? l.name : l.code,
       })),
     [languages],
   );
@@ -160,6 +173,27 @@ export const ProductCreatePage: React.FC = () => {
     };
     void loadMaster();
   }, []);
+
+  useEffect(() => {
+    if (mode !== 'edit' || !initialProduct) return;
+
+    setError(null);
+    setForm(mapDtoToFormState(initialProduct));
+    setTranslations(
+      initialProduct.translations?.length
+        ? initialProduct.translations.map((t) => ({
+            languageCode: t.languageCode,
+            name: t.name ?? '',
+            slug: t.slug ?? '',
+            description: t.description ?? '',
+          }))
+        : [{ languageCode: '', name: '', slug: '', description: '' }],
+    );
+    setImages(mapDtoImagesToItems(initialProduct));
+    setThumbnailFile(null);
+    setThumbnailMeta(null);
+    setThumbnailPreviewUrl(null);
+  }, [mode, initialProduct]);
 
   const updateForm = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -248,9 +282,9 @@ export const ProductCreatePage: React.FC = () => {
     }
     if (imageFiles.length < files.length) setError('Một số file không phải ảnh đã bỏ qua.');
     else setError(null);
-    const maxId = images.length ? Math.max(...images.map((i) => i.id)) : 0;
+    const tempBase = -Date.now();
     const newItems: ProductImageItem[] = imageFiles.map((file, i) => ({
-      id: maxId + i + 1,
+      id: tempBase - i,
       imageUrl: '',
       sortOrder: images.length + i + 1,
       content: '',
@@ -258,6 +292,7 @@ export const ProductCreatePage: React.FC = () => {
       contentType: file.type || 'image/*',
       file,
       previewUrl: URL.createObjectURL(file),
+      isFromServer: false,
     }));
     setImages((prev) => [...prev, ...newItems].map((img, idx) => ({ ...img, sortOrder: idx + 1 })));
   };
@@ -309,8 +344,10 @@ export const ProductCreatePage: React.FC = () => {
       });
 
       images.forEach((img, idx) => {
-        // CreateProductImageDto: Id?, ImageUrl?, SortOrder?, ImageFile?
         formData.append(`Images[${idx}].SortOrder`, String(idx + 1));
+        if (mode === 'edit' && img.isFromServer) {
+          formData.append(`Images[${idx}].Id`, String(img.id));
+        }
         if (img.file) {
           formData.append(`Images[${idx}].ImageFile`, img.file);
         } else if (img.imageUrl) {
@@ -318,88 +355,106 @@ export const ProductCreatePage: React.FC = () => {
         }
       });
 
-      await ProductApi.createWithFormData(formData);
+      if (mode === 'edit' && productId) {
+        await ProductApi.updateWithFormData(productId, formData);
+      } else {
+        await ProductApi.createWithFormData(formData);
+      }
       navigate('/admin/products');
     } catch (e: any) {
-      setError(e?.message ?? 'Failed to create product');
+      setError(e?.message ?? (mode === 'edit' ? 'Cập nhật sản phẩm thất bại' : 'Tạo sản phẩm thất bại'));
     } finally {
       setSaving(false);
     }
   };
 
+  const inputClass =
+    'w-full px-3.5 py-2.5 text-sm rounded-xl border border-admin-input-border/80 bg-white/50 focus:outline-none focus:ring-2 focus:ring-admin-primary/10 focus:border-admin-primary/40 focus:bg-white/70 transition-all duration-200';
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in-up">
         <div>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => navigate('/admin/products')}
-              className="p-2 rounded-xl border border-admin-border hover:bg-admin-muted transition-colors"
+              className="p-2 rounded-xl glass border border-white/40 hover:bg-white/60 transition-all duration-200"
               aria-label="Back"
               title="Back"
             >
               <ArrowLeft size={18} />
             </button>
             <div>
-              <h2 className="text-2xl font-serif font-bold text-admin-text-primary">Tạo sản phẩm</h2>
-              <p className="text-admin-text-secondary mt-1 text-sm">
-                Gửi dữ liệu theo cấu trúc <span className="font-mono text-xs">/api/settings/products</span>.
+              <h2 className="text-2xl font-serif font-bold text-admin-text-primary tracking-tight">
+                {mode === 'edit' ? 'Sửa sản phẩm' : 'Tạo sản phẩm'}
+              </h2>
+              <p className="text-admin-text-secondary mt-0.5 text-sm">
+                {mode === 'edit' && productId ? (
+                  <>
+                    ID: <span className="font-mono text-xs text-admin-text-muted">{productId}</span>
+                  </>
+                ) : (
+                  <>
+                    Gửi dữ liệu theo cấu trúc{' '}
+                    <span className="font-mono text-xs text-admin-text-muted">/api/settings/products</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
-          {error ? <p className="mt-3 text-sm text-admin-status-error">{error}</p> : null}
+          {error ? <p className="mt-3 text-sm text-admin-status-error animate-fade-in">{error}</p> : null}
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-9 bg-admin-card rounded-2xl shadow-sm border border-admin-border p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <div className="lg:col-span-9 glass border border-white/40 rounded-2xl shadow-sm p-6 space-y-6 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-admin-text-secondary mb-1">SKU</label>
+              <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">SKU</label>
               <input
-                className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
+                className={inputClass}
                 value={form.sku}
                 onChange={(e) => updateForm('sku', e.target.value)}
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-admin-text-secondary mb-1">Price</label>
+              <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Price</label>
               <input
                 type="number"
                 min={0}
                 step="0.01"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
+                className={inputClass}
                 value={form.price}
                 onChange={(e) => updateForm('price', Number(e.target.value))}
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-admin-text-secondary mb-1">Sale Price</label>
+              <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Sale Price</label>
               <input
                 type="number"
                 min={0}
                 step="0.01"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
+                className={inputClass}
                 value={form.salePrice}
                 onChange={(e) => updateForm('salePrice', Number(e.target.value))}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-admin-text-secondary mb-1">Stock</label>
+              <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Stock</label>
               <input
                 type="number"
                 min={0}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
+                className={inputClass}
                 value={form.stock}
                 onChange={(e) => updateForm('stock', Number(e.target.value))}
                 required
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-admin-text-secondary mb-1">Category</label>
+              <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Category</label>
               <AdminSelect<number>
                 options={categoryOptions}
                 isDisabled={loadingMaster}
@@ -412,128 +467,129 @@ export const ProductCreatePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-admin-text-primary">Tags / Colors</p>
-            <AttributeChipMultiSelect
-              label="Tags"
-              options={tags}
-              selectedIds={form.tagIds}
-              onChange={(next) => updateForm('tagIds', next)}
-              loading={loadingMaster}
-            />
-            <AttributeChipMultiSelect
-              label="Colors"
-              options={colors}
-              selectedIds={form.colorIds}
-              onChange={(next) => updateForm('colorIds', next)}
-              loading={loadingMaster}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-admin-text-primary">Collections / Styles / Occasions</p>
-            <AttributeChipMultiSelect
-              label="Collections"
-              options={collections}
-              selectedIds={form.collectionIds}
-              onChange={(next) => updateForm('collectionIds', next)}
-              loading={loadingMaster}
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <AttributeChipMultiSelect
-                label="Styles"
-                options={styles}
-                selectedIds={form.styleIds}
-                onChange={(next) => updateForm('styleIds', next)}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-admin-text-primary">Tags / Colors</p>
+              <AttributeMultiSelect
+                label="Tags"
+                options={tags}
+                selectedIds={form.tagIds}
+                onChange={(next) => updateForm('tagIds', next)}
                 loading={loadingMaster}
               />
-              <AttributeChipMultiSelect
-                label="Occasions"
-                options={occasions}
-                selectedIds={form.occasionIds}
-                onChange={(next) => updateForm('occasionIds', next)}
+              <AttributeMultiSelect
+                label="Colors"
+                variant="colors"
+                options={colors}
+                selectedIds={form.colorIds}
+                onChange={(next) => updateForm('colorIds', next)}
                 loading={loadingMaster}
               />
             </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-admin-text-primary">Collections / Styles / Occasions</p>
+              <AttributeMultiSelect
+                label="Collections"
+                options={collections}
+                selectedIds={form.collectionIds}
+                onChange={(next) => updateForm('collectionIds', next)}
+                loading={loadingMaster}
+              />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
+                <AttributeMultiSelect
+                  label="Styles"
+                  options={styles}
+                  selectedIds={form.styleIds}
+                  onChange={(next) => updateForm('styleIds', next)}
+                  loading={loadingMaster}
+                />
+                <AttributeMultiSelect
+                  label="Occasions"
+                  options={occasions}
+                  selectedIds={form.occasionIds}
+                  onChange={(next) => updateForm('occasionIds', next)}
+                  loading={loadingMaster}
+                />
+              </div>
+            </div>
           </div>
-        </div>
 
           <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-admin-text-primary">Translations</p>
-            <button
-              type="button"
-              onClick={addTranslationRow}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-admin-muted text-admin-text-primary rounded-xl hover:bg-admin-muted/80 transition-colors"
-            >
-              <Plus size={16} />
-              <span className="text-sm font-medium">Thêm translation</span>
-            </button>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-admin-text-primary">Translations</p>
+              <button
+                type="button"
+                onClick={addTranslationRow}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-admin-primary/8 text-admin-primary rounded-lg hover:bg-admin-primary/12 transition-colors duration-200 text-sm font-medium"
+              >
+                <Plus size={14} />
+                Thêm
+              </button>
+            </div>
+            <div className="space-y-3">
+              {translations.map((t, idx) => (
+                <div key={`${t.languageCode}-${idx}`} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Language</label>
+                    <AdminSelect<string>
+                      options={languageSelectOptions.filter((opt) => {
+                        const used = translations
+                          .filter((_, i) => i !== idx)
+                          .map((x) => x.languageCode)
+                          .filter(Boolean);
+                        return !used.includes(opt.value);
+                      })}
+                      isDisabled={loadingMaster}
+                      isLoading={loadingMaster}
+                      placeholder={loadingMaster ? 'Loading...' : 'Select'}
+                      value={languageSelectOptions.find((o) => o.value === t.languageCode) ?? null}
+                      onChange={(next) => updateTranslation(idx, { languageCode: next?.value ?? '' })}
+                    />
+                  </div>
+                  <div className="md:col-span-4">
+                    <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Name</label>
+                    <input
+                      className={inputClass}
+                      value={t.name}
+                      onChange={(e) => updateTranslation(idx, { name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Slug</label>
+                    <input
+                      className={inputClass}
+                      value={t.slug}
+                      onChange={(e) => updateTranslation(idx, { slug: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-admin-text-secondary mb-1.5">Description</label>
+                    <input
+                      className={inputClass}
+                      value={t.description}
+                      onChange={(e) => updateTranslation(idx, { description: e.target.value })}
+                    />
+                  </div>
+                  <div className="md:col-span-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => removeTranslationRow(idx)}
+                      className="p-2 text-admin-text-muted hover:text-admin-status-error hover:bg-admin-status-error/8 rounded-lg transition-all duration-200"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="space-y-3">
-            {translations.map((t, idx) => (
-              <div key={`${t.languageCode}-${idx}`} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-admin-text-secondary mb-1">Language</label>
-                  <AdminSelect<string>
-                    options={languageSelectOptions.filter((opt) => {
-                      const used = translations
-                        .filter((_, i) => i !== idx)
-                        .map((x) => x.languageCode)
-                        .filter(Boolean);
-                      return !used.includes(opt.value);
-                    })}
-                    isDisabled={loadingMaster}
-                    isLoading={loadingMaster}
-                    placeholder={loadingMaster ? 'Loading...' : 'Select'}
-                    value={languageSelectOptions.find((o) => o.value === t.languageCode) ?? null}
-                    onChange={(next) => updateTranslation(idx, { languageCode: next?.value ?? '' })}
-                  />
-                </div>
-                <div className="md:col-span-4">
-                  <label className="block text-xs font-medium text-admin-text-secondary mb-1">Name</label>
-                  <input
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
-                    value={t.name}
-                    onChange={(e) => updateTranslation(idx, { name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="block text-xs font-medium text-admin-text-secondary mb-1">Slug</label>
-                  <input
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
-                    value={t.slug}
-                    onChange={(e) => updateTranslation(idx, { slug: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-admin-text-secondary mb-1">Description</label>
-                  <input
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-admin-input-border bg-admin-bg focus:outline-none focus:ring-2 focus:ring-admin-input-focus/20 focus:border-admin-input-focus"
-                    value={t.description}
-                    onChange={(e) => updateTranslation(idx, { description: e.target.value })}
-                  />
-                </div>
-                <div className="md:col-span-1 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => removeTranslationRow(idx)}
-                    className="px-3 py-2 text-sm text-admin-text-secondary border border-admin-border rounded-xl hover:bg-admin-muted hover:text-admin-status-error transition-colors"
-                  >
-                    Xóa
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
           <div className="space-y-3">
             <p className="text-sm font-semibold text-admin-text-primary">Ảnh chi tiết</p>
             <div
-              className="rounded-2xl border border-dashed border-admin-border bg-admin-bg/60 px-4 py-4 text-center text-xs text-admin-text-secondary"
+              className="rounded-2xl border-2 border-dashed border-admin-border/60 bg-white/30 px-4 py-6 text-center transition-colors duration-200 hover:border-admin-primary/30 hover:bg-admin-primary/3"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
@@ -541,12 +597,12 @@ export const ProductCreatePage: React.FC = () => {
                 if (fileList?.length) handleAddImagesFromFiles(Array.from(fileList));
               }}
             >
-              <p className="mb-2">Kéo thả nhiều ảnh vào đây hoặc chọn nhiều ảnh bên dưới</p>
+              <p className="text-sm text-admin-text-muted mb-2">Kéo thả nhiều ảnh vào đây hoặc chọn bên dưới</p>
               <input
                 type="file"
                 accept="image/*"
                 multiple
-                className="block w-full max-w-xs mx-auto text-xs text-admin-text-secondary file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-medium file:bg-admin-primary file:text-admin-text-inverse hover:file:bg-admin-primary-hover cursor-pointer"
+                className="block w-full max-w-xs mx-auto text-xs text-admin-text-secondary file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-medium file:bg-admin-primary file:text-white hover:file:bg-admin-primary-hover cursor-pointer"
                 onChange={(e) => {
                   const list = e.target.files;
                   if (list?.length) handleAddImagesFromFiles(Array.from(list));
@@ -554,58 +610,72 @@ export const ProductCreatePage: React.FC = () => {
                 }}
               />
             </div>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-3">
               {images.length === 0 ? (
-                <p className="text-xs text-admin-text-secondary">Chưa có ảnh chi tiết.</p>
+                <p className="text-xs text-admin-text-muted">Chưa có ảnh chi tiết.</p>
               ) : (
                 images.map((img, idx) => {
                   const preview = img.previewUrl ?? img.imageUrl;
                   const order = idx + 1;
                   return (
                     <div
-                      key={img.id}
-                      className="flex-shrink-0 w-32"
+                      key={`${img.id}-${idx}`}
+                      className="w-28 flex-shrink-0 cursor-grab active:cursor-grabbing"
                       draggable
-                      onDragStart={() => setDraggingImageId(img.id)}
-                      onDragEnd={() => setDraggingImageId(null)}
+                      onDragStart={(e) => {
+                        draggingImageIdRef.current = img.id;
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', String(img.id));
+                      }}
+                      onDragEnd={() => {
+                        draggingImageIdRef.current = null;
+                      }}
                       onDragOver={(e) => {
-                        if (draggingImageId == null || draggingImageId === img.id) return;
                         e.preventDefault();
+                        if (e.dataTransfer.types.includes('Files')) {
+                          e.dataTransfer.dropEffect = 'copy';
+                        } else {
+                          e.dataTransfer.dropEffect = 'move';
+                        }
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
-                        if (draggingImageId != null && draggingImageId !== img.id) {
-                          moveImage(draggingImageId, img.id);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file && isImageFile(file)) {
+                          handleImageFile(idx, file);
+                          draggingImageIdRef.current = null;
+                          return;
                         }
-                        setDraggingImageId(null);
+                        const fromId = draggingImageIdRef.current;
+                        if (fromId != null && fromId !== img.id) {
+                          moveImage(fromId, img.id);
+                        }
+                        draggingImageIdRef.current = null;
                       }}
                     >
-                      <div
-                        className="relative rounded-xl overflow-hidden bg-admin-muted aspect-square"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const file = e.dataTransfer.files?.[0];
-                          if (file) handleImageFile(idx, file);
-                        }}
-                      >
+                      <div className="relative aspect-square overflow-hidden rounded-xl border border-white/40 bg-admin-muted/50 shadow-sm">
                         {preview ? (
-                          <img src={preview} alt={img.fileName || `Ảnh ${order}`} className="w-full h-full object-cover" />
+                          <img
+                            src={preview}
+                            alt={img.fileName || `Ảnh ${order}`}
+                            className="h-full w-full object-cover"
+                            draggable={false}
+                          />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-admin-text-secondary text-center px-1">
-                            Kéo thả hoặc chọn ảnh
+                          <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-admin-text-muted">
+                            Kéo thả ảnh
                           </div>
                         )}
                         <button
                           type="button"
-                          className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center"
+                          className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
                           aria-label="Remove image"
                           title="Xóa"
                           onClick={() => removeImageById(img.id)}
                         >
-                          <X size={12} />
+                          <X size={10} />
                         </button>
-                        <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center text-xs font-semibold">
+                        <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[10px] font-bold text-white">
                           {order}
                         </div>
                       </div>
@@ -616,31 +686,33 @@ export const ProductCreatePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-admin-border/30">
             <button
               type="button"
               onClick={() => navigate('/admin/products')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-admin-card text-admin-text-primary rounded-xl border border-admin-border hover:bg-admin-muted transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 glass border border-white/40 text-admin-text-primary rounded-xl hover:bg-white/60 transition-all duration-200 btn-press"
             >
               <span className="text-sm font-medium">Hủy</span>
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-admin-primary text-admin-text-inverse rounded-xl hover:bg-admin-primary-hover transition-colors shadow-lg shadow-admin-primary/20 disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-5 py-2 bg-admin-primary text-white rounded-xl hover:bg-admin-primary-hover transition-all duration-200 shadow-lg shadow-admin-primary/15 disabled:opacity-50 btn-press"
             >
-              <span className="text-sm font-medium">{saving ? 'Đang lưu...' : 'Lưu sản phẩm'}</span>
+              <span className="text-sm font-medium">
+                {saving ? 'Đang lưu...' : mode === 'edit' ? 'Cập nhật sản phẩm' : 'Lưu sản phẩm'}
+              </span>
             </button>
           </div>
         </div>
 
-        <div className="lg:col-span-3 space-y-6">
-          <div className="bg-admin-card rounded-2xl shadow-sm border border-admin-border p-5 space-y-3">
+        <div className="lg:col-span-3 space-y-5">
+          <div className="glass border border-white/40 rounded-2xl shadow-sm p-5 space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
             <p className="text-sm font-semibold text-admin-text-primary">Thumbnail</p>
 
-            <div className="rounded-2xl bg-admin-bg p-4">
+            <div className="rounded-xl bg-admin-muted/30 p-3">
               <div
-                className="relative rounded-xl overflow-hidden bg-admin-muted aspect-square"
+                className="relative rounded-xl overflow-hidden bg-admin-muted/50 aspect-square border border-white/40"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -648,16 +720,16 @@ export const ProductCreatePage: React.FC = () => {
                   if (file) handleThumbnailFile(file);
                 }}
               >
-                {thumbnailPreviewUrl ? (
+                {thumbnailPreviewUrl || (form.thumbnailUrl && form.thumbnailUrl.trim()) ? (
                   <>
                     <img
-                      src={thumbnailPreviewUrl}
+                      src={thumbnailPreviewUrl ?? form.thumbnailUrl}
                       alt="Thumbnail preview"
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                     />
                     <button
                       type="button"
-                      className="absolute top-3 left-3 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center"
+                      className="absolute top-2 left-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
                       aria-label="Remove thumbnail"
                       title="Remove"
                       onClick={() => {
@@ -667,20 +739,21 @@ export const ProductCreatePage: React.FC = () => {
                           if (prev) URL.revokeObjectURL(prev);
                           return null;
                         });
+                        updateForm('thumbnailUrl', '');
                       }}
                     >
-                      <X size={16} />
+                      <X size={14} />
                     </button>
                     {thumbnailMeta ? (
-                      <div className="absolute top-3 left-14 right-3 rounded-xl bg-black/60 text-white px-3 py-2">
-                        <p className="text-xs font-medium truncate">{thumbnailMeta.name}</p>
-                        <p className="text-[11px] text-white/80">{formatFileSize(thumbnailMeta.size)}</p>
+                      <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/50 px-2.5 py-1.5 text-white backdrop-blur-sm">
+                        <p className="truncate text-[11px] font-medium">{thumbnailMeta.name}</p>
+                        <p className="text-[10px] text-white/70">{formatFileSize(thumbnailMeta.size)}</p>
                       </div>
                     ) : null}
                   </>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-admin-text-secondary">
-                    Kéo thả hoặc bấm để chọn ảnh
+                  <div className="flex h-full w-full items-center justify-center text-xs text-admin-text-muted">
+                    Kéo thả hoặc chọn ảnh
                   </div>
                 )}
               </div>
@@ -689,7 +762,7 @@ export const ProductCreatePage: React.FC = () => {
             <input
               type="file"
               accept="image/*"
-              className="block w-full text-xs text-admin-text-secondary file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-medium file:bg-admin-primary file:text-admin-text-inverse hover:file:bg-admin-primary-hover cursor-pointer"
+              className="block w-full text-xs text-admin-text-secondary file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-admin-primary file:text-white hover:file:bg-admin-primary-hover cursor-pointer"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleThumbnailFile(file);
@@ -701,4 +774,3 @@ export const ProductCreatePage: React.FC = () => {
     </div>
   );
 };
-
