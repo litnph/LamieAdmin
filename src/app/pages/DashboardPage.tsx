@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { DollarSign, ShoppingBag, Box, TrendingUp, MoreHorizontal, ArrowUpRight } from 'lucide-react';
 import { Badge } from '@/shared/components/Badge';
 import { mockOrders } from '@/shared/constants/mockData';
@@ -56,10 +57,13 @@ export const DashboardPage: React.FC = () => {
                 Latest customer activity
               </p>
             </div>
-            <button className="text-admin-text-muted hover:text-admin-primary flex items-center gap-1.5 text-xs font-medium transition-colors duration-200 px-3 py-1.5 rounded-lg hover:bg-admin-primary/5">
-              <span>View all</span>
+            <Link
+              to="/admin/orders"
+              className="text-admin-text-muted hover:text-admin-primary flex items-center gap-1.5 text-xs font-medium transition-colors duration-200 px-3 py-1.5 rounded-lg hover:bg-admin-primary/5"
+            >
+              <span>Xem tất cả đơn</span>
               <MoreHorizontal size={14} />
-            </button>
+            </Link>
           </div>
           <div className="space-y-2">
             {mockOrders.map((order) => (

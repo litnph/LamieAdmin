@@ -3,9 +3,11 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/shared/components/Sidebar';
 import { PrimaryColorPicker } from '@/shared/components/PrimaryColorPicker';
 import { Bell, Search, PanelLeft } from 'lucide-react';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 export const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user } = useAuth();
 
   return (
     <div className="flex h-screen overflow-hidden font-sans text-admin-text-primary bg-gradient-to-br from-[#FAF8F5] via-[#FDF9F5] to-[#F5EFE8]">
@@ -46,7 +48,7 @@ export const AdminLayout: React.FC = () => {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-admin-text-muted group-focus-within:text-admin-primary transition-colors" size={16} />
               <input
                 type="text"
-                placeholder="Search products, orders, tags..."
+                placeholder="Tìm trong admin…"
                 className="w-full pl-10 pr-4 py-2 bg-admin-muted/50 border border-transparent focus:border-admin-primary/30 focus:bg-white rounded-xl text-sm text-admin-text-primary placeholder-admin-text-muted focus:outline-none focus:ring-2 focus:ring-admin-primary/10 transition-all duration-200"
               />
             </div>
@@ -60,11 +62,20 @@ export const AdminLayout: React.FC = () => {
             </button>
             <div className="flex items-center gap-3 pl-3 border-l border-admin-border/50">
               <div className="text-right hidden md:block">
-                <p className="text-sm font-medium text-admin-text-primary leading-tight">Lamie</p>
-                <p className="text-[11px] text-admin-text-muted">Admin</p>
+                <p className="text-sm font-medium text-admin-text-primary leading-tight">
+                  {user?.fullName ?? '—'}
+                </p>
+                <p className="text-[11px] text-admin-text-muted truncate max-w-[140px]" title={user?.email}>
+                  {user?.email ?? ''}
+                </p>
               </div>
               <div className="w-8 h-8 bg-admin-primary/15 rounded-lg flex items-center justify-center text-xs font-bold text-admin-primary">
-                LM
+                {(user?.fullName ?? 'LM')
+                  .split(/\s+/)
+                  .map((p) => p[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase()}
               </div>
             </div>
           </div>

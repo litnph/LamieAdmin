@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Flower2, Settings, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, Flower2, Settings, LogOut, ShoppingBag, CalendarDays, Radio, Users } from 'lucide-react';
+import { useAuth } from '@/features/auth/context/AuthContext';
 
 type SidebarProps = {
   open?: boolean;
@@ -8,16 +9,28 @@ type SidebarProps = {
 
 export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
   const navigate = useNavigate();
+  const { user, logout, isAdmin } = useAuth();
 
   const mainItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, to: '/admin/dashboard' },
-    { id: 'customers', label: 'Customers', icon: Users, to: '/admin/customers' },
+    { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag, to: '/admin/orders' },
+    { id: 'calendar', label: 'Lịch giao', icon: CalendarDays, to: '/admin/orders/calendar' },
   ];
 
   const settingsItems = [
     { id: 'settings-products', label: 'Sản phẩm', icon: Flower2, to: '/admin/products' },
+    { id: 'settings-channels', label: 'Kênh bán', icon: Radio, to: '/admin/settings/channels' },
     { id: 'settings-attributes', label: 'Thuộc tính', icon: Settings, to: '/admin/settings/attributes/categories' },
   ];
+
+  const adminItems = isAdmin
+    ? [{ id: 'users', label: 'Người dùng', icon: Users, to: '/admin/users' }]
+    : [];
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <aside
@@ -37,6 +50,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
             </p>
           </div>
         </div>
+        {user && (
+          <p className="mt-3 text-[11px] text-admin-text-secondary truncate" title={user.email}>
+            {user.fullName}
+          </p>
+        )}
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
@@ -88,11 +106,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
             })}
           </div>
         </div>
+
+        {adminItems.length > 0 && (
+          <div>
+            <p className="px-3.5 mb-2 text-[10px] font-semibold tracking-[0.16em] text-admin-text-muted uppercase">
+              Hệ thống
+            </p>
+            <div className="space-y-0.5 stagger">
+              {adminItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.id}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 animate-slide-in-left ${
+                        isActive
+                          ? 'bg-white/70 text-admin-primary shadow-sm border border-white/50'
+                          : 'text-admin-sidebar-text hover:bg-white/40 border border-transparent'
+                      }`
+                    }
+                  >
+                    <Icon size={18} strokeWidth={1.8} />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="p-3 border-t border-admin-border/40">
         <button
-          onClick={() => navigate('/login')}
+          type="button"
+          onClick={() => void handleLogout()}
           className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-admin-text-muted hover:bg-admin-status-error/8 hover:text-admin-status-error rounded-xl transition-all duration-200"
         >
           <LogOut size={18} strokeWidth={1.8} />
@@ -102,3 +150,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
     </aside>
   );
 };
+

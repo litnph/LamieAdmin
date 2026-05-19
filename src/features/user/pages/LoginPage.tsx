@@ -1,20 +1,31 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Flower2 } from 'lucide-react';
+import { useAuth } from '@/features/auth/context/AuthContext';
+import { getApiErrorMessage } from '@/shared/utils/apiError';
 
-interface LoginPageProps {
-  onLogin: () => void;
-}
-
-export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
-  const [email, setEmail] = useState('');
+export const LoginPage: React.FC = () => {
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login: doLogin } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
-    navigate('/admin');
+    setError(null);
+    setSubmitting(true);
+    try {
+      await doLogin(login, password);
+      const from = (location.state as { from?: string } | null)?.from;
+      navigate(from && from.startsWith('/') ? from : '/admin', { replace: true });
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -32,7 +43,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               Lamie Flower Shop
             </h2>
             <p className="text-admin-text-secondary text-sm leading-relaxed max-w-xs">
-              Curate delicate floral experiences and manage your bouquets, colors and occasions in a calm, focused admin.
+              Quản trị đơn hàng, kênh bán và sản phẩm — đăng nhập bằng email hoặc tên đăng nhập theo API Lamie.
             </p>
           </div>
           <p className="text-[11px] text-admin-text-muted animate-fade-in" style={{ animationDelay: '0.4s' }}>
@@ -49,30 +60,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               Welcome back.
             </h2>
             <p className="text-admin-text-secondary text-sm mt-1.5">
-              Sign in to manage your flower shop.
+              Đăng nhập để tiếp tục phiên làm việc.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm px-4 py-3">{error}</div>
+          )}
+
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
             <div>
-              <label className="block text-xs font-medium text-admin-text-secondary mb-2">Email</label>
+              <label className="block text-xs font-medium text-admin-text-secondary mb-2">Email hoặc tên đăng nhập</label>
               <div className="relative group">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-admin-text-muted group-focus-within:text-admin-primary transition-colors" size={18} />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
                   placeholder="admin@lamie.com"
                   className="w-full pl-12 pr-4 py-3 bg-white/50 border border-admin-input-border/80 rounded-xl text-admin-text-primary placeholder-admin-text-muted focus:outline-none focus:ring-2 focus:ring-admin-primary/15 focus:border-admin-primary/40 focus:bg-white/70 transition-all duration-200"
                   required
+                  autoComplete="username"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-xs font-medium text-admin-text-secondary">Password</label>
-                <a href="#" className="text-[11px] font-medium text-admin-text-muted hover:text-admin-primary transition-colors">Forgot?</a>
+                <label className="block text-xs font-medium text-admin-text-secondary">Mật khẩu</label>
               </div>
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-admin-text-muted group-focus-within:text-admin-primary transition-colors" size={18} />
@@ -83,21 +98,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   placeholder="••••••••"
                   className="w-full pl-12 pr-4 py-3 bg-white/50 border border-admin-input-border/80 rounded-xl text-admin-text-primary placeholder-admin-text-muted focus:outline-none focus:ring-2 focus:ring-admin-primary/15 focus:border-admin-primary/40 focus:bg-white/70 transition-all duration-200"
                   required
+                  autoComplete="current-password"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 py-3 bg-admin-primary hover:bg-admin-primary-hover text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-admin-primary/15 btn-press mt-2"
+              disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-admin-primary hover:bg-admin-primary-hover text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-admin-primary/15 btn-press mt-2 disabled:opacity-60"
             >
-              <span>Sign In</span>
+              <span>{submitting ? 'Đang đăng nhập…' : 'Sign In'}</span>
               <ArrowRight size={16} />
             </button>
           </form>
 
           <p className="text-center text-xs text-admin-text-muted mt-8 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-            Need access? <span className="font-medium text-admin-text-secondary cursor-not-allowed">Contact Administrator</span>
+            Cần quyền truy cập? Liên hệ quản trị hệ thống.
           </p>
         </div>
       </div>
