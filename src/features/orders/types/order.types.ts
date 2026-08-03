@@ -12,11 +12,23 @@ export enum PaymentStatus {
   Paid = 3,
 }
 
+export enum OrderSortBy {
+  DeliveryAt = 1,
+  CreatedAt = 2,
+  TotalAmount = 3,
+}
+
+export enum SortDirection {
+  Ascending = 1,
+  Descending = 2,
+}
+
 export type OrderItemDto = {
   id: string;
   productId?: string | null;
   productSku?: string | null;
   productName: string;
+  thumbnailUrl?: string | null;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
@@ -25,6 +37,7 @@ export type OrderItemDto = {
 
 export type OrderImageDto = {
   id: string;
+  orderItemId?: string | null;
   imageUrl: string;
   sortOrder: number;
   description?: string | null;
@@ -52,8 +65,10 @@ export type OrderListItemDto = {
   recipientName: string;
   recipientPhone: string;
   pickupAtShop: boolean;
+  provinceShipping: boolean;
   deliveryAddress?: string | null;
   deliveryAt: string;
+  deliveryTo?: string | null;
   depositAmount: number;
   shippingFee: number;
   shippingFeeActual?: number | null;
@@ -62,9 +77,12 @@ export type OrderListItemDto = {
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   createdAt: string;
+  contentNote?: string | null;
+  imageUrl?: string | null;
 };
 
 export type OrderDetailDto = OrderListItemDto & {
+  deliveryAddressDescription?: string | null;
   deliveryLatitude?: number | null;
   deliveryLongitude?: number | null;
   description?: string | null;
@@ -81,7 +99,9 @@ export type OrderCalendarItemDto = {
   recipientName: string;
   recipientPhone: string;
   deliveryAt: string;
+  deliveryTo?: string | null;
   pickupAtShop: boolean;
+  provinceShipping: boolean;
   deliveryAddress?: string | null;
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
@@ -119,6 +139,8 @@ export type OrderListQuery = {
   createdTo?: string;
   phone?: string;
   search?: string;
+  sortBy?: OrderSortBy;
+  sortDirection?: SortDirection;
   page?: number;
   pageSize?: number;
 };
@@ -133,3 +155,9 @@ export type CreateOrderLine = {
 };
 
 export type UpdateOrderLine = CreateOrderLine & { id?: string };
+
+export type OrderImageUpload = {
+  file: File;
+  orderItemIndex: number;
+  sortOrder: number;
+};

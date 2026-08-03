@@ -69,6 +69,24 @@ function relLum(rgb: [number, number, number]): number {
   return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
 }
 
+function contrastRatio(a: [number, number, number], b: [number, number, number]): number {
+  const lighter = Math.max(relLum(a), relLum(b));
+  const darker = Math.min(relLum(a), relLum(b));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function ensureWhiteTextContrast(rgb: [number, number, number]): [number, number, number] {
+  const white: [number, number, number] = [255, 255, 255];
+  if (contrastRatio(rgb, white) >= 4.5) return rgb;
+
+  for (let amount = 0.02; amount <= 0.5; amount += 0.02) {
+    const candidate = mixRgb(rgb, [0, 0, 0], amount);
+    if (contrastRatio(candidate, white) >= 4.5) return candidate;
+  }
+
+  return mixRgb(rgb, [0, 0, 0], 0.5);
+}
+
 function hoverFromPrimary(rgb: [number, number, number]): [number, number, number] {
   const L = relLum(rgb);
   if (L < 0.2) return mixRgb(rgb, [255, 255, 255], 0.12);
@@ -81,8 +99,9 @@ function lightFromPrimary(rgb: [number, number, number]): [number, number, numbe
 
 export function applyAdminPrimaryHex(hex: string): void {
   const root = document.documentElement;
-  const rgb = hexToTuple(hex);
-  const hover = hoverFromPrimary(rgb);
+  const sourceRgb = hexToTuple(hex);
+  const rgb = ensureWhiteTextContrast(sourceRgb);
+  const hover = ensureWhiteTextContrast(hoverFromPrimary(rgb));
   const light = lightFromPrimary(rgb);
   const dark = relLum(rgb) < 0.12 ? 0.06 : 0.18;
   const darker = relLum(rgb) < 0.12 ? 0.12 : 0.3;
@@ -92,8 +111,10 @@ export function applyAdminPrimaryHex(hex: string): void {
   root.style.setProperty('--admin-primary-rgb', tupleToSpace(rgb));
   root.style.setProperty('--admin-primary-hover-rgb', tupleToSpace(hover));
   root.style.setProperty('--admin-primary-light-rgb', tupleToSpace(light));
-  root.style.setProperty('--admin-primary-hex', hex);
-  root.style.setProperty('--admin-gradient-from', hex);
+  root.style.setProperty('--admin-primary-foreground-rgb', '255 255 255');
+  root.style.setProperty('--admin-primary-source-hex', hex);
+  root.style.setProperty('--admin-primary-hex', rgbToHex(rgb));
+  root.style.setProperty('--admin-gradient-from', rgbToHex(rgb));
   root.style.setProperty('--admin-gradient-via', rgbToHex(via));
   root.style.setProperty('--admin-gradient-to', rgbToHex(to));
 }

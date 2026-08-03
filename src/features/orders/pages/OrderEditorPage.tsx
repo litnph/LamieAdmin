@@ -1,34 +1,130 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  ImagePlus,
+  LoaderCircle,
+  LocateFixed,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
-import { ordersApi } from '../api/ordersApi';
-import type { CreateOrderLine, UpdateOrderLine } from '../types/order.types';
+import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
+import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
-import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
-import { nominatimSearch } from '../utils/geocode';
+import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
+import { ordersApi } from '../api/ordersApi';
+import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
+import type { OrderImageDto, OrderImageUpload, UpdateOrderLine } from '../types/order.types';
+import { formatOrderCurrency } from '../utils/orderListFormatters';
+import { nominatimReverse, nominatimSearch } from '../utils/geocode';
 
 const inputClass =
-  'w-full px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary';
+  'min-h-10 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 py-2 text-sm text-admin-text-primary placeholder:text-admin-text-muted transition-colors focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15 disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text';
+const labelClass = 'mb-1 block text-xs font-medium text-admin-text-secondary';
+const panelClass = 'rounded-admin-panel border border-admin-border bg-admin-card p-4 shadow-admin-panel';
+const formatVndInput = (value: number | string) => {
+  const numericValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0 ? Math.round(numericValue).toLocaleString('vi-VN') : '';
+};
+const parseVndInput = (value: string) => Number(value.replace(/\D/g, '')) || 0;
 
-const emptyLine = (): CreateOrderLine => ({
+type LineDraft = UpdateOrderLine & {
+  key: string;
+  imageFiles: File[];
+  existingImages: OrderImageDto[];
+};
+
+type ProductSelectOption = AdminSelectOption<string> & {
+  searchText: string;
+};
+
+type EditorProps = { orderId?: string };
+
+const createLineKey = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+
+const emptyLine = (): LineDraft => ({
+  key: createLineKey(),
   productName: '',
   unitPrice: 0,
   quantity: 1,
+  imageFiles: [],
+  existingImages: [],
 });
 
-type EditorProps = {
-  orderId?: string;
+const productName = (product: ProductDto) =>
+  product.translations.find((translation) => translation.languageCode.toLowerCase().startsWith('vi'))?.name?.trim()
+  || product.translations[0]?.name?.trim()
+  || product.sku;
+
+const normalizeProductSearch = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/đ/g, 'd')
+  .replace(/Đ/g, 'D')
+  .toLocaleLowerCase('vi')
+  .trim();
+
+const productImage = (product: ProductDto) => {
+  const detailImage = [...product.images]
+    .filter((image) => image.isActive)
+    .sort((left, right) => left.sortOrder - right.sortOrder)[0]?.imageUrl;
+  return resolveApiResourceUrl(product.thumbnailUrl || detailImage);
+};
+
+const toLocalInput = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const FilePreviews: React.FC<{
+  files: File[];
+  onRemove: (index: number) => void;
+}> = ({ files, onRemove }) => {
+  const previews = useMemo(
+    () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [files],
+  );
+
+  useEffect(() => () => previews.forEach((preview) => URL.revokeObjectURL(preview.url)), [previews]);
+
+  return previews.map((preview, index) => (
+    <div key={`${preview.file.name}-${preview.file.lastModified}`} className="group relative h-14 w-14 overflow-hidden rounded-admin-control border border-admin-border bg-admin-muted">
+      <img src={preview.url} alt={`Ảnh mới ${index + 1}`} className="h-full w-full object-cover" />
+      <button
+        type="button"
+        onClick={() => onRemove(index)}
+        className="absolute right-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded bg-admin-card/90 text-admin-status-error opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+        aria-label={`Bỏ ảnh ${preview.file.name}`}
+      >
+        <X size={13} aria-hidden="true" />
+      </button>
+    </div>
+  ));
 };
 
 const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const navigate = useNavigate();
-  const isEdit = !!orderId;
+  const isEdit = Boolean(orderId);
   const [channels, setChannels] = useState<ChannelDto[]>([]);
-  const [loading, setLoading] = useState(isEdit);
+  const [products, setProducts] = useState<ProductDto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const submitLockRef = useRef(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lineErrors, setLineErrors] = useState<Record<number, string>>({});
 
   const [ordererName, setOrdererName] = useState('');
   const [ordererPhone, setOrdererPhone] = useState('');
@@ -36,72 +132,94 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [pickupAtShop, setPickupAtShop] = useState(false);
+  const [provinceShipping, setProvinceShipping] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryAddressDescription, setDeliveryAddressDescription] = useState('');
   const [deliveryLatitude, setDeliveryLatitude] = useState<number | null>(null);
   const [deliveryLongitude, setDeliveryLongitude] = useState<number | null>(null);
   const [deliveryAt, setDeliveryAt] = useState('');
-  const [depositAmount, setDepositAmount] = useState(0);
+  const [deliveryTo, setDeliveryTo] = useState('');
+  const [deliveryMode, setDeliveryMode] = useState<'exact' | 'range'>('exact');
+  const [depositAmount, setDepositAmount] = useState(100_000);
   const [shippingFee, setShippingFee] = useState(0);
-  const [shippingFeeActual, setShippingFeeActual] = useState<string>('');
+  const [shippingFeeActual, setShippingFeeActual] = useState('');
   const [description, setDescription] = useState('');
   const [contentNote, setContentNote] = useState('');
-  const [items, setItems] = useState<UpdateOrderLine[]>([{ ...emptyLine() }]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [geoQuery, setGeoQuery] = useState('');
+  const [items, setItems] = useState<LineDraft[]>([emptyLine()]);
+
+  const [showMap, setShowMap] = useState(false);
+  const [geoSearching, setGeoSearching] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
   const [geoResults, setGeoResults] = useState<Awaited<ReturnType<typeof nominatimSearch>>>([]);
+  const geoSearchAbortRef = useRef<AbortController | null>(null);
+  const skipAddressSearchRef = useRef(false);
 
-  const toLocalInput = (iso: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
-  const fromLocalInput = (v: string) => {
-    const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-  };
+  const productOptions = useMemo<ProductSelectOption[]>(() => [
+    { value: 'manual', label: 'Sản phẩm ngoài danh mục', searchText: 'san pham ngoai danh muc' },
+    ...products.map((product) => ({
+      value: String(product.id),
+      label: productName(product),
+      searchText: normalizeProductSearch(`${product.sku} ${productName(product)}`),
+      isDisabled: !product.isActive,
+    })),
+  ], [products]);
 
   const load = useCallback(async () => {
-    if (!orderId) {
-      setChannels(await channelsApi.list());
-      setLoading(false);
-      return;
-    }
     setLoading(true);
+    setLoadError(null);
     try {
-      const [ch, o] = await Promise.all([channelsApi.list(), ordersApi.getById(orderId)]);
-      setChannels(ch);
-      setOrdererName(o.ordererName);
-      setOrdererPhone(o.ordererPhone);
-      setChannelId(o.channelId);
-      setRecipientName(o.recipientName);
-      setRecipientPhone(o.recipientPhone);
-      setPickupAtShop(o.pickupAtShop);
-      setDeliveryAddress(o.deliveryAddress ?? '');
-      setDeliveryLatitude(o.deliveryLatitude ?? null);
-      setDeliveryLongitude(o.deliveryLongitude ?? null);
-      setDeliveryAt(toLocalInput(o.deliveryAt));
-      setDepositAmount(o.depositAmount);
-      setShippingFee(o.shippingFee);
-      setShippingFeeActual(o.shippingFeeActual != null ? String(o.shippingFeeActual) : '');
-      setDescription(o.description ?? '');
-      setContentNote(o.contentNote ?? '');
-      setItems(
-        o.items.length
-          ? o.items.map((i) => ({
-              id: i.id,
-              productId: i.productId ?? undefined,
-              productSku: i.productSku ?? undefined,
-              productName: i.productName,
-              unitPrice: i.unitPrice,
-              quantity: i.quantity,
-              note: i.note ?? undefined,
-            }))
-          : [{ ...emptyLine() }],
-      );
-    } catch (e) {
-      setError(getApiErrorMessage(e));
+      if (!orderId) {
+        const [loadedChannels, loadedProducts] = await Promise.all([channelsApi.list(), ProductApi.getAll()]);
+        setChannels(loadedChannels);
+        setProducts(loadedProducts);
+        const defaultChannel = loadedChannels.find((channel) => channel.code === 'admin' && channel.isActive)
+          ?? loadedChannels.find((channel) => channel.isActive);
+        setChannelId(defaultChannel?.id ?? '');
+        return;
+      }
+
+      const [loadedChannels, loadedProducts, order] = await Promise.all([
+        channelsApi.list(),
+        ProductApi.getAll(),
+        ordersApi.getById(orderId),
+      ]);
+      setChannels(loadedChannels);
+      setProducts(loadedProducts);
+      setOrdererName(order.ordererName);
+      setOrdererPhone(order.ordererPhone);
+      setChannelId(order.channelId);
+      setRecipientName(order.recipientName);
+      setRecipientPhone(order.recipientPhone);
+      setPickupAtShop(order.pickupAtShop);
+      setProvinceShipping(order.provinceShipping);
+      setDeliveryAddress(order.deliveryAddress ?? '');
+      setDeliveryAddressDescription(order.deliveryAddressDescription ?? '');
+      setDeliveryLatitude(order.deliveryLatitude ?? null);
+      setDeliveryLongitude(order.deliveryLongitude ?? null);
+      setDeliveryAt(toLocalInput(order.deliveryAt));
+      setDeliveryTo(order.deliveryTo ? toLocalInput(order.deliveryTo) : '');
+      setDeliveryMode(order.deliveryTo ? 'range' : 'exact');
+      setDepositAmount(order.depositAmount);
+      setShippingFee(order.shippingFee);
+      setShippingFeeActual(order.shippingFeeActual == null ? '' : String(order.shippingFeeActual));
+      setDescription(order.description ?? '');
+      setContentNote(order.contentNote ?? '');
+      setItems(order.items.length > 0
+        ? order.items.map((item) => ({
+            key: item.id,
+            id: item.id,
+            productId: item.productId ?? undefined,
+            productSku: item.productSku ?? undefined,
+            productName: item.productName,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+            note: item.note ?? undefined,
+            imageFiles: [],
+            existingImages: order.images.filter((image) => image.orderItemId === item.id),
+          }))
+        : [emptyLine()]);
+    } catch (requestError) {
+      setLoadError(getApiErrorMessage(requestError));
     } finally {
       setLoading(false);
     }
@@ -111,346 +229,645 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     void load();
   }, [load]);
 
-  const updateLine = (index: number, patch: Partial<UpdateOrderLine>) => {
-    setItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const updateLine = (index: number, patch: Partial<LineDraft>) => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+    setLineErrors((current) => {
+      if (!current[index]) return current;
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
   };
 
-  const addLine = () => setItems((prev) => [...prev, { ...emptyLine() }]);
-  const removeLine = (index: number) => setItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
-
-  const runGeoSearch = async () => {
-    const r = await nominatimSearch(geoQuery);
-    setGeoResults(r);
+  const selectProduct = (index: number, value: string) => {
+    if (value === 'manual') {
+      updateLine(index, { productId: undefined, productSku: undefined, productName: '', unitPrice: 0 });
+      return;
+    }
+    const selected = products.find((product) => String(product.id) === value);
+    if (!selected) return;
+    updateLine(index, {
+      productId: String(selected.id),
+      productSku: selected.sku,
+      productName: productName(selected),
+      unitPrice: selected.salePrice ?? selected.price,
+    });
   };
 
-  const pickGeo = (lat: number, lon: number, label: string) => {
-    setDeliveryLatitude(lat);
-    setDeliveryLongitude(lon);
-    if (!deliveryAddress.trim()) setDeliveryAddress(label);
+  const removeLine = (index: number) => {
+    if (items.length <= 1) return;
+    setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setLineErrors({});
+  };
+
+  const runGeoSearch = useCallback(async (requestedQuery?: string, automatic = false) => {
+    const query = (requestedQuery ?? deliveryAddress).trim();
+    if (!query) {
+      setGeoError('Nhập địa chỉ nhận hàng trước khi tìm.');
+      return;
+    }
+    geoSearchAbortRef.current?.abort();
+    const controller = new AbortController();
+    geoSearchAbortRef.current = controller;
+    setGeoSearching(true);
+    setGeoError(null);
     setGeoResults([]);
+    try {
+      const results = await nominatimSearch(query, controller.signal);
+      setGeoResults(results);
+      if (results.length === 0) {
+        setGeoError(automatic
+          ? 'Không tìm thấy trên bản đồ. Địa chỉ vẫn được lưu dưới dạng nội dung nhập tay.'
+          : 'Không tìm thấy địa chỉ phù hợp tại Việt Nam. Địa chỉ vẫn có thể lưu dạng text.');
+      }
+    } catch (requestError) {
+      if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
+        setGeoError(getApiErrorMessage(requestError));
+      }
+    } finally {
+      if (geoSearchAbortRef.current === controller) setGeoSearching(false);
+    }
+  }, [deliveryAddress]);
+
+  useEffect(() => {
+    if (pickupAtShop || deliveryAddress.trim().length < 5) return;
+    if (skipAddressSearchRef.current) {
+      skipAddressSearchRef.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => void runGeoSearch(deliveryAddress, true), 700);
+    return () => window.clearTimeout(timer);
+  }, [deliveryAddress, pickupAtShop, runGeoSearch]);
+
+  const pickGeo = (latitude: number, longitude: number, label?: string) => {
+    setDeliveryLatitude(latitude);
+    setDeliveryLongitude(longitude);
+    if (label) {
+      skipAddressSearchRef.current = true;
+      setDeliveryAddress(label);
+    }
+    setGeoResults([]);
+    setGeoError(null);
+    setShowMap(true);
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const pickMapPoint = async (latitude: number, longitude: number) => {
+    pickGeo(latitude, longitude);
+    setGeoSearching(true);
+    setGeoError(null);
+    try {
+      const address = await nominatimReverse(latitude, longitude);
+      if (address) {
+        skipAddressSearchRef.current = true;
+        setDeliveryAddress(address);
+      } else {
+        setGeoError('Vị trí đã được ghim nhưng bản đồ không có địa chỉ. Hãy nhập địa chỉ và mô tả bên dưới.');
+      }
+    } catch (requestError) {
+      setGeoError(getApiErrorMessage(requestError));
+    } finally {
+      setGeoSearching(false);
+    }
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoError('Trình duyệt không hỗ trợ lấy vị trí hiện tại.');
+      return;
+    }
+    setGeoSearching(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void pickMapPoint(position.coords.latitude, position.coords.longitude);
+      },
+      () => {
+        setGeoError('Không thể lấy vị trí hiện tại. Hãy kiểm tra quyền truy cập vị trí.');
+        setGeoSearching(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
+
+  const validate = () => {
+    const problems: string[] = [];
+    const nextLineErrors: Record<number, string> = {};
+    let firstField = '';
+    const requireValue = (value: string, message: string, fieldId: string) => {
+      if (value.trim()) return;
+      problems.push(message);
+      if (!firstField) firstField = fieldId;
+    };
+
+    requireValue(ordererName, 'Thiếu tên người đặt.', 'orderer-name');
+    requireValue(channelId, 'Chưa chọn kênh bán.', 'order-channel');
+    requireValue(recipientName, 'Thiếu tên người nhận.', 'recipient-name');
+    requireValue(recipientPhone, 'Thiếu số điện thoại người nhận.', 'recipient-phone');
+    requireValue(deliveryAt, 'Chưa chọn thời gian nhận hàng.', 'delivery-at');
+    if (deliveryMode === 'range') {
+      requireValue(deliveryTo, 'Chưa chọn thời gian kết thúc khoảng nhận hàng.', 'delivery-to');
+      if (deliveryAt && deliveryTo && new Date(deliveryTo).getTime() < new Date(deliveryAt).getTime()) {
+        problems.push('Thời gian kết thúc phải sau hoặc bằng thời gian bắt đầu.');
+        if (!firstField) firstField = 'delivery-to';
+      }
+    }
+    if (depositAmount < 0 || shippingFee < 0 || (shippingFeeActual && Number(shippingFeeActual) < 0)) {
+      problems.push('Các khoản tiền không được âm.');
+      if (!firstField) firstField = 'deposit-amount';
+    }
+
+    items.forEach((item, index) => {
+      if (item.quantity < 1 || !Number.isInteger(item.quantity)) {
+        nextLineErrors[index] = 'Số lượng phải là số nguyên từ 1 trở lên.';
+      } else if (!item.productId && !item.productName.trim()) {
+        nextLineErrors[index] = 'Nhập tên sản phẩm ngoài danh mục.';
+      } else if (item.unitPrice <= 0) {
+        nextLineErrors[index] = 'Đơn giá sản phẩm phải lớn hơn 0.';
+      } else if (!item.productId && item.existingImages.length + item.imageFiles.length === 0) {
+        nextLineErrors[index] = 'Sản phẩm ngoài danh mục cần ít nhất 1 ảnh minh họa.';
+      }
+      if (nextLineErrors[index] && !firstField) firstField = `order-line-product-${index}`;
+    });
+
+    if (Object.keys(nextLineErrors).length > 0) problems.push('Kiểm tra lại các dòng sản phẩm được đánh dấu.');
+    setLineErrors(nextLineErrors);
+    setError(problems.length > 0 ? problems.join(' ') : null);
+    if (firstField) requestAnimationFrame(() => document.getElementById(firstField)?.focus());
+    return problems.length === 0;
+  };
+
+  const imageUploads = (): OrderImageUpload[] =>
+    items.flatMap((item, orderItemIndex) => item.imageFiles.map((file, sortOrder) => ({
+      file,
+      orderItemIndex,
+      sortOrder,
+    })));
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (submitLockRef.current) return;
+    if (!validate()) return;
+    submitLockRef.current = true;
     setSaving(true);
     setError(null);
+    const orderItems = items.map(({ id, productId, productSku, productName: name, unitPrice, quantity, note }) => ({
+      id,
+      productId,
+      productSku,
+      productName: name.trim(),
+      unitPrice,
+      quantity,
+      note: note?.trim() || undefined,
+    }));
+
     try {
-      const deliveryIso = fromLocalInput(deliveryAt);
-      if (isEdit && orderId) {
+      const deliveryIso = new Date(deliveryAt).toISOString();
+      const deliveryToIso = deliveryMode === 'range' && deliveryTo
+        ? new Date(deliveryTo).toISOString()
+        : undefined;
+      const commonPayload = {
+        ordererName: ordererName.trim(),
+        ordererPhone: ordererPhone.trim(),
+        channelId,
+        recipientName: recipientName.trim(),
+        recipientPhone: recipientPhone.trim(),
+        pickupAtShop,
+        provinceShipping,
+        deliveryAddress: pickupAtShop ? undefined : deliveryAddress.trim(),
+        deliveryAddressDescription: pickupAtShop ? undefined : deliveryAddressDescription.trim() || undefined,
+        deliveryLatitude: pickupAtShop ? undefined : deliveryLatitude ?? undefined,
+        deliveryLongitude: pickupAtShop ? undefined : deliveryLongitude ?? undefined,
+        deliveryAt: deliveryIso,
+        deliveryTo: deliveryToIso,
+        depositAmount,
+        shippingFee: pickupAtShop ? 0 : shippingFee,
+        description: description || undefined,
+        contentNote: contentNote.trim() || undefined,
+        items: orderItems,
+        imageFiles: imageUploads(),
+      };
+
+      if (orderId) {
         await ordersApi.update(orderId, {
-          ordererName,
-          ordererPhone,
-          channelId,
-          recipientName,
-          recipientPhone,
-          pickupAtShop,
-          deliveryAddress: pickupAtShop ? undefined : deliveryAddress,
-          deliveryLatitude: pickupAtShop ? undefined : deliveryLatitude ?? undefined,
-          deliveryLongitude: pickupAtShop ? undefined : deliveryLongitude ?? undefined,
-          deliveryAt: deliveryIso,
-          depositAmount,
-          shippingFee: pickupAtShop ? 0 : shippingFee,
-          shippingFeeActual: pickupAtShop
+          ...commonPayload,
+          shippingFeeActual: pickupAtShop || shippingFeeActual.trim() === ''
             ? null
-            : shippingFeeActual.trim() === ''
-              ? null
-              : Number(shippingFeeActual),
-          description: description || undefined,
-          contentNote: contentNote || undefined,
-          items,
+            : Number(shippingFeeActual),
         });
         navigate(`/admin/orders/${orderId}`);
       } else {
-        const created = await ordersApi.create({
-          ordererName,
-          ordererPhone,
-          channelId,
-          recipientName,
-          recipientPhone,
-          pickupAtShop,
-          deliveryAddress: pickupAtShop ? undefined : deliveryAddress,
-          deliveryLatitude: pickupAtShop ? undefined : deliveryLatitude ?? undefined,
-          deliveryLongitude: pickupAtShop ? undefined : deliveryLongitude ?? undefined,
-          deliveryAt: deliveryIso,
-          depositAmount,
-          shippingFee: pickupAtShop ? 0 : shippingFee,
-          description: description || undefined,
-          contentNote: contentNote || undefined,
-          items: items.map(({ productName, unitPrice, quantity, note, productId, productSku }) => ({
-            productName,
-            unitPrice,
-            quantity,
-            note,
-            productId,
-            productSku,
-          })),
-          imageFiles,
-        });
+        const created = await ordersApi.create(commonPayload);
         navigate(`/admin/orders/${created.id}`);
       }
-    } catch (err) {
-      setError(getApiErrorMessage(err));
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
     } finally {
+      submitLockRef.current = false;
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <div className="text-sm text-slate-500 py-16 text-center">Đang tải…</div>;
+    return (
+      <div className="min-w-0">
+        <PageHeader title={isEdit ? 'Sửa đơn hàng' : 'Tạo đơn hàng'} description="Đang chuẩn bị dữ liệu đơn hàng." />
+        <div className="flex min-h-64 items-center justify-center rounded-admin-panel border border-admin-border bg-admin-card" role="status">
+          <LoaderCircle className="mr-2 animate-spin text-admin-primary" size={18} aria-hidden="true" />
+          <span className="text-sm text-admin-text-secondary">Đang tải thông tin</span>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <Link
-        to={orderId ? `/admin/orders/${orderId}` : '/admin/orders'}
-        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-admin-primary"
-      >
-        <ArrowLeft size={14} /> Quay lại
-      </Link>
-      <PageHeader title={isEdit ? 'Sửa đơn hàng' : 'Tạo đơn hàng'} subtitle="Đồng bộ với API Lamie (multipart khi tạo, JSON khi sửa)." />
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm px-4 py-3">{error}</div>
-      )}
-
-      <form onSubmit={(e) => void submit(e)} className="space-y-6">
-        <div className="glass-strong rounded-2xl border border-white/50 p-5 grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Người đặt</label>
-            <input className={inputClass} value={ordererName} onChange={(e) => setOrdererName(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">SĐT người đặt</label>
-            <input className={inputClass} value={ordererPhone} onChange={(e) => setOrdererPhone(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Kênh</label>
-            <select
-              className={inputClass}
-              value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
-              required
+    <div className="min-w-0 pb-2">
+      <PageHeader
+        title={isEdit ? 'Sửa đơn hàng' : 'Tạo đơn hàng'}
+        description="Thông tin chính, sản phẩm và giao nhận được gom trong một màn hình."
+        actions={(
+          <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="btn-press inline-flex min-h-10 shrink-0 items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted"
             >
-              <option value="">Chọn kênh</option>
-              {channels.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Thời gian nhận hàng</label>
-            <input
-              type="datetime-local"
-              className={inputClass}
-              value={deliveryAt}
-              onChange={(e) => setDeliveryAt(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="glass-strong rounded-2xl border border-white/50 p-5 grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Người nhận</label>
-            <input className={inputClass} value={recipientName} onChange={(e) => setRecipientName(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">SĐT người nhận</label>
-            <input className={inputClass} value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} required />
-          </div>
-          <label className="sm:col-span-2 flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={pickupAtShop} onChange={(e) => setPickupAtShop(e.target.checked)} />
-            Khách ghé shop lấy hàng (không giao)
-          </label>
-          {!pickupAtShop && (
-            <>
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Địa chỉ nhận</label>
-                <textarea
-                  className={`${inputClass} min-h-[72px]`}
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  required={!pickupAtShop}
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-2">
-                <label className="block text-[11px] font-medium text-slate-500">Tìm vị trí (Nominatim / OSM)</label>
-                <div className="flex gap-2">
-                  <input
-                    className={inputClass}
-                    value={geoQuery}
-                    onChange={(e) => setGeoQuery(e.target.value)}
-                    placeholder="Địa chỉ, quận, TP…"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void runGeoSearch()}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-sm whitespace-nowrap hover:bg-slate-50"
-                  >
-                    Tìm
-                  </button>
-                </div>
-                {geoResults.length > 0 && (
-                  <ul className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-40 overflow-auto bg-white text-sm">
-                    {geoResults.map((r, idx) => (
-                      <li key={idx}>
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700"
-                          onClick={() => pickGeo(r.lat, r.lon, r.display_name)}
-                        >
-                          {r.display_name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <DeliveryLocationPicker
-                  latitude={deliveryLatitude}
-                  longitude={deliveryLongitude}
-                  onChange={(lat, lng) => {
-                    setDeliveryLatitude(lat);
-                    setDeliveryLongitude(lng);
-                  }}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="glass-strong rounded-2xl border border-white/50 p-5 grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Tiền cọc</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className={inputClass}
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Phí ship (ước tính)</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className={inputClass}
-              disabled={pickupAtShop}
-              value={shippingFee}
-              onChange={(e) => setShippingFee(Number(e.target.value))}
-            />
-          </div>
-          {isEdit && (
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Phí ship thực tế</label>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                className={inputClass}
-                disabled={pickupAtShop}
-                value={shippingFeeActual}
-                onChange={(e) => setShippingFeeActual(e.target.value)}
-                placeholder="Để trống = theo ước tính"
-              />
-            </div>
-          )}
-          <div className="sm:col-span-2">
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Mô tả</label>
-            <textarea className={`${inputClass} min-h-[60px]`} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Nội dung đơn / ghi chú</label>
-            <textarea className={`${inputClass} min-h-[60px]`} value={contentNote} onChange={(e) => setContentNote(e.target.value)} />
-          </div>
-        </div>
-
-        <div className="glass-strong rounded-2xl border border-white/50 p-5 space-y-3">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dòng hàng</h3>
-            <button type="button" onClick={addLine} className="text-xs text-admin-primary font-medium hover:underline">
-              + Thêm dòng
+              <ArrowLeft size={16} aria-hidden="true" /> Quay lại
+            </button>
+            <Link
+              to={orderId ? `/admin/orders/${orderId}` : '/admin/orders'}
+              className="btn-press inline-flex min-h-10 shrink-0 items-center justify-center rounded-admin-control px-3 text-sm font-semibold text-admin-text-secondary transition-colors hover:bg-admin-muted"
+            >
+              Hủy
+            </Link>
+            <button
+              type="submit"
+              form="order-editor-form"
+              disabled={saving || Boolean(loadError)}
+              className="btn-press inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : null}
+              {saving ? 'Đang lưu' : isEdit ? 'Cập nhật đơn' : 'Tạo đơn'}
             </button>
           </div>
-          {items.map((row, idx) => (
-            <div key={idx} className="grid sm:grid-cols-12 gap-2 items-end border border-slate-100 rounded-xl p-3 bg-white/60">
-              <div className="sm:col-span-5">
-                <label className="text-[10px] text-slate-400">Tên SP</label>
-                <input
-                  className={inputClass}
-                  value={row.productName}
-                  onChange={(e) => updateLine(idx, { productName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-[10px] text-slate-400">Đơn giá</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className={inputClass}
-                  value={row.unitPrice}
-                  onChange={(e) => updateLine(idx, { unitPrice: Number(e.target.value) })}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-[10px] text-slate-400">SL</label>
-                <input
-                  type="number"
-                  min={1}
-                  className={inputClass}
-                  value={row.quantity}
-                  onChange={(e) => updateLine(idx, { quantity: Number(e.target.value) })}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-[10px] text-slate-400">Ghi chú</label>
-                <input className={inputClass} value={row.note ?? ''} onChange={(e) => updateLine(idx, { note: e.target.value })} />
-              </div>
-              <div className="sm:col-span-1 flex justify-end">
-                <button type="button" onClick={() => removeLine(idx)} className="text-xs text-red-600 hover:underline">
-                  Xóa
+        )}
+      />
+
+      {loadError ? (
+        <div className="mb-4 flex flex-col gap-3 rounded-admin-control border border-admin-status-error/30 bg-red-50 px-4 py-3 text-sm text-admin-status-error sm:flex-row sm:items-center sm:justify-between" role="alert">
+          <span>Không thể tải dữ liệu: {loadError}</span>
+          <button type="button" onClick={() => void load()} className="min-h-10 rounded-admin-control border border-admin-status-error/30 px-3 font-semibold hover:bg-red-100">Thử lại</button>
+        </div>
+      ) : null}
+      {error ? (
+        <div className="mb-4 rounded-admin-control border border-admin-status-error/30 bg-red-50 px-4 py-3 text-sm leading-6 text-admin-status-error" role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <form id="order-editor-form" noValidate onSubmit={(event) => void submit(event)} className="space-y-4">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(28rem,1fr)] xl:items-start">
+          <div className="min-w-0 space-y-4">
+            <section className={panelClass} aria-labelledby="customer-section-title">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 id="customer-section-title" className="text-sm font-semibold text-admin-text-primary">Khách hàng & lịch nhận</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecipientName(ordererName);
+                    setRecipientPhone(ordererPhone);
+                  }}
+                  className="text-xs font-semibold text-admin-primary hover:underline"
+                >
+                  Người nhận giống người đặt
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
+              <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label htmlFor="orderer-name" className={labelClass}>Người đặt</label>
+                  <input id="orderer-name" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" />
+                </div>
+                <div>
+                  <label htmlFor="orderer-phone" className={labelClass}>SĐT người đặt <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
+                  <input id="orderer-phone" type="tel" className={inputClass} value={ordererPhone} onChange={(event) => setOrdererPhone(event.target.value)} autoComplete="tel" />
+                </div>
+                <div>
+                  <label htmlFor="order-channel" className={labelClass}>Kênh bán</label>
+                  <select id="order-channel" className={inputClass} value={channelId} onChange={(event) => setChannelId(event.target.value)}>
+                    <option value="">Chọn kênh</option>
+                    {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="recipient-name" className={labelClass}>Người nhận</label>
+                  <input id="recipient-name" className={inputClass} value={recipientName} onChange={(event) => setRecipientName(event.target.value)} autoComplete="shipping name" />
+                </div>
+                <div>
+                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận</label>
+                  <input id="recipient-phone" type="tel" className={inputClass} value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} autoComplete="shipping tel" />
+                </div>
+                <fieldset className="sm:col-span-2 lg:col-span-3">
+                  <legend className={labelClass}>{provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận'}</legend>
+                  <div className="mb-2 inline-flex rounded-admin-control border border-admin-border bg-admin-muted p-0.5" aria-label={provinceShipping ? 'Kiểu thời gian gửi đơn vị vận chuyển' : 'Kiểu thời gian nhận'}>
+                    {(['exact', 'range'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => {
+                          setDeliveryMode(mode);
+                          if (mode === 'exact') setDeliveryTo('');
+                        }}
+                        className={`min-h-9 rounded-admin-control px-3 text-xs font-semibold transition-colors ${deliveryMode === mode ? 'bg-admin-card text-admin-primary shadow-sm' : 'text-admin-text-secondary hover:text-admin-text-primary'}`}
+                        aria-pressed={deliveryMode === mode}
+                      >
+                        {mode === 'exact' ? 'Giờ cụ thể' : 'Khoảng thời gian'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`grid gap-2.5 ${deliveryMode === 'range' ? 'sm:grid-cols-2' : ''}`}>
+                    <div>
+                      <label htmlFor="delivery-at" className="sr-only">{deliveryMode === 'range' ? (provinceShipping ? 'Gửi từ' : 'Nhận từ') : (provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận')}</label>
+                      {deliveryMode === 'range' ? <p className="mb-1 text-[11px] text-admin-text-muted">Từ</p> : null}
+                      <input id="delivery-at" type="datetime-local" className={inputClass} value={deliveryAt} onChange={(event) => setDeliveryAt(event.target.value)} />
+                    </div>
+                    {deliveryMode === 'range' ? (
+                      <div>
+                        <label htmlFor="delivery-to" className="mb-1 block text-[11px] text-admin-text-muted">Đến</label>
+                        <input id="delivery-to" type="datetime-local" min={deliveryAt || undefined} className={inputClass} value={deliveryTo} onChange={(event) => setDeliveryTo(event.target.value)} />
+                      </div>
+                    ) : null}
+                  </div>
+                </fieldset>
+              </div>
+            </section>
 
-        {!isEdit && (
-          <div className="glass-strong rounded-2xl border border-white/50 p-5 space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hình ảnh minh họa (tuỳ chọn)</h3>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => setImageFiles(Array.from(e.target.files ?? []))}
-              className="text-sm text-slate-600"
-            />
+            <section className={panelClass} aria-labelledby="order-lines-title">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 id="order-lines-title" className="text-sm font-semibold text-admin-text-primary">Sản phẩm</h2>
+                  <p className="mt-0.5 text-xs text-admin-text-muted">Chọn từ danh mục; sản phẩm ngoài danh mục cần ảnh.</p>
+                </div>
+                <button type="button" onClick={() => setItems((current) => [...current, emptyLine()])} className="inline-flex min-h-9 items-center gap-1.5 rounded-admin-control px-2.5 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/10">
+                  <Plus size={15} aria-hidden="true" /> Thêm
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {items.map((item, index) => {
+                  const selectedProduct = item.productId
+                    ? products.find((product) => String(product.id) === item.productId)
+                    : undefined;
+                  const selectedProductImage = selectedProduct ? productImage(selectedProduct) : '';
+                  const isManual = !item.productId;
+                  const catalogPrice = selectedProduct ? selectedProduct.salePrice ?? selectedProduct.price : null;
+                  const priceDifference = catalogPrice == null ? 0 : item.unitPrice - catalogPrice;
+                  return (
+                    <fieldset key={item.key} className={`rounded-admin-control border p-3 ${lineErrors[index] ? 'border-admin-status-error/45 bg-red-50/50' : 'border-admin-border bg-admin-muted/25'}`}>
+                      <legend className="px-1 text-[11px] font-semibold text-admin-text-muted">#{index + 1}</legend>
+                      <div className="grid items-end gap-2.5 md:grid-cols-[minmax(13rem,1fr)_minmax(8rem,0.42fr)_5rem_2.5rem]">
+                        <div>
+                          <label htmlFor={`order-line-product-${index}`} className={labelClass}>Sản phẩm cụ thể</label>
+                          <AdminSelect<string, ProductSelectOption>
+                            inputId={`order-line-product-${index}`}
+                            aria-label={`Tìm sản phẩm cụ thể cho dòng ${index + 1}`}
+                            options={productOptions.map((option) => (
+                              option.value === item.productId ? { ...option, isDisabled: false } : option
+                            ))}
+                            value={productOptions.find((option) => option.value === (item.productId ?? 'manual')) ?? productOptions[0]}
+                            onChange={(option) => selectProduct(index, option?.value ?? 'manual')}
+                            placeholder="Tìm theo mã hoặc tên sản phẩm"
+                            filterOption={(option, inputValue) => (
+                              option.data.searchText.includes(normalizeProductSearch(inputValue))
+                            )}
+                            isSearchable
+                            openMenuOnFocus
+                          />
+                          <p className="mt-1 text-[11px] text-admin-text-muted">Tìm theo mã SKU hoặc tên; danh sách chỉ hiển thị tên sản phẩm.</p>
+                        </div>
+                        <div>
+                          <label htmlFor={`order-line-price-${index}`} className={labelClass}>Đơn giá</label>
+                          <div className="relative">
+                            <input id={`order-line-price-${index}`} type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(item.unitPrice)} onChange={(event) => updateLine(index, { unitPrice: parseVndInput(event.target.value) })} />
+                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor={`order-line-quantity-${index}`} className={labelClass}>SL</label>
+                          <input id={`order-line-quantity-${index}`} type="number" min={1} step={1} className={inputClass} value={item.quantity} onChange={(event) => updateLine(index, { quantity: Number(event.target.value) })} />
+                        </div>
+                        <button type="button" onClick={() => removeLine(index)} disabled={items.length <= 1} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control text-admin-status-error transition-colors hover:bg-admin-status-error/10 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Xóa sản phẩm ${index + 1}`}>
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      {isManual ? (
+                        <div className="mt-2.5">
+                          <label htmlFor={`order-line-name-${index}`} className={labelClass}>Tên sản phẩm ngoài danh mục</label>
+                          <input id={`order-line-name-${index}`} className={inputClass} value={item.productName} onChange={(event) => updateLine(index, { productName: event.target.value })} placeholder="Ví dụ: Bó hoa thiết kế riêng" />
+                        </div>
+                      ) : (
+                        <div className="mt-2.5 flex min-w-0 items-center gap-2 text-xs text-admin-text-secondary">
+                          {selectedProductImage ? <img src={selectedProductImage} alt="" className="h-9 w-9 shrink-0 rounded-admin-control object-cover" /> : null}
+                          <div className="min-w-0">
+                            <p className="truncate">{item.productName} · {item.productSku}</p>
+                            {priceDifference !== 0 ? (
+                              <p className={`mt-0.5 font-medium ${priceDifference < 0 ? 'text-admin-status-warning' : 'text-admin-status-success'}`}>
+                                {priceDifference < 0 ? 'Giảm size' : 'Tăng size'} {priceDifference > 0 ? '+' : ''}{formatOrderCurrency(priceDifference)} so với giá danh mục
+                              </p>
+                            ) : <p className="mt-0.5 text-admin-text-muted">Đang dùng giá danh mục</p>}
+                            {!selectedProduct?.tracksInventory ? <p className="mt-0.5 text-admin-primary">Làm theo đơn, không trừ tồn kho</p> : null}
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
+                        <div>
+                          <label htmlFor={`order-line-note-${index}`} className={labelClass}>Ghi chú riêng cho sản phẩm</label>
+                          <textarea id={`order-line-note-${index}`} className={`${inputClass} min-h-16 resize-y`} value={item.note ?? ''} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Màu hoa, kích thước, nội dung thiệp…" />
+                        </div>
+                        <div>
+                          <span className={labelClass}>Ảnh minh họa {isManual ? <span className="text-admin-status-error">*</span> : <span className="text-admin-text-muted">(không bắt buộc)</span>}</span>
+                          <div className="flex min-h-16 flex-wrap items-center gap-2 rounded-admin-control border border-dashed border-admin-border p-2">
+                            {item.existingImages.map((image) => (
+                              <img key={image.id} src={resolveApiResourceUrl(image.imageUrl)} alt="Ảnh minh họa đã lưu" className="h-14 w-14 rounded-admin-control border border-admin-border object-cover" />
+                            ))}
+                            <FilePreviews files={item.imageFiles} onRemove={(fileIndex) => updateLine(index, { imageFiles: item.imageFiles.filter((_, currentIndex) => currentIndex !== fileIndex) })} />
+                            <label htmlFor={`order-line-images-${index}`} className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-admin-control border border-admin-primary/35 px-3 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/8">
+                              <ImagePlus size={15} aria-hidden="true" /> Thêm ảnh
+                            </label>
+                            <input
+                              id={`order-line-images-${index}`}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              multiple
+                              className="sr-only"
+                              onChange={(event) => {
+                                const nextFiles = Array.from(event.target.files ?? []);
+                                updateLine(index, { imageFiles: [...item.imageFiles, ...nextFiles] });
+                                event.target.value = '';
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      {lineErrors[index] ? <p className="mt-2 text-xs font-medium text-admin-status-error" role="alert">{lineErrors[index]}</p> : null}
+                    </fieldset>
+                  );
+                })}
+              </div>
+            </section>
           </div>
-        )}
-        {isEdit && (
-          <p className="text-xs text-slate-500 px-1">
-            Ảnh đính kèm chỉ thêm được lúc tạo đơn (API hiện tại không cập nhật ảnh qua PUT).
-          </p>
-        )}
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2.5 rounded-xl bg-admin-primary text-white text-sm font-medium hover:bg-admin-primary-hover disabled:opacity-50"
-          >
-            {saving ? 'Đang lưu…' : isEdit ? 'Cập nhật' : 'Tạo đơn'}
-          </button>
-          <Link to="/admin/orders" className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-white">
-            Huỷ
-          </Link>
+          <div className="min-w-0 space-y-4 xl:sticky xl:top-4">
+            <section className={panelClass} aria-labelledby="delivery-section-title">
+              <div className="mb-3">
+                <h2 id="delivery-section-title" className="text-sm font-semibold text-admin-text-primary">Giao nhận</h2>
+                <div className="mt-2 grid grid-cols-3 gap-1 rounded-admin-control border border-admin-border bg-admin-muted p-1" role="radiogroup" aria-label="Hình thức giao nhận">
+                  {([
+                    ['local', 'Giao nội thành'],
+                    ['province', 'Ship tỉnh'],
+                    ['pickup', 'Lấy tại shop'],
+                  ] as const).map(([method, label]) => {
+                    const selected = method === 'pickup' ? pickupAtShop : method === 'province' ? provinceShipping : !pickupAtShop && !provinceShipping;
+                    return (
+                      <button
+                        key={method}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          setPickupAtShop(method === 'pickup');
+                          setProvinceShipping(method === 'province');
+                        }}
+                        className={`min-h-10 rounded-admin-control px-2 text-xs font-semibold transition-colors ${selected ? 'bg-admin-card text-admin-primary shadow-sm' : 'text-admin-text-secondary hover:text-admin-text-primary'}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {provinceShipping ? (
+                  <p className="mt-2 rounded-admin-control bg-admin-primary/6 px-3 py-2 text-xs leading-5 text-admin-text-secondary">
+                    Thời gian đơn hàng là lúc bàn giao cho đơn vị vận chuyển, không phải thời gian người nhận nhận hàng.
+                  </p>
+                ) : null}
+              </div>
+
+              {!pickupAtShop ? (
+                <div className="space-y-2.5">
+                  <div>
+                    <label htmlFor="delivery-address" className={labelClass}>Địa chỉ nhận <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
+                    <div className="flex gap-2">
+                      <input
+                        id="delivery-address"
+                        className={inputClass}
+                        value={deliveryAddress}
+                        onChange={(event) => {
+                          setDeliveryAddress(event.target.value);
+                          setDeliveryLatitude(null);
+                          setDeliveryLongitude(null);
+                          setGeoResults([]);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void runGeoSearch(deliveryAddress);
+                          }
+                        }}
+                        autoComplete="shipping street-address"
+                        placeholder="Nhập địa chỉ, hệ thống sẽ tự tìm trên bản đồ"
+                      />
+                      <button type="button" onClick={() => void runGeoSearch(deliveryAddress)} disabled={geoSearching} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-admin-control border border-admin-border text-admin-text-primary transition-colors hover:bg-admin-muted disabled:opacity-50" aria-label="Tìm địa chỉ trên bản đồ">
+                        {geoSearching ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Search size={16} aria-hidden="true" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {geoResults.length > 0 ? (
+                    <ul className="max-h-44 overflow-auto rounded-admin-control border border-admin-border bg-admin-card text-xs shadow-admin-panel" aria-label="Kết quả địa chỉ">
+                      {geoResults.map((result) => (
+                        <li key={`${result.lat}-${result.lon}`}>
+                          <button type="button" onClick={() => pickGeo(result.lat, result.lon, result.display_name)} className="w-full border-b border-admin-border px-3 py-2.5 text-left leading-5 text-admin-text-secondary transition-colors last:border-0 hover:bg-admin-muted hover:text-admin-text-primary">
+                            {result.display_name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {geoError ? <p className="text-xs leading-5 text-admin-status-error" role="status">{geoError}</p> : null}
+
+                  <div>
+                    <label htmlFor="delivery-address-description" className={labelClass}>Mô tả địa chỉ nhận</label>
+                    <textarea
+                      id="delivery-address-description"
+                      className={`${inputClass} min-h-16 resize-y`}
+                      value={deliveryAddressDescription}
+                      onChange={(event) => setDeliveryAddressDescription(event.target.value)}
+                      placeholder="Ví dụ: hẻm bên cạnh số 25, cổng màu xanh, gọi khách khi tới…"
+                    />
+                    <p className="mt-1 text-[11px] leading-4 text-admin-text-muted">Dùng khi địa chỉ thực tế không có hoặc chưa chính xác trên bản đồ.</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={useCurrentLocation} disabled={geoSearching} className="inline-flex min-h-9 items-center gap-1.5 rounded-admin-control border border-admin-border px-2.5 text-xs font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted disabled:opacity-50">
+                      <LocateFixed size={14} aria-hidden="true" /> Vị trí hiện tại
+                    </button>
+                    <button type="button" onClick={() => setShowMap((current) => !current)} className="inline-flex min-h-9 items-center gap-1.5 rounded-admin-control px-2.5 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/10">
+                      <MapPin size={14} aria-hidden="true" /> {showMap ? 'Ẩn bản đồ' : 'Mở bản đồ'}
+                      {showMap ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                    </button>
+                    {deliveryLatitude != null && deliveryLongitude != null ? (
+                      <span className="text-[11px] text-admin-status-success">Đã ghim vị trí</span>
+                    ) : null}
+                  </div>
+
+                  {showMap ? (
+                    <DeliveryLocationPicker
+                      latitude={deliveryLatitude}
+                      longitude={deliveryLongitude}
+                      className="h-80 2xl:h-96"
+                      onChange={(latitude, longitude) => void pickMapPoint(latitude, longitude)}
+                    />
+                  ) : null}
+                </div>
+              ) : (
+                <p className="rounded-admin-control bg-admin-muted px-3 py-2.5 text-xs leading-5 text-admin-text-secondary">Không cần địa chỉ và phí giao hàng.</p>
+              )}
+            </section>
+
+            <section className={panelClass} aria-labelledby="cost-section-title">
+              <h2 id="cost-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Chi phí & ghi chú</h2>
+              <div className={`grid gap-2.5 ${isEdit ? 'sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3' : 'grid-cols-2'}`}>
+                <div>
+                  <label htmlFor="deposit-amount" className={labelClass}>Tiền cọc</label>
+                  <div className="relative">
+                    <input id="deposit-amount" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(depositAmount)} onChange={(event) => setDepositAmount(parseVndInput(event.target.value))} />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="shipping-fee" className={labelClass}>Phí giao dự kiến</label>
+                  <div className="relative">
+                    <input id="shipping-fee" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFee)} onChange={(event) => setShippingFee(parseVndInput(event.target.value))} />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                  </div>
+                </div>
+                {isEdit ? (
+                  <div>
+                    <label htmlFor="shipping-fee-actual" className={labelClass}>Phí giao thực tế</label>
+                    <div className="relative">
+                      <input id="shipping-fee-actual" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFeeActual)} onChange={(event) => setShippingFeeActual(event.target.value.replace(/\D/g, ''))} placeholder="Chưa có" />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="mt-2.5">
+                <label htmlFor="order-content-note" className={labelClass}>Ghi chú đơn hàng</label>
+                <textarea id="order-content-note" className={`${inputClass} min-h-16 resize-y`} value={contentNote} onChange={(event) => setContentNote(event.target.value)} placeholder="Nội dung cần lưu ý (không bắt buộc)" />
+              </div>
+            </section>
+          </div>
         </div>
+
       </form>
     </div>
   );

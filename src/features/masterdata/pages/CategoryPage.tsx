@@ -30,8 +30,8 @@ export const CategoryPage: React.FC = () => {
         title="Categories"
         description="Manage product categories for navigation and reporting."
         actions={
-          <button className="flex items-center gap-2 px-4 py-2 bg-admin-primary text-admin-text-inverse rounded-xl hover:bg-admin-primary-hover transition-colors shadow-lg shadow-admin-primary/20">
-            <Plus size={18} />
+          <button type="button" className="flex items-center gap-2 px-4 py-2 bg-admin-primary text-admin-text-inverse rounded-xl hover:bg-admin-primary-hover transition-colors shadow-lg shadow-admin-primary/20">
+            <Plus size={18} aria-hidden="true" />
             <span className="text-sm font-medium">Add Category</span>
           </button>
         }

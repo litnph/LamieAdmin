@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { NavLink, useNavigate, useParams } from 'react-router-dom';
-import { Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
-import { PageHeader } from '@/shared/components/PageHeader';
-import { Badge } from '@/shared/components/Badge';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ConfirmationPanel, SettingsDialog } from '@/features/settings/components/SettingsDialog';
+import { SettingsShell, SettingsStatus } from '@/features/settings/components/SettingsShell';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
+import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { AttributesApi } from '../api/attributesApi';
 import type {
   AttributeItem,
@@ -14,23 +14,73 @@ import type {
   LanguageAttributeItem,
 } from '../types/attributes.types';
 
-const ATTRIBUTE_TABS: Array<{ key: AttributeName; label: string }> = [
-  { key: 'categories', label: 'Categories' },
-  { key: 'collections', label: 'Collections' },
-  { key: 'colors', label: 'Colors' },
-  { key: 'languages', label: 'Languages' },
-  { key: 'occasions', label: 'Occasions' },
-  { key: 'styles', label: 'Styles' },
-  { key: 'tags', label: 'Tags' },
-];
+type AttributeMeta = {
+  label: string;
+  singular: string;
+  description: string;
+  emptyDescription: string;
+};
+
+const ATTRIBUTE_META: Record<AttributeName, AttributeMeta> = {
+  categories: {
+    label: 'Danh mục',
+    singular: 'danh mục',
+    description: 'Nhóm sản phẩm chính dùng để tổ chức danh sách và hỗ trợ khách tìm hoa.',
+    emptyDescription: 'Tạo danh mục đầu tiên để bắt đầu phân nhóm sản phẩm.',
+  },
+  collections: {
+    label: 'Bộ sưu tập',
+    singular: 'bộ sưu tập',
+    description: 'Nhóm sản phẩm theo mùa, chiến dịch hoặc chủ đề bán hàng.',
+    emptyDescription: 'Tạo bộ sưu tập khi cần gom sản phẩm theo một chủ đề.',
+  },
+  colors: {
+    label: 'Màu sắc',
+    singular: 'màu sắc',
+    description: 'Màu dùng để mô tả, lọc và hiển thị sản phẩm nhất quán.',
+    emptyDescription: 'Tạo màu đầu tiên để gắn cho sản phẩm.',
+  },
+  languages: {
+    label: 'Ngôn ngữ',
+    singular: 'ngôn ngữ',
+    description: 'Danh sách ngôn ngữ có thể dùng cho tên và mô tả thuộc tính.',
+    emptyDescription: 'Tạo ngôn ngữ trước khi thêm nội dung dịch cho các thuộc tính khác.',
+  },
+  occasions: {
+    label: 'Dịp',
+    singular: 'dịp',
+    description: 'Các dịp tặng hoa dùng để phân loại và gợi ý sản phẩm.',
+    emptyDescription: 'Tạo dịp đầu tiên để hỗ trợ phân loại sản phẩm theo nhu cầu tặng hoa.',
+  },
+  'product-types': {
+    label: 'Dòng sản phẩm',
+    singular: 'dòng sản phẩm',
+    description: 'Phân biệt loại hoa chính như Hoa tươi, Hoa sáp mà không làm thay đổi danh mục hình thức.',
+    emptyDescription: 'Tạo dòng sản phẩm đầu tiên để phân loại sản phẩm theo loại hoa.',
+  },
+  styles: {
+    label: 'Phong cách',
+    singular: 'phong cách',
+    description: 'Phong cách thiết kế giúp mô tả và lọc mẫu hoa.',
+    emptyDescription: 'Tạo phong cách đầu tiên để mô tả thiết kế sản phẩm.',
+  },
+  tags: {
+    label: 'Thẻ',
+    singular: 'thẻ',
+    description: 'Nhãn linh hoạt hỗ trợ tìm kiếm và nhóm sản phẩm theo nhu cầu vận hành.',
+    emptyDescription: 'Tạo thẻ khi cần thêm một cách nhóm sản phẩm linh hoạt.',
+  },
+};
+
+const ATTRIBUTE_NAMES = Object.keys(ATTRIBUTE_META) as AttributeName[];
 
 const isValidAttribute = (value: string | undefined): value is AttributeName =>
-  !!value && ATTRIBUTE_TABS.some((t) => t.key === value);
+  Boolean(value && ATTRIBUTE_NAMES.includes(value as AttributeName));
 
 const getDefaultTranslation = (translations: AttributeTranslation[], preferred: string[]) => {
   for (const code of preferred) {
-    const t = translations.find((x) => x.languageCode === code);
-    if (t) return t;
+    const translation = translations.find((item) => item.languageCode === code);
+    if (translation) return translation;
   }
   return translations[0];
 };
@@ -40,715 +90,933 @@ const hexToRgbString = (hex: string): string | null => {
   const match = /^#([0-9A-F]{6})$/.exec(normalized);
   if (!match) return null;
   const raw = match[1];
-  const r = parseInt(raw.slice(0, 2), 16);
-  const g = parseInt(raw.slice(2, 4), 16);
-  const b = parseInt(raw.slice(4, 6), 16);
-  return `${r},${g},${b}`;
+  return `${parseInt(raw.slice(0, 2), 16)},${parseInt(raw.slice(2, 4), 16)},${parseInt(raw.slice(4, 6), 16)}`;
 };
 
 type DraftBase = {
-  id?: number;
   isActive: boolean;
+  code?: string;
+  sortOrder?: number;
   translations: AttributeTranslation[];
 };
 
-type DraftColor = DraftBase & { hexCode: string; rgbCode: string };
+type DraftColor = DraftBase & {
+  hexCode: string;
+  rgbCode: string;
+};
 
-const modalInputClass =
-  'w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary transition-all duration-200';
+type AttributeDraft = DraftBase | DraftColor;
+type ConfirmationKind = 'discard' | 'discard-navigation' | 'delete' | null;
 
-/** Inputs trong block màu — giữ touch target thoải mái hơn */
-const modalColorInputClass =
-  'w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary transition-all duration-200';
+const createDraft = (
+  isColor: boolean,
+  languageCode = '',
+  isSortable = false,
+  isProductType = false,
+): AttributeDraft => ({
+  isActive: true,
+  ...(isSortable ? { sortOrder: 0 } : {}),
+  ...(isProductType ? { code: '' } : {}),
+  translations: [{ languageCode, name: '', description: '' }],
+  ...(isColor ? { hexCode: '#000000', rgbCode: '0,0,0' } : {}),
+});
+
+const serializeForm = (isLanguage: boolean, draft: AttributeDraft, languageDraft: LanguageAttributeItem) =>
+  JSON.stringify(isLanguage ? languageDraft : draft);
+
+const fieldClass =
+  'h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 text-sm text-admin-text-primary placeholder-admin-text-muted focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15 disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text';
 
 export const AttributesPage: React.FC = () => {
   const params = useParams();
   const navigate = useNavigate();
-
-  const attribute: AttributeName = useMemo(() => {
-    if (isValidAttribute(params.attributeKey)) return params.attributeKey;
-    return 'categories';
-  }, [params.attributeKey]);
-
+  const attribute: AttributeName = isValidAttribute(params.attributeKey) ? params.attributeKey : 'categories';
+  const meta = ATTRIBUTE_META[attribute];
   const isColor = attribute === 'colors';
   const isLanguage = attribute === 'languages';
+  const isCategory = attribute === 'categories';
+  const isProductType = attribute === 'product-types';
+  const isSortable = isCategory || isProductType;
 
-  const [items, setItems] = useState<Array<AttributeItem | AttributeItemColor | LanguageAttributeItem>>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [attributeItems, setAttributeItems] = useState<Array<AttributeItem | AttributeItemColor>>([]);
+  const [languageItems, setLanguageItems] = useState<LanguageAttributeItem[]>([]);
   const [languageOptions, setLanguageOptions] = useState<LanguageAttributeItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadingLanguages, setLoadingLanguages] = useState(false);
-
-  const [draft, setDraft] = useState<DraftBase | DraftColor>(() => ({
-    isActive: true,
-    translations: [
-      { languageCode: 'vi', name: '', description: '' },
-      { languageCode: 'en', name: '', description: '' },
-    ],
-    ...(isColor ? { hexCode: '#000000', rgbCode: '0,0,0' } : {}),
-  }));
-
-  const [languageDraft, setLanguageDraft] = useState<LanguageAttributeItem>(() => ({
-    code: '',
-    name: '',
-    isActive: true,
-  }));
-
+  const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draft, setDraft] = useState<AttributeDraft>(() => createDraft(isColor, '', isSortable, isProductType));
+  const [languageDraft, setLanguageDraft] = useState<LanguageAttributeItem>({ code: '', name: '', isActive: true });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingCode, setEditingCode] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [initialForm, setInitialForm] = useState('');
+  const [confirmation, setConfirmation] = useState<ConfirmationKind>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
-  const resetDraft = () => {
-    setDraft({
-      isActive: true,
-      translations: [
-        { languageCode: '', name: '', description: '' },
-      ],
-      ...(isColor ? { hexCode: '#000000', rgbCode: '0,0,0' } : {}),
-    } as any);
-    setLanguageDraft({ code: '', name: '', isActive: true });
-    setEditingId(null);
-    setEditingCode(null);
-  };
-
-  const loadLanguages = async () => {
+  const loadLanguages = useCallback(async () => {
     setLoadingLanguages(true);
     try {
-      const langs = await AttributesApi.getAllLanguages();
-      setLanguageOptions(langs);
+      const languages = await AttributesApi.getAllLanguages();
+      setLanguageOptions(languages);
+      return languages;
     } catch {
       setLanguageOptions([]);
+      return [];
     } finally {
       setLoadingLanguages(false);
     }
-  };
+  }, []);
 
-  const openCreateModal = () => {
-    resetDraft();
-    setModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setModalOpen(false);
-    resetDraft();
-  };
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setPageError(null);
     try {
-      const data = isLanguage ? await AttributesApi.getAllLanguages() : await AttributesApi.getAll<any>(attribute);
-      setItems(data);
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to load');
-      setItems([]);
+      if (isLanguage) {
+        const languages = await AttributesApi.getAllLanguages();
+        setLanguageItems(languages);
+        setLanguageOptions(languages);
+        setAttributeItems([]);
+      } else {
+        const items = isColor
+          ? await AttributesApi.getAll<AttributeItemColor>(attribute)
+          : await AttributesApi.getAll<AttributeItem>(attribute);
+        setAttributeItems(items);
+        setLanguageItems([]);
+      }
+    } catch (error) {
+      setPageError(getApiErrorMessage(error));
+      setAttributeItems([]);
+      setLanguageItems([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [attribute, isColor, isLanguage]);
 
   useEffect(() => {
     if (!isValidAttribute(params.attributeKey)) {
       navigate('/admin/settings/attributes/categories', { replace: true });
       return;
     }
-    resetDraft();
-    void loadLanguages();
+    setModalOpen(false);
+    setConfirmation(null);
+    setSuccessMessage(null);
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attribute]);
+    if (!isLanguage) void loadLanguages();
+  }, [attribute, isLanguage, load, loadLanguages, navigate, params.attributeKey]);
 
-  const translationRowLimit = languageOptions.length;
+  const currentForm = serializeForm(isLanguage, draft, languageDraft);
+  const isDirty = modalOpen && currentForm !== initialForm;
+  const isEditing = isLanguage ? editingCode !== null : editingId !== null;
+  const translationsValid = draft.translations.some(
+    (translation) => translation.languageCode.trim().length > 0 && translation.name.trim().length > 0,
+  );
+  const colorValid = !isColor || ('hexCode' in draft && Boolean(hexToRgbString(draft.hexCode)));
+  const sortOrderValid = !isSortable || (Number.isInteger(draft.sortOrder) && (draft.sortOrder ?? -1) >= 0);
+  const productTypeValid = !isProductType || Boolean(draft.code?.trim()) && (draft.code?.trim().length ?? 0) <= 50;
+  const isValid = isLanguage
+    ? languageDraft.code.trim().length > 0 && languageDraft.name.trim().length > 0
+    : translationsValid && colorValid && sortOrderValid && productTypeValid;
+  const canSave = isDirty && isValid && !saving;
 
-  const canAddMoreTranslations = useMemo(() => {
-    if (isLanguage || translationRowLimit <= 0) return false;
-    return draft.translations.length < translationRowLimit;
-  }, [draft.translations.length, isLanguage, translationRowLimit]);
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
-  const canSubmit = useMemo(() => {
-    if (isLanguage) {
-      return languageDraft.code.trim().length > 0 && languageDraft.name.trim().length > 0;
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+      if (!target || target.target === '_blank' || target.hasAttribute('download')) return;
+      const url = new URL(target.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingNavigation(`${url.pathname}${url.search}${url.hash}`);
+      setConfirmation('discard-navigation');
+    };
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => document.removeEventListener('click', handleDocumentClick, true);
+  }, [isDirty]);
+
+  const prepareForm = (nextDraft: AttributeDraft, nextLanguageDraft: LanguageAttributeItem) => {
+    setDraft(nextDraft);
+    setLanguageDraft(nextLanguageDraft);
+    setInitialForm(serializeForm(isLanguage, nextDraft, nextLanguageDraft));
+    setFormError(null);
+    setConfirmation(null);
+    setPendingNavigation(null);
+    setModalOpen(true);
+  };
+
+  const openCreate = () => {
+    const firstLanguage = languageOptions.find((language) => language.isActive)?.code ?? languageOptions[0]?.code ?? '';
+    setEditingId(null);
+    setEditingCode(null);
+    prepareForm(createDraft(isColor, firstLanguage, isSortable, isProductType), { code: '', name: '', isActive: true });
+  };
+
+  const openEditAttribute = (item: AttributeItem | AttributeItemColor) => {
+    setEditingId(item.id);
+    setEditingCode(null);
+    const nextDraft: AttributeDraft = isColor
+      ? {
+          isActive: item.isActive,
+          translations: item.translations.map((translation) => ({ ...translation })),
+          hexCode: (item as AttributeItemColor).hexCode,
+          rgbCode: (item as AttributeItemColor).rgbCode,
+        }
+      : {
+          isActive: item.isActive,
+          ...(isSortable ? { sortOrder: item.sortOrder ?? 0 } : {}),
+          ...(isProductType ? { code: item.code ?? '' } : {}),
+          translations: item.translations.map((translation) => ({ ...translation })),
+        };
+    prepareForm(nextDraft, { code: '', name: '', isActive: true });
+  };
+
+  const openEditLanguage = (item: LanguageAttributeItem) => {
+    setEditingId(null);
+    setEditingCode(item.code);
+    prepareForm(createDraft(false), { ...item });
+  };
+
+  const closeImmediately = useCallback(() => {
+    setModalOpen(false);
+    setConfirmation(null);
+    setPendingNavigation(null);
+    setFormError(null);
+  }, []);
+
+  const requestClose = useCallback(() => {
+    if (saving) return;
+    if (isDirty) {
+      setConfirmation('discard');
+      return;
     }
-    const hasTranslationName = draft.translations.some((t) => (t.name ?? '').trim().length > 0);
-    if (!hasTranslationName) return false;
-    if (isColor) {
-      const d = draft as DraftColor;
-      return (d.hexCode ?? '').trim().length > 0 && (d.rgbCode ?? '').trim().length > 0;
-    }
-    return true;
-  }, [draft, isColor, isLanguage, languageDraft.code, languageDraft.name]);
+    closeImmediately();
+  }, [closeImmediately, isDirty, saving]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
+  const persistSave = async () => {
+    if (!canSave) return;
     setSaving(true);
-    setError(null);
+    setFormError(null);
     try {
       if (isLanguage) {
-        if (editingCode != null) {
-          await AttributesApi.updateLanguage(languageDraft);
-        } else {
-          await AttributesApi.createLanguage(languageDraft);
-        }
+        const payload = {
+          code: languageDraft.code.trim().toLowerCase(),
+          name: languageDraft.name.trim(),
+          isActive: languageDraft.isActive,
+        };
+        if (editingCode) await AttributesApi.updateLanguage(payload);
+        else await AttributesApi.createLanguage(payload);
+      } else if (isColor) {
+        const colorDraft = draft as DraftColor;
+        const payload = {
+          isActive: colorDraft.isActive,
+          translations: colorDraft.translations,
+          hexCode: colorDraft.hexCode.trim().toUpperCase(),
+          rgbCode: colorDraft.rgbCode,
+        };
+        if (editingId !== null) await AttributesApi.update(attribute, { id: editingId, ...payload });
+        else await AttributesApi.create(attribute, payload);
       } else {
-        if (editingId != null) {
-          await AttributesApi.update(attribute, { id: editingId, ...(draft as any) });
-        } else {
-          const payload: any = { ...draft };
-          delete payload.id;
-          await AttributesApi.create(attribute, payload);
-        }
+        const payload = {
+          isActive: draft.isActive,
+          translations: draft.translations,
+          ...(isSortable ? { sortOrder: draft.sortOrder ?? 0 } : {}),
+          ...(isProductType ? { code: draft.code?.trim().toUpperCase() ?? '' } : {}),
+        };
+        if (editingId !== null) await AttributesApi.update(attribute, { id: editingId, ...payload });
+        else await AttributesApi.create(attribute, payload);
       }
-      resetDraft();
-      setModalOpen(false);
+      setSuccessMessage(`Đã ${isEditing ? 'cập nhật' : 'tạo'} ${meta.singular}.`);
+      closeImmediately();
       await load();
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to save');
+      if (isLanguage) await loadLanguages();
+    } catch (error) {
+      setFormError(getApiErrorMessage(error));
     } finally {
       setSaving(false);
     }
   };
 
-  const startEdit = (item: AttributeItem | AttributeItemColor) => {
-    setEditingId(item.id);
-    setDraft({
-      id: item.id,
-      isActive: item.isActive,
-      translations:
-        item.translations?.length > 0
-          ? item.translations.map((t) => ({
-              languageCode: t.languageCode,
-              name: t.name ?? '',
-              description: t.description ?? '',
-            }))
-          : [
-              { languageCode: 'vi', name: '', description: '' },
-              { languageCode: 'en', name: '', description: '' },
-            ],
-      ...(isColor
-        ? { hexCode: (item as AttributeItemColor).hexCode ?? '', rgbCode: (item as AttributeItemColor).rgbCode ?? '' }
-        : {}),
-    } as any);
-    setModalOpen(true);
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void persistSave();
   };
 
-  const startEditLanguage = (item: LanguageAttributeItem) => {
-    setEditingCode(item.code);
-    setLanguageDraft({ code: item.code, name: item.name, isActive: item.isActive });
-    setModalOpen(true);
-  };
-
-  const remove = async (id: number) => {
-    const ok = window.confirm('Delete this item?');
-    if (!ok) return;
+  const remove = async () => {
+    if (!isEditing) return;
     setSaving(true);
-    setError(null);
+    setFormError(null);
     try {
-      await AttributesApi.remove(attribute, id);
-      if (editingId === id) resetDraft();
+      if (isLanguage && editingCode) await AttributesApi.removeLanguage(editingCode);
+      else if (!isLanguage && editingId !== null) await AttributesApi.remove(attribute, editingId);
+      setSuccessMessage(`Đã xóa ${meta.singular}.`);
+      closeImmediately();
       await load();
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to delete');
+      if (isLanguage) await loadLanguages();
+    } catch (error) {
+      setFormError(getApiErrorMessage(error));
+      setConfirmation(null);
     } finally {
       setSaving(false);
     }
   };
 
-  const removeLanguage = async (code: string) => {
-    const ok = window.confirm('Delete this item?');
-    if (!ok) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await AttributesApi.removeLanguage(code);
-      if (editingCode === code) resetDraft();
-      await load();
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to delete');
-    } finally {
-      setSaving(false);
-    }
+  const confirmDiscard = () => {
+    const destination = pendingNavigation;
+    closeImmediately();
+    if (destination) navigate(destination);
   };
 
-  const updateTranslation = (idx: number, patch: Partial<AttributeTranslation>) => {
-    setDraft((prev: any) => {
-      const next = { ...prev };
-      const list = [...(next.translations ?? [])];
-      list[idx] = { ...list[idx], ...patch };
-      next.translations = list;
-      return next;
-    });
+  const updateTranslation = (index: number, patch: Partial<AttributeTranslation>) => {
+    setDraft((current) => ({
+      ...current,
+      translations: current.translations.map((translation, translationIndex) =>
+        translationIndex === index ? { ...translation, ...patch } : translation,
+      ),
+    }));
   };
 
   const addTranslation = () => {
-    if (!canAddMoreTranslations) return;
-    setDraft((prev: any) => ({
-      ...prev,
-      translations: [...(prev.translations ?? []), { languageCode: '', name: '', description: '' }],
+    const usedLanguages = new Set(draft.translations.map((translation) => translation.languageCode));
+    const nextLanguage = languageOptions.find((language) => !usedLanguages.has(language.code));
+    if (!nextLanguage) return;
+    setDraft((current) => ({
+      ...current,
+      translations: [
+        ...current.translations,
+        { languageCode: nextLanguage.code, name: '', description: '' },
+      ],
     }));
   };
 
-  const removeTranslation = (idx: number) => {
-    setDraft((prev: any) => ({
-      ...prev,
-      translations: (prev.translations ?? []).filter((_: any, i: number) => i !== idx),
+  const removeTranslation = (index: number) => {
+    setDraft((current) => ({
+      ...current,
+      translations: current.translations.filter((_, translationIndex) => translationIndex !== index),
     }));
   };
+
+  const availableTranslationCount = Math.max(0, languageOptions.length - draft.translations.length);
+  const itemCount = isLanguage ? languageItems.length : attributeItems.length;
+
+  const confirmationContent = (() => {
+    if (confirmation === 'discard' || confirmation === 'discard-navigation') {
+      return (
+        <ConfirmationPanel
+          title="Bỏ các thay đổi chưa lưu?"
+          description="Nội dung bạn vừa nhập sẽ bị mất. Hành động này không thể hoàn tác."
+          confirmLabel="Bỏ thay đổi"
+          onCancel={() => {
+            setConfirmation(null);
+            setPendingNavigation(null);
+          }}
+          onConfirm={confirmDiscard}
+        />
+      );
+    }
+    if (confirmation === 'delete') {
+      return (
+        <ConfirmationPanel
+          title={`Xóa ${meta.singular} này?`}
+          description="Mục này sẽ bị xóa khỏi cấu hình. API có thể từ chối nếu dữ liệu vẫn đang được sản phẩm sử dụng."
+          confirmLabel={`Xóa ${meta.singular}`}
+          busy={saving}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => void remove()}
+        />
+      );
+    }
+    return null;
+  })();
+
+  const dialogTitle = confirmation
+    ? 'Xác nhận thay đổi'
+    : isEditing
+      ? `Chỉnh sửa ${meta.singular}`
+      : `Thêm ${meta.singular}`;
+
+  const renderStatus = (isActive: boolean) => (
+    <span
+      className={[
+        'inline-flex rounded-md px-2 py-1 text-xs font-semibold',
+        isActive ? 'bg-admin-status-success/10 text-admin-status-success' : 'bg-admin-muted text-admin-text-muted',
+      ].join(' ')}
+    >
+      {isActive ? 'Đang dùng' : 'Đã tắt'}
+    </span>
+  );
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Thuộc tính"
-        description="Quản lý các thuộc tính masterdata dùng cho sản phẩm."
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-admin-primary text-white rounded-xl hover:bg-admin-primary-hover transition-all duration-200 shadow-lg shadow-admin-primary/15 btn-press"
-            >
-              <Plus size={16} />
-              <span className="text-sm font-medium">Tạo mới</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => load()}
-              className="inline-flex items-center gap-2 px-4 py-2 glass border border-white/40 text-admin-text-primary rounded-xl hover:bg-white/60 transition-all duration-200 btn-press"
-            >
-              <RefreshCw size={16} />
-              <span className="text-sm font-medium">Reload</span>
-            </button>
-          </div>
-        }
-      />
+    <SettingsShell
+      title={meta.label}
+      description={meta.description}
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-card px-3 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            <RefreshCw size={17} strokeWidth={1.8} aria-hidden="true" />
+            Tải lại
+          </button>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover sm:w-auto"
+          >
+            <Plus size={18} strokeWidth={1.8} aria-hidden="true" />
+            Thêm {meta.singular}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {successMessage ? <SettingsStatus kind="success">{successMessage}</SettingsStatus> : null}
+        {pageError ? <SettingsStatus kind="error">Không thể tải {meta.label.toLowerCase()}: {pageError}</SettingsStatus> : null}
+        <SettingsStatus kind="info">
+          Mỗi mục được lưu riêng. Nhóm này hiện cho phép mọi tài khoản đã đăng nhập tạo, sửa và xóa.
+        </SettingsStatus>
 
-      <div className="glass border border-white/40 rounded-2xl shadow-sm p-2.5 animate-fade-in-up">
-        <div className="flex flex-wrap gap-1.5">
-          {ATTRIBUTE_TABS.map((t) => (
-            <NavLink
-              key={t.key}
-              to={`/admin/settings/attributes/${t.key}`}
-              className={({ isActive }) =>
-                `px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-admin-primary/10 text-admin-primary shadow-sm'
-                    : 'text-admin-text-secondary hover:bg-white/50 hover:text-admin-text-primary'
-                }`
-              }
-            >
-              {t.label}
-            </NavLink>
-          ))}
+        <div className="overflow-hidden rounded-admin-panel border border-admin-border bg-admin-card shadow-admin-panel">
+          <div className="hidden md:block">
+            <table className="w-full table-fixed text-left text-sm">
+              <caption className="sr-only">Danh sách {meta.label.toLowerCase()} và trạng thái cấu hình</caption>
+              <thead className="border-b border-admin-border bg-admin-muted/55 text-xs text-admin-text-muted">
+                <tr>
+                  {isLanguage ? (
+                    <>
+                      <th scope="col" className="w-[22%] px-4 py-3 font-semibold">Mã</th>
+                      <th scope="col" className="w-[44%] px-4 py-3 font-semibold">Tên ngôn ngữ</th>
+                    </>
+                  ) : isColor ? (
+                    <>
+                      <th scope="col" className="w-[44%] px-4 py-3 font-semibold">Màu và tên</th>
+                      <th scope="col" className="w-[22%] px-4 py-3 font-semibold">Mã Hex</th>
+                    </>
+                  ) : (
+                    <>
+                      <th scope="col" className="w-[18%] px-4 py-3 font-semibold">{isProductType ? 'Mã' : 'ID'}</th>
+                      <th scope="col" className="w-[48%] px-4 py-3 font-semibold">Tên hiển thị</th>
+                    </>
+                  )}
+                  <th scope="col" className="w-[22%] px-4 py-3 font-semibold">Trạng thái</th>
+                  <th scope="col" className="w-[12%] px-4 py-3 text-right font-semibold">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-admin-border">
+                {loading ? (
+                  Array.from({ length: 4 }, (_, index) => (
+                    <tr key={index} aria-hidden="true">
+                      <td colSpan={4} className="px-4 py-4">
+                        <div className="h-5 animate-pulse rounded bg-admin-muted" />
+                      </td>
+                    </tr>
+                  ))
+                ) : pageError ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-10 text-center text-sm text-admin-text-secondary">
+                      Dữ liệu {meta.label.toLowerCase()} tạm thời chưa khả dụng. Dùng nút Tải lại để thử lại.
+                    </td>
+                  </tr>
+                ) : itemCount === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-10 text-center">
+                      <p className="font-semibold text-admin-text-primary">Chưa có {meta.label.toLowerCase()}</p>
+                      <p className="mt-1 text-sm text-admin-text-muted">{meta.emptyDescription}</p>
+                    </td>
+                  </tr>
+                ) : isLanguage ? (
+                  languageItems.map((item) => (
+                    <tr key={item.code} className="transition-colors hover:bg-admin-muted/35">
+                      <td className="px-4 py-3.5 font-mono text-xs text-admin-text-secondary">{item.code}</td>
+                      <td className="truncate px-4 py-3.5 font-medium text-admin-text-primary">{item.name}</td>
+                      <td className="px-4 py-3.5">{renderStatus(item.isActive)}</td>
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openEditLanguage(item)}
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-primary/10 hover:text-admin-primary"
+                          aria-label={`Chỉnh sửa ngôn ngữ ${item.name}`}
+                        >
+                          <Pencil size={17} strokeWidth={1.8} aria-hidden="true" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  attributeItems.map((item) => {
+                    const preferred = getDefaultTranslation(item.translations, ['vi', 'en']);
+                    const english = item.translations.find((translation) => translation.languageCode === 'en');
+                    const color = isColor ? (item as AttributeItemColor) : null;
+                    return (
+                      <tr key={item.id} className="transition-colors hover:bg-admin-muted/35">
+                        {color ? (
+                          <>
+                            <td className="px-4 py-3.5">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <span
+                                  className="h-7 w-7 shrink-0 rounded-admin-control border border-admin-border"
+                                  style={{ backgroundColor: color.hexCode }}
+                                  aria-hidden="true"
+                                />
+                                <span className="truncate font-medium text-admin-text-primary">{preferred?.name ?? 'Chưa đặt tên'}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 font-mono text-xs text-admin-text-secondary">{color.hexCode}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-3.5 font-mono text-xs text-admin-text-muted">{isProductType ? item.code : item.id}</td>
+                            <td className="px-4 py-3.5">
+                              <p className="truncate font-medium text-admin-text-primary">{preferred?.name ?? 'Chưa đặt tên'}</p>
+                              {english?.name && english !== preferred ? (
+                                <p className="mt-0.5 truncate text-xs text-admin-text-muted">Tiếng Anh: {english.name}</p>
+                              ) : null}
+                            </td>
+                          </>
+                        )}
+                        <td className="px-4 py-3.5">{renderStatus(item.isActive)}</td>
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openEditAttribute(item)}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-primary/10 hover:text-admin-primary"
+                            aria-label={`Chỉnh sửa ${preferred?.name ?? meta.singular}`}
+                          >
+                            <Pencil size={17} strokeWidth={1.8} aria-hidden="true" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="divide-y divide-admin-border md:hidden">
+            {loading ? (
+              Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="p-4" aria-hidden="true">
+                  <div className="h-20 animate-pulse rounded-admin-control bg-admin-muted" />
+                </div>
+              ))
+            ) : pageError ? (
+              <div className="px-4 py-9 text-center text-sm leading-6 text-admin-text-secondary">
+                Dữ liệu {meta.label.toLowerCase()} tạm thời chưa khả dụng. Dùng nút Tải lại để thử lại.
+              </div>
+            ) : itemCount === 0 ? (
+              <div className="px-4 py-9 text-center">
+                <p className="font-semibold text-admin-text-primary">Chưa có {meta.label.toLowerCase()}</p>
+                <p className="mt-1 text-sm leading-5 text-admin-text-muted">{meta.emptyDescription}</p>
+              </div>
+            ) : isLanguage ? (
+              languageItems.map((item) => (
+                <article key={item.code} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-admin-text-primary">{item.name}</h3>
+                      <p className="mt-1 font-mono text-xs text-admin-text-muted">{item.code}</p>
+                    </div>
+                    {renderStatus(item.isActive)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openEditLanguage(item)}
+                    className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border text-sm font-semibold text-admin-text-primary"
+                  >
+                    <Pencil size={16} strokeWidth={1.8} aria-hidden="true" />
+                    Chỉnh sửa
+                  </button>
+                </article>
+              ))
+            ) : (
+              attributeItems.map((item) => {
+                const preferred = getDefaultTranslation(item.translations, ['vi', 'en']);
+                const color = isColor ? (item as AttributeItemColor) : null;
+                return (
+                  <article key={item.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {color ? (
+                          <span
+                            className="h-8 w-8 shrink-0 rounded-admin-control border border-admin-border"
+                            style={{ backgroundColor: color.hexCode }}
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold text-admin-text-primary">{preferred?.name ?? 'Chưa đặt tên'}</h3>
+                          <p className="mt-1 text-xs text-admin-text-muted">
+                            {color ? color.hexCode : isProductType ? item.code : `${item.translations.length} bản dịch`}
+                          </p>
+                        </div>
+                      </div>
+                      {renderStatus(item.isActive)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openEditAttribute(item)}
+                      className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border text-sm font-semibold text-admin-text-primary"
+                    >
+                      <Pencil size={16} strokeWidth={1.8} aria-hidden="true" />
+                      Chỉnh sửa
+                    </button>
+                  </article>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
-      {modalOpen
-        ? createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/55 backdrop-blur-[2px]"
-            onClick={closeModal}
-            aria-label="Close"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="relative flex min-h-0 max-h-[min(90vh,820px)] w-full max-w-[min(880px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl bg-white shadow-[0_20px_64px_rgba(15,23,42,0.2)] ring-1 ring-slate-900/10 animate-scale-in"
-          >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-base font-serif font-semibold leading-tight text-slate-900">
-                  {isLanguage
-                    ? editingCode == null
-                      ? 'Tạo mới language'
-                      : `Sửa language: ${editingCode}`
-                    : editingId == null
-                      ? `Tạo mới ${attribute}`
-                      : `Sửa ${attribute}: #${editingId}`}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <Badge
-                    status={
-                      isLanguage
-                        ? editingCode == null
-                          ? 'Create'
-                          : `Edit ${editingCode}`
-                        : editingId == null
-                          ? 'Create'
-                          : `Edit #${editingId}`
-                    }
-                  />
-                  {saving ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                      <span className="h-3 w-3 border-2 border-admin-primary/30 border-t-admin-primary rounded-full animate-spin" />
-                      Đang lưu…
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-slate-600">
+      <SettingsDialog
+        open={modalOpen}
+        title={dialogTitle}
+        description={confirmation ? 'Kiểm tra tác động trước khi tiếp tục.' : 'Mục này được lưu độc lập với các cài đặt khác.'}
+        onRequestClose={requestClose}
+        width={isLanguage ? 'medium' : 'wide'}
+        focusKey={confirmation ?? 'form'}
+        footer={
+          confirmation ? undefined : (
+            <>
+              <button
+                type="button"
+                onClick={requestClose}
+                disabled={saving}
+                className="h-11 w-full rounded-admin-control border border-admin-border bg-admin-card px-4 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted disabled:opacity-50 sm:w-auto"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                form="attribute-settings-form"
+                disabled={!canSave}
+                className="h-11 w-full rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text sm:w-auto"
+              >
+                {saving ? 'Đang lưu...' : isEditing ? 'Lưu thay đổi' : `Tạo ${meta.singular}`}
+              </button>
+            </>
+          )
+        }
+      >
+        {confirmationContent ?? (
+          <form id="attribute-settings-form" onSubmit={submit} className="space-y-5">
+            {formError ? <SettingsStatus kind="error">Không thể lưu thay đổi: {formError}</SettingsStatus> : null}
+
+            {isLanguage ? (
+              <div className="grid gap-4 sm:grid-cols-[9rem_minmax(0,1fr)]">
+                <div>
+                  <label htmlFor="language-code" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                    Mã ngôn ngữ
+                  </label>
                   <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-admin-primary focus:ring-admin-primary/25"
-                    checked={isLanguage ? languageDraft.isActive : draft.isActive}
-                    onChange={(e) =>
-                      isLanguage
-                        ? setLanguageDraft((prev) => ({ ...prev, isActive: e.target.checked }))
-                        : setDraft((prev: any) => ({ ...prev, isActive: e.target.checked }))
-                    }
+                    id="language-code"
+                    data-autofocus={!isEditing ? true : undefined}
+                    className={fieldClass}
+                    value={languageDraft.code}
+                    onChange={(event) => setLanguageDraft((current) => ({ ...current, code: event.target.value }))}
+                    placeholder="vi"
+                    required
+                    disabled={isEditing}
+                    aria-describedby="language-code-help"
                   />
-                  Active
-                </label>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800"
-                  aria-label="Close modal"
-                  title="Close"
-                >
-                  <X size={17} />
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3">
-                {error ? (
-                  <div
-                    role="alert"
-                    className="rounded-lg border border-admin-status-error/30 bg-red-50 px-3 py-2 text-sm text-red-900"
-                  >
-                    {error}
-                  </div>
-                ) : null}
-
-              {isLanguage ? (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Code</label>
-                    <input
-                      className={modalInputClass}
-                      value={languageDraft.code}
-                      onChange={(e) => setLanguageDraft((prev) => ({ ...prev, code: e.target.value }))}
-                      placeholder="vi"
-                      required
-                      disabled={editingCode != null}
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">Name</label>
-                    <input
-                      className={modalInputClass}
-                      value={languageDraft.name}
-                      onChange={(e) => setLanguageDraft((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Tiếng Việt"
-                      required
-                    />
-                  </div>
+                  <p id="language-code-help" className="mt-1.5 text-xs leading-5 text-admin-text-muted">
+                    Không thể đổi sau khi tạo.
+                  </p>
                 </div>
-              ) : null}
-
-              {isColor ? (
-                <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 p-3.5">
-                  <p className="mb-2.5 text-xs font-semibold text-slate-700">Màu</p>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-600">Hex</label>
-                      <div className="flex items-center gap-3">
+                <div>
+                  <label htmlFor="language-name" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                    Tên ngôn ngữ
+                  </label>
+                  <input
+                    id="language-name"
+                    data-autofocus={isEditing ? true : undefined}
+                    className={fieldClass}
+                    value={languageDraft.name}
+                    onChange={(event) => setLanguageDraft((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Tiếng Việt"
+                    required
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                {isColor ? (
+                  <section className="rounded-admin-control border border-admin-border bg-admin-muted/35 p-4" aria-labelledby="color-value-title">
+                    <h3 id="color-value-title" className="text-sm font-semibold text-admin-text-primary">Giá trị màu</h3>
+                    <p className="mt-1 text-xs leading-5 text-admin-text-secondary">RGB được tính tự động từ mã Hex hợp lệ.</p>
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="attribute-color-hex" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                          Mã Hex
+                        </label>
+                        <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-2">
+                          <input
+                            id="attribute-color-picker"
+                            type="color"
+                            className="h-11 w-12 cursor-pointer rounded-admin-control border border-admin-input-border bg-admin-card p-1"
+                            value={(draft as DraftColor).hexCode}
+                            onChange={(event) => {
+                              const hexCode = event.target.value.toUpperCase();
+                              setDraft((current) => ({ ...current, hexCode, rgbCode: hexToRgbString(hexCode) ?? '' } as DraftColor));
+                            }}
+                            aria-label="Chọn màu"
+                          />
+                          <input
+                            id="attribute-color-hex"
+                            data-autofocus
+                            className={fieldClass}
+                            value={(draft as DraftColor).hexCode}
+                            onChange={(event) => {
+                              const hexCode = event.target.value.toUpperCase();
+                              setDraft((current) => ({ ...current, hexCode, rgbCode: hexToRgbString(hexCode) ?? '' } as DraftColor));
+                            }}
+                            placeholder="#D96B8A"
+                            required
+                            aria-invalid={!colorValid}
+                          />
+                        </div>
+                        {!colorValid ? <p className="mt-1.5 text-xs text-admin-status-error">Nhập mã màu gồm 6 ký tự, ví dụ #D96B8A.</p> : null}
+                      </div>
+                      <div>
+                        <label htmlFor="attribute-color-rgb" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                          Giá trị RGB
+                        </label>
                         <input
-                          type="color"
-                          className="h-11 w-14 cursor-pointer rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
-                          value={(draft as DraftColor).hexCode}
-                          onChange={(e) => {
-                            const hexCode = e.target.value.toUpperCase();
-                            const rgb = hexToRgbString(hexCode);
-                            setDraft((prev: any) => ({
-                              ...prev,
-                              hexCode,
-                              rgbCode: rgb ?? prev.rgbCode,
-                            }));
-                          }}
-                          aria-label="Pick color"
-                          title="Pick color"
-                        />
-                        <input
-                          className={`flex-1 ${modalColorInputClass}`}
-                          value={(draft as DraftColor).hexCode}
-                          onChange={(e) => {
-                            const hexCode = e.target.value.toUpperCase();
-                            const rgb = hexToRgbString(hexCode);
-                            setDraft((prev: any) => ({
-                              ...prev,
-                              hexCode,
-                              rgbCode: rgb ?? prev.rgbCode,
-                            }));
-                          }}
-                          placeholder="#FF0000"
-                          required
+                          id="attribute-color-rgb"
+                          className={fieldClass}
+                          value={(draft as DraftColor).rgbCode}
+                          readOnly
+                          aria-readonly="true"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-600">RGB</label>
-                      <input
-                        className={`${modalColorInputClass} bg-slate-100/80 text-slate-600`}
-                        value={(draft as DraftColor).rgbCode}
-                        onChange={(e) => setDraft((prev: any) => ({ ...prev, rgbCode: e.target.value }))}
-                        placeholder="255,0,0"
-                        required
-                        disabled
-                      />
-                      <p className="mt-1.5 text-[11px] text-slate-500">Tự động theo Hex.</p>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+                  </section>
+                ) : null}
 
-              {!isLanguage ? (
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                {isProductType ? (
+                  <section className="rounded-admin-control border border-admin-border bg-admin-muted/35 p-4" aria-labelledby="product-type-code-title">
+                    <h3 id="product-type-code-title" className="text-sm font-semibold text-admin-text-primary">Mã dòng sản phẩm</h3>
+                    <p className="mt-1 text-xs leading-5 text-admin-text-secondary">
+                      Mã ổn định dùng cho tích hợp và bộ lọc. Chỉ nên dùng chữ in hoa, số và dấu gạch dưới.
+                    </p>
+                    <div className="mt-3 max-w-md">
+                      <label htmlFor="product-type-code" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                        Mã <span className="text-admin-status-error">*</span>
+                      </label>
+                      <input
+                        id="product-type-code"
+                        className={fieldClass}
+                        value={draft.code ?? ''}
+                        maxLength={50}
+                        onChange={(event) => setDraft((current) => ({
+                          ...current,
+                          code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+                        }))}
+                        placeholder="FRESH_FLOWER"
+                        required
+                        aria-invalid={!productTypeValid}
+                      />
+                    </div>
+                  </section>
+                ) : null}
+
+                {isSortable ? (
+                  <section className="rounded-admin-control border border-admin-border bg-admin-muted/35 p-4" aria-labelledby="attribute-order-title">
+                    <h3 id="attribute-order-title" className="text-sm font-semibold text-admin-text-primary">Thứ tự hiển thị</h3>
+                    <p className="mt-1 text-xs leading-5 text-admin-text-secondary">
+                      Số nhỏ hơn được ưu tiên hiển thị trước. Giá trị này được gửi lại khi chỉnh sửa để không làm mất thứ tự hiện có.
+                    </p>
+                    <div className="mt-3 max-w-xs">
+                      <label htmlFor="attribute-sort-order" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                        Thứ tự
+                      </label>
+                      <input
+                        id="attribute-sort-order"
+                        type="number"
+                        min={0}
+                        step={1}
+                        className={fieldClass}
+                        value={draft.sortOrder ?? 0}
+                        onChange={(event) => setDraft((current) => ({
+                          ...current,
+                          sortOrder: Number(event.target.value),
+                        }))}
+                        required
+                        aria-invalid={!sortOrderValid}
+                        aria-describedby={!sortOrderValid ? 'attribute-sort-order-error' : undefined}
+                      />
+                      {!sortOrderValid ? (
+                        <p id="attribute-sort-order-error" className="mt-1.5 text-xs text-admin-status-error">
+                          Thứ tự phải là số nguyên từ 0 trở lên.
+                        </p>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
+                <section aria-labelledby="translations-title">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">Translations</p>
-                      <p className="text-[11px] text-slate-500">
-                        {translationRowLimit > 0
-                          ? `Tối đa ${translationRowLimit} dòng — mỗi ngôn ngữ một lần`
-                          : 'Đang tải danh sách ngôn ngữ…'}
+                      <h3 id="translations-title" className="text-sm font-semibold text-admin-text-primary">Tên và mô tả theo ngôn ngữ</h3>
+                      <p className="mt-1 text-xs leading-5 text-admin-text-secondary">
+                        Mỗi ngôn ngữ chỉ xuất hiện một lần. Cần ít nhất một tên hợp lệ để lưu.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={addTranslation}
-                      disabled={!canAddMoreTranslations || loadingLanguages}
-                      title={
-                        !translationRowLimit
-                          ? 'Đang tải danh sách ngôn ngữ'
-                          : canAddMoreTranslations
-                            ? 'Thêm bản dịch'
-                            : `Đã đủ ${translationRowLimit} ngôn ngữ`
-                      }
-                      className="inline-flex items-center gap-1 rounded-lg bg-admin-primary/8 px-2.5 py-1.5 text-xs font-medium text-admin-primary transition-colors hover:bg-admin-primary/12 disabled:cursor-not-allowed disabled:opacity-45"
+                      disabled={loadingLanguages || availableTranslationCount === 0}
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-card px-3 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                     >
-                      <Plus size={13} />
-                      Thêm
+                      <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+                      Thêm bản dịch
                     </button>
                   </div>
 
-                  <div className="space-y-2">
-                    {draft.translations.map((t, idx) => (
-                      <div
-                        key={`${t.languageCode}-${idx}`}
-                        className="grid grid-cols-1 items-end gap-2 rounded-lg border border-slate-100 bg-slate-50/40 p-2 md:grid-cols-12"
-                      >
-                        <div className="md:col-span-2">
-                          <label className="mb-1 block text-xs font-medium text-slate-600">Language</label>
-                          <AdminSelect<string>
-                            menuInPortal
-                            options={(languageOptions ?? [])
-                              .map(
-                                (opt): AdminSelectOption<string> => ({
-                                  value: opt.code,
-                                  label: opt.name?.trim() ? opt.name : opt.code,
-                                }),
-                              )
-                              .filter((opt) => {
-                                const used = draft.translations
-                                  .filter((_, i) => i !== idx)
-                                  .map((x) => x.languageCode)
-                                  .filter(Boolean);
-                                return !used.includes(opt.value);
-                              })}
-                            isDisabled={loadingLanguages}
-                            isLoading={loadingLanguages}
-                            placeholder={loadingLanguages ? 'Loading...' : 'Select'}
-                            value={
-                              (languageOptions ?? [])
-                                .map(
-                                  (opt): AdminSelectOption<string> => ({
-                                    value: opt.code,
-                                    label: opt.name?.trim() ? opt.name : opt.code,
-                                  }),
-                                )
-                                .find((o) => o.value === t.languageCode) ?? null
-                            }
-                            onChange={(next) => updateTranslation(idx, { languageCode: next?.value ?? '' })}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <label className="mb-1 block text-xs font-medium text-slate-600">Name</label>
-                          <input
-                            className={modalInputClass}
-                            value={t.name}
-                            onChange={(e) => updateTranslation(idx, { name: e.target.value })}
-                            placeholder="Tên hiển thị"
-                            required
-                          />
-                        </div>
-                        <div className="md:col-span-5">
-                          <label className="mb-1 block text-xs font-medium text-slate-600">Description</label>
-                          <input
-                            className={modalInputClass}
-                            value={t.description ?? ''}
-                            onChange={(e) => updateTranslation(idx, { description: e.target.value })}
-                            placeholder="Mô tả (tuỳ chọn)"
-                          />
-                        </div>
-                        <div className="flex justify-end md:col-span-1">
-                          <button
-                            type="button"
-                            onClick={() => removeTranslation(idx)}
-                            className="rounded-lg border border-transparent p-1.5 text-slate-500 transition-all hover:border-red-100 hover:bg-red-50 hover:text-admin-status-error"
-                            title="Xóa dòng"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              </div>
+                  {languageOptions.length === 0 && !loadingLanguages ? (
+                    <div className="mt-3">
+                      <SettingsStatus kind="error">Chưa có ngôn ngữ để gán. Hãy tạo ngôn ngữ trước khi lưu thuộc tính.</SettingsStatus>
+                    </div>
+                  ) : null}
 
-              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/95 px-4 py-2.5">
+                  <div className="mt-3 space-y-3">
+                    {draft.translations.map((translation, index) => {
+                      const usedCodes = new Set(
+                        draft.translations
+                          .filter((_, translationIndex) => translationIndex !== index)
+                          .map((item) => item.languageCode),
+                      );
+                      const options = languageOptions
+                        .filter((language) => !usedCodes.has(language.code))
+                        .map(
+                          (language): AdminSelectOption<string> => ({
+                            value: language.code,
+                            label: language.name || language.code,
+                          }),
+                        );
+                      const selected = options.find((option) => option.value === translation.languageCode) ?? null;
+                      return (
+                        <fieldset key={`${translation.languageCode}-${index}`} className="rounded-admin-control border border-admin-border p-3 sm:p-4">
+                          <legend className="px-1 text-xs font-semibold text-admin-text-muted">Bản dịch {index + 1}</legend>
+                          <div className="grid gap-3 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1.2fr)_2.75rem] lg:items-end">
+                            <div>
+                              <label htmlFor={`translation-language-${index}`} className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                                Ngôn ngữ
+                              </label>
+                              <AdminSelect<string>
+                                inputId={`translation-language-${index}`}
+                                menuInPortal
+                                options={options}
+                                value={selected}
+                                onChange={(option) => updateTranslation(index, { languageCode: option?.value ?? '' })}
+                                placeholder={loadingLanguages ? 'Đang tải...' : 'Chọn'}
+                                isLoading={loadingLanguages}
+                                isDisabled={loadingLanguages}
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor={`translation-name-${index}`} className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                                Tên hiển thị
+                              </label>
+                              <input
+                                id={`translation-name-${index}`}
+                                data-autofocus={!isColor && index === 0 ? true : undefined}
+                                className={fieldClass}
+                                value={translation.name}
+                                onChange={(event) => updateTranslation(index, { name: event.target.value })}
+                                placeholder="Tên hiển thị"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor={`translation-description-${index}`} className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+                                Mô tả
+                              </label>
+                              <input
+                                id={`translation-description-${index}`}
+                                className={fieldClass}
+                                value={translation.description ?? ''}
+                                onChange={(event) => updateTranslation(index, { description: event.target.value })}
+                                placeholder="Tùy chọn"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeTranslation(index)}
+                              disabled={draft.translations.length === 1}
+                              className="inline-flex h-11 w-full items-center justify-center rounded-admin-control border border-admin-border text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-text-primary disabled:cursor-not-allowed disabled:opacity-40 lg:w-11"
+                              aria-label={`Xóa bản dịch ${index + 1}`}
+                            >
+                              <Trash2 size={17} strokeWidth={1.8} aria-hidden="true" />
+                            </button>
+                          </div>
+                        </fieldset>
+                      );
+                    })}
+                  </div>
+                </section>
+              </>
+            )}
+
+            <div className="rounded-admin-control border border-admin-border bg-admin-muted/35 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <label htmlFor="attribute-active" className="text-sm font-semibold text-admin-text-primary">
+                    {isLanguage ? 'Ngôn ngữ đang hoạt động' : `${meta.label} đang được sử dụng`}
+                  </label>
+                  <p className="mt-1 text-xs leading-5 text-admin-text-secondary">
+                    Mục đã tắt vẫn được giữ lại nhưng có thể không còn xuất hiện trong lựa chọn cho dữ liệu mới.
+                  </p>
+                </div>
+                <input
+                  id="attribute-active"
+                  type="checkbox"
+                  role="switch"
+                  checked={isLanguage ? languageDraft.isActive : draft.isActive}
+                  onChange={(event) => {
+                    if (isLanguage) setLanguageDraft((current) => ({ ...current, isActive: event.target.checked }));
+                    else setDraft((current) => ({ ...current, isActive: event.target.checked }));
+                  }}
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded border-admin-input-border text-admin-primary focus:ring-admin-primary/25"
+                />
+              </div>
+            </div>
+
+            {isEditing ? (
+              <section className="rounded-admin-control border border-admin-status-error/30 bg-red-50/70 p-4" aria-labelledby="attribute-danger-title">
+                <h3 id="attribute-danger-title" className="text-sm font-semibold text-admin-status-error">Vùng nguy hiểm</h3>
+                <p className="mt-1 text-xs leading-5 text-admin-text-secondary">
+                  Xóa mục có thể ảnh hưởng sản phẩm đang tham chiếu. API sẽ quyết định thao tác có được phép hay không.
+                </p>
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 btn-press"
+                  onClick={() => setConfirmation('delete')}
+                  className="mt-3 h-11 rounded-admin-control border border-admin-status-error/45 bg-admin-card px-4 text-sm font-semibold text-admin-status-error transition-colors hover:bg-red-100"
                 >
-                  Hủy
+                  Xóa {meta.singular}
                 </button>
-                <button
-                  type="submit"
-                  disabled={saving || loading || !canSubmit}
-                  className="inline-flex items-center rounded-lg bg-admin-primary px-4 py-1.5 text-sm font-medium text-white shadow-md shadow-admin-primary/20 transition-all hover:bg-admin-primary-hover disabled:opacity-50 btn-press"
-                >
-                  {isLanguage ? (editingCode == null ? 'Lưu' : 'Cập nhật') : editingId == null ? 'Lưu' : 'Cập nhật'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-            document.body,
-          )
-        : null}
-
-      <div className="glass border border-white/40 rounded-2xl shadow-sm overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-admin-border/30 bg-admin-muted/20">
-                {isLanguage ? (
-                  <>
-                    <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">Code</th>
-                    <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">Name</th>
-                  </>
-                ) : (
-                  <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">ID</th>
-                )}
-                {!isLanguage && isColor ? (
-                  <>
-                    <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">Color</th>
-                    <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">Hex</th>
-                    <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">RGB</th>
-                  </>
-                ) : !isLanguage ? (
-                  <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">
-                    Name (vi/en)
-                  </th>
-                ) : null}
-                <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">Active</th>
-                <th className="px-6 py-3.5 text-[11px] font-semibold text-admin-text-muted uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-admin-border/20">
-              {loading ? (
-                <tr>
-                  <td className="px-6 py-8 text-center" colSpan={isColor ? 6 : 4}>
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-admin-primary/30 border-t-admin-primary rounded-full animate-spin" />
-                      <span className="text-sm text-admin-text-muted">Loading...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td className="px-6 py-8 text-center text-sm text-admin-text-muted" colSpan={isColor ? 6 : 4}>
-                    No items found.
-                  </td>
-                </tr>
-              ) : (
-                items.map((it: any) => {
-                  const preferred = isLanguage ? null : getDefaultTranslation(it.translations ?? [], ['vi', 'en']);
-                  const en = isLanguage ? null : getDefaultTranslation(it.translations ?? [], ['en']);
-                  return (
-                    <tr key={isLanguage ? it.code : it.id} className="hover:bg-white/40 transition-colors duration-150">
-                      {isLanguage ? (
-                        <>
-                          <td className="px-6 py-3 text-sm text-admin-text-primary font-mono">{it.code}</td>
-                          <td className="px-6 py-3 text-sm text-admin-text-primary">{it.name}</td>
-                        </>
-                      ) : (
-                        <td className="px-6 py-3 text-sm text-admin-text-muted font-mono">{it.id}</td>
-                      )}
-                      {!isLanguage && isColor ? (
-                        <>
-                          <td className="px-6 py-3 text-sm text-admin-text-primary">
-                            <div className="flex items-center gap-2.5">
-                              <span
-                                className="w-5 h-5 rounded-full border border-admin-border/50 shadow-sm"
-                                style={{ backgroundColor: it.hexCode }}
-                              />
-                              {(preferred?.name ?? '-') as any}
-                            </div>
-                          </td>
-                          <td className="px-6 py-3 text-sm text-admin-text-secondary font-mono">{it.hexCode}</td>
-                          <td className="px-6 py-3 text-sm text-admin-text-secondary font-mono">{it.rgbCode}</td>
-                        </>
-                      ) : !isLanguage ? (
-                        <td className="px-6 py-3 text-sm text-admin-text-primary">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{preferred?.name ?? '-'}</span>
-                            <span className="text-[11px] text-admin-text-muted">{en?.name ? `en: ${en.name}` : null}</span>
-                          </div>
-                        </td>
-                      ) : null}
-                      <td className="px-6 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${it.isActive ? 'bg-admin-status-success/10 text-admin-status-success' : 'bg-admin-muted text-admin-text-muted'}`}>
-                          {it.isActive ? 'Yes' : 'No'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => (isLanguage ? startEditLanguage(it) : startEdit(it))}
-                            className="p-2 rounded-lg text-admin-text-muted hover:text-admin-primary hover:bg-admin-primary/8 transition-all duration-200"
-                            title="Edit"
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => (isLanguage ? removeLanguage(it.code) : remove(it.id))}
-                            className="p-2 rounded-lg text-admin-text-muted hover:text-admin-status-error hover:bg-admin-status-error/8 transition-all duration-200"
-                            title="Delete"
-                            disabled={saving}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+              </section>
+            ) : null}
+          </form>
+        )}
+      </SettingsDialog>
+    </SettingsShell>
   );
 };

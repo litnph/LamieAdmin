@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './leafletIconFix';
+import { formatOrderDateTime } from '../utils/orderListFormatters';
 import type { OrderDeliveryLocationDto } from '../types/order.types';
 import { orderStatusLabel } from '../constants/orderLabels';
 import { OrderStatus } from '../types/order.types';
@@ -22,7 +23,11 @@ export const OrdersDeliveryMap: React.FC<Props> = ({ locations, className }) => 
   }, [locations]);
 
   return (
-    <div className={className ?? 'h-[420px] w-full overflow-hidden rounded-2xl border border-white/60 shadow-sm'}>
+    <div
+      className={className ?? 'h-[min(26rem,60dvh)] min-h-72 w-full overflow-hidden rounded-admin-panel border border-admin-border bg-admin-card shadow-admin-panel'}
+      role="region"
+      aria-label="Bản đồ các điểm giao trong ngày"
+    >
       <MapContainer center={center} zoom={12} className="h-full w-full" scrollWheelZoom>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -31,12 +36,12 @@ export const OrdersDeliveryMap: React.FC<Props> = ({ locations, className }) => 
         {locations.map((loc) => (
           <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
             <Popup>
-              <div className="text-xs min-w-[180px]">
-                <p className="font-semibold text-slate-900">{loc.orderCode}</p>
-                <p className="text-slate-700">{loc.recipientName}</p>
-                {loc.deliveryAddress && <p className="text-slate-500 mt-1">{loc.deliveryAddress}</p>}
-                <p className="text-slate-500 mt-1">
-                  {new Date(loc.deliveryAt).toLocaleString('vi-VN')} ·{' '}
+              <div className="min-w-[180px] text-xs">
+                <p className="font-semibold text-admin-text-primary">{loc.orderCode}</p>
+                <p className="text-admin-text-secondary">{loc.recipientName}</p>
+                {loc.deliveryAddress && <p className="mt-1 text-admin-text-muted">{loc.deliveryAddress}</p>}
+                <p className="mt-1 text-admin-text-muted">
+                  {formatOrderDateTime(loc.deliveryAt)} -{' '}
                   {orderStatusLabel[loc.orderStatus as OrderStatus] ?? loc.orderStatus}
                 </p>
               </div>

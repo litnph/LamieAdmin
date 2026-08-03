@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --admin-primary-rgb: 107 123 139;
+  --admin-primary-hover-rgb: 92 106 119;
+  --admin-primary-light-rgb: 237 239 242;
+  --admin-primary-foreground-rgb: 255 255 255;
+  --admin-primary-source-hex: #6b7b8b;
+  --admin-primary-hex: #6b7b8b;
+  --admin-gradient-from: #6b7b8b;
+  --admin-gradient-via: #5a6575;
+  --admin-gradient-to: #4a5565;
+  --admin-focus-ring: rgb(var(--admin-primary-rgb) / 0.72);
+  --admin-canvas: #f7f6f3;
+  --admin-surface: #ffffff;
+  --admin-border: #ded8d1;
+  --admin-text-primary: #292623;
+}
+
+html {
+  min-width: 320px;
+  background: var(--admin-canvas);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background: var(--admin-canvas);
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--admin-focus-ring);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: #d5cac0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c0b5ab;
+}
+
+.glass {
+  background: rgb(255 255 255 / 0.82);
+}
+
+.glass-strong {
+  background: rgb(255 255 255 / 0.94);
+}
+
+.glass-sidebar {
+  background: #f1efeb;
+}
+
+.hover-lift {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgb(58 48 40 / 0.05);
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+.stagger > *:nth-child(1) { animation-delay: 0s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger > *:nth-child(4) { animation-delay: 0.18s; }
+.stagger > *:nth-child(5) { animation-delay: 0.24s; }
+.stagger > *:nth-child(6) { animation-delay: 0.30s; }
+.stagger > *:nth-child(7) { animation-delay: 0.36s; }
+.stagger > *:nth-child(8) { animation-delay: 0.42s; }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .hover-lift:hover,
+  .btn-press:active {
+    transform: none;
+  }
+}

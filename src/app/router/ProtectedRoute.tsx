@@ -8,14 +8,19 @@ export const ProtectedRoute: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] text-admin-text-secondary text-sm">
+      <div
+        className="flex min-h-dvh items-center justify-center bg-admin-canvas text-sm text-admin-text-secondary"
+        role="status"
+        aria-live="polite"
+      >
         Đang tải phiên đăng nhập…
       </div>
     );
   }
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to="/login" replace state={{ from: returnTo }} />;
   }
 
   return <Outlet />;

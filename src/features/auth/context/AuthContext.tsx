@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { authApi } from '@/features/auth/api/authApi';
 import type { AuthUser } from '@/features/auth/types';
 import { UserRole } from '@/features/auth/types';
+import { userHasPermission, type PermissionName } from '@/features/auth/permissions';
 import { AUTH_EXPIRED_EVENT } from '@/services/authEvents';
 import { tokenStorage, type StoredUserSnapshot } from '@/services/tokenStorage';
 
@@ -13,6 +14,7 @@ type AuthContextValue = {
   refreshUser: () => Promise<void>;
   isAdmin: boolean;
   isManagerOrAbove: boolean;
+  hasPermission: (permission: PermissionName) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -115,6 +117,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAdmin = user?.role === UserRole.Admin;
   const isManagerOrAbove = user?.role === UserRole.Admin || user?.role === UserRole.Manager;
+  const hasPermission = useCallback(
+    (permission: PermissionName) => userHasPermission(user, permission),
+    [user],
+  );
 
   const value = useMemo(
     () => ({
@@ -125,8 +131,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshUser,
       isAdmin,
       isManagerOrAbove,
+      hasPermission,
     }),
-    [user, loading, login, logout, refreshUser, isAdmin, isManagerOrAbove],
+    [user, loading, login, logout, refreshUser, isAdmin, isManagerOrAbove, hasPermission],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,11 +1,11 @@
 import { OrderStatus, PaymentStatus } from '../types/order.types';
 
 export const orderStatusLabel: Record<OrderStatus, string> = {
-  [OrderStatus.Created]: 'Lên đơn',
-  [OrderStatus.Producing]: 'Thành phẩm',
-  [OrderStatus.Shipping]: 'Đang vận chuyển',
+  [OrderStatus.Created]: 'Chờ xác nhận',
+  [OrderStatus.Producing]: 'Đang chuẩn bị',
+  [OrderStatus.Shipping]: 'Đang giao',
   [OrderStatus.Completed]: 'Hoàn tất',
-  [OrderStatus.Cancelled]: 'Hủy đơn',
+  [OrderStatus.Cancelled]: 'Đã hủy',
 };
 
 export const paymentStatusLabel: Record<PaymentStatus, string> = {

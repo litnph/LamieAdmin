@@ -21,6 +21,7 @@ export type AuthUser = {
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
+  permissions?: string[];
 };
 
 export type AuthResult = {

@@ -10,14 +10,19 @@ import type {
   Category,
 } from '../types/masterdata.types';
 
+type ListEnvelope<T> = T[] | { items: T[] } | { data: T[] };
+
+const unwrapList = <T>(payload: ListEnvelope<T>): T[] => {
+  if (Array.isArray(payload)) return payload;
+  if ('items' in payload) return payload.items;
+  return payload.data;
+};
+
 export const MasterdataApi = {
   // Languages (System)
   getLanguages: async (): Promise<Language[]> => {
-    const { data } = await apiClient.get('/api/system/languages');
-    if (Array.isArray(data)) return data;
-    if (Array.isArray((data as any).items)) return (data as any).items;
-    if (Array.isArray((data as any).data)) return (data as any).data;
-    return [];
+    const { data } = await apiClient.get<ListEnvelope<Language>>('/api/system/languages');
+    return unwrapList(data);
   },
 
   createLanguage: async (payload: CreateLanguageRequest): Promise<void> => {
@@ -34,11 +39,8 @@ export const MasterdataApi = {
 
   // Tags (MasterData)
   getTags: async (): Promise<Tag[]> => {
-    const { data } = await apiClient.get('/api/masterdata/tags');
-    if (Array.isArray(data)) return data;
-    if (Array.isArray((data as any).items)) return (data as any).items;
-    if (Array.isArray((data as any).data)) return (data as any).data;
-    return [];
+    const { data } = await apiClient.get<ListEnvelope<Tag>>('/api/masterdata/tags');
+    return unwrapList(data);
   },
 
   createTag: async (payload: CreateTagRequest): Promise<void> => {
@@ -53,7 +55,6 @@ export const MasterdataApi = {
     await apiClient.delete(`/api/masterdata/tags/${id}`);
   },
 
-  // Placeholder for colors/categories until APIs are available
   getColors: async (): Promise<Color[]> => {
     const { data } = await apiClient.get<Color[]>('/api/masterdata/colors');
     return data;

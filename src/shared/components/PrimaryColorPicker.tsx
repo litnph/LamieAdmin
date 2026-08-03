@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Palette, Check } from 'lucide-react';
 import {
   ADMIN_PRIMARY_CHANGE_EVENT,
@@ -11,13 +11,18 @@ export const PrimaryColorPicker: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(() => getStoredAdminPrimaryHex());
   const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogId = useId().replace(/:/g, '');
+  const titleId = `${dialogId}-title`;
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape' || !open) return;
+      setOpen(false);
+      window.requestAnimationFrame(() => triggerRef.current?.focus());
     };
     const onTheme = () => setCurrent(getStoredAdminPrimaryHex());
     document.addEventListener('mousedown', onDoc);
@@ -28,14 +33,17 @@ export const PrimaryColorPicker: React.FC = () => {
       document.removeEventListener('keydown', onKey);
       window.removeEventListener(ADMIN_PRIMARY_CHANGE_EVENT, onTheme);
     };
-  }, []);
+  }, [open]);
 
   return (
     <div className="relative" ref={wrapRef}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="p-2 text-admin-text-secondary hover:text-admin-text-primary hover:bg-admin-muted/60 rounded-xl transition-all duration-200"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors duration-150 hover:bg-admin-muted hover:text-admin-text-primary"
+        aria-label="Chọn màu chủ đạo"
+        aria-controls={dialogId}
         aria-expanded={open}
         aria-haspopup="dialog"
         title="Chọn màu chủ đạo"
@@ -45,13 +53,14 @@ export const PrimaryColorPicker: React.FC = () => {
 
       {open ? (
         <div
-          className="absolute right-0 top-full mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-slate-200/90 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.14)] ring-1 ring-black/5 p-3 z-[60] animate-slide-down"
+          id={dialogId}
+          className="fixed left-3 right-3 top-[4.5rem] z-admin-popover w-auto rounded-admin-panel border border-admin-border bg-admin-card p-3 shadow-admin-popover animate-slide-down sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(18rem,calc(100vw-1.5rem))]"
           role="dialog"
-          aria-label="Chọn màu primary"
+          aria-labelledby={titleId}
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 px-1 mb-2.5">
+          <h2 id={titleId} className="mb-2.5 px-1 text-xs font-semibold text-admin-text-secondary">
             Màu chủ đạo
-          </p>
+          </h2>
           <div className="grid grid-cols-5 gap-2 max-h-[min(14rem,40vh)] overflow-y-auto pr-0.5">
             {ADMIN_PRIMARY_PALETTE.map((hex) => {
               const selected = hex === current;
@@ -59,20 +68,23 @@ export const PrimaryColorPicker: React.FC = () => {
                 <button
                   key={hex}
                   type="button"
-                  title={hex}
+                  aria-label={`${selected ? 'Màu đang chọn' : 'Chọn màu'} ${hex}`}
+                  aria-pressed={selected}
+                  title={`${selected ? 'Đang chọn' : 'Chọn'} ${hex}`}
                   onClick={() => {
                     selectAdminPrimaryHex(hex);
                     setCurrent(hex);
                     setOpen(false);
+                    window.requestAnimationFrame(() => triggerRef.current?.focus());
                   }}
-                  className={`relative h-9 w-full rounded-xl border-2 transition-transform duration-150 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-admin-primary ${
-                    selected ? 'ring-2 ring-offset-2 ring-admin-primary border-white shadow-md' : 'border-white/80 shadow-sm'
+                  className={`relative h-11 w-full rounded-admin-control border-2 transition-transform duration-150 hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary focus-visible:ring-offset-2 ${
+                    selected ? 'border-white ring-2 ring-admin-primary ring-offset-2' : 'border-white/80'
                   }`}
                   style={{ backgroundColor: hex }}
                 >
                   {selected ? (
                     <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 shadow-sm ring-1 ring-white/40">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/70 ring-1 ring-white/50">
                         <Check size={14} className="text-white" strokeWidth={2.8} />
                       </span>
                     </span>

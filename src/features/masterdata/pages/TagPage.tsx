@@ -1,23 +1,36 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
-import { mockTags } from '@/shared/constants/masterdataMock';
+import { MasterdataApi } from '../api/masterdataApi';
 import type { Tag } from '../types/masterdata.types';
 
 export const TagPage: React.FC = () => {
-  const [items, setItems] = useState<Tag[]>(mockTags);
+  const [items, setItems] = useState<Tag[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [languageCode, setLanguageCode] = useState('en');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setItems(await MasterdataApi.getTags());
+      } catch {
+        setError('Unable to load tags.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setCreating(true);
-      const nextId = items.length ? Math.max(...items.map((t) => t.id)) + 1 : 1;
-      const newTag: Tag = {
-        id: nextId,
+      await MasterdataApi.createTag({
         isActive: true,
         translations: [
           {
@@ -26,12 +39,12 @@ export const TagPage: React.FC = () => {
             description: description || null,
           },
         ],
-      };
-      setItems((prev) => [...prev, newTag]);
+      });
+      setItems(await MasterdataApi.getTags());
       setName('');
       setDescription('');
-    } catch (error) {
-      console.error('Failed to create tag', error);
+    } catch {
+      setError('Unable to create tag.');
     } finally {
       setCreating(false);
     }
@@ -104,7 +117,9 @@ export const TagPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-admin-border">
-              {items.length === 0 ? (
+              {loading ? (
+                <tr><td className="px-6 py-4 text-sm text-admin-text-secondary" colSpan={3}>Loading...</td></tr>
+              ) : items.length === 0 ? (
                 <tr>
                   <td className="px-6 py-4 text-sm text-admin-text-secondary" colSpan={2}>
                     No tags found.
@@ -130,6 +145,7 @@ export const TagPage: React.FC = () => {
           </table>
         </div>
       </div>
+      {error ? <p className="text-sm text-admin-status-error" role="alert">{error}</p> : null}
     </div>
   );
 };

@@ -12,6 +12,15 @@ export type StoredUserSnapshot = {
   role: number;
 };
 
+const isStoredUserSnapshot = (value: unknown): value is StoredUserSnapshot =>
+  typeof value === 'object'
+  && value !== null
+  && 'id' in value && typeof value.id === 'string'
+  && 'email' in value && typeof value.email === 'string'
+  && 'userName' in value && typeof value.userName === 'string'
+  && 'fullName' in value && typeof value.fullName === 'string'
+  && 'role' in value && typeof value.role === 'number' && Number.isInteger(value.role);
+
 export const tokenStorage = {
   getAccessToken: (): string | null => localStorage.getItem(ACCESS),
   getRefreshToken: (): string | null => localStorage.getItem(REFRESH),
@@ -39,7 +48,8 @@ export const tokenStorage = {
     const raw = localStorage.getItem(USER);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as StoredUserSnapshot;
+      const parsed: unknown = JSON.parse(raw);
+      return isStoredUserSnapshot(parsed) ? parsed : null;
     } catch {
       return null;
     }

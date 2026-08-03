@@ -1,153 +1,157 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Flower2, Settings, LogOut, ShoppingBag, CalendarDays, Radio, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  ContactRound,
+  Flower2,
+  LayoutDashboard,
+  LogOut,
+  Radio,
+  Settings,
+  ShoppingBag,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { useAuth } from '@/features/auth/context/AuthContext';
+import { Permission } from '@/features/auth/permissions';
 
-type SidebarProps = {
-  open?: boolean;
+type NavigationItem = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  to: string;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ open = true }) => {
+type SidebarProps = {
+  onNavigate?: () => void;
+  onClose?: () => void;
+  closeButtonRef?: React.RefObject<HTMLButtonElement | null>;
+};
+
+type NavigationSectionProps = {
+  label?: string;
+  items: NavigationItem[];
+  onNavigate?: () => void;
+};
+
+const mainItems: NavigationItem[] = [
+  { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, to: '/admin/dashboard' },
+  { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag, to: '/admin/orders' },
+  { id: 'customers', label: 'Khách hàng', icon: ContactRound, to: '/admin/customers' },
+  { id: 'calendar', label: 'Lịch giao', icon: CalendarDays, to: '/admin/orders/calendar' },
+];
+
+const settingsItems: NavigationItem[] = [
+  { id: 'settings-products', label: 'Sản phẩm', icon: Flower2, to: '/admin/products' },
+  { id: 'settings-channels', label: 'Kênh bán', icon: Radio, to: '/admin/settings/channels' },
+  { id: 'settings-attributes', label: 'Thuộc tính', icon: Settings, to: '/admin/settings/attributes/categories' },
+];
+
+const NavigationSection: React.FC<NavigationSectionProps> = ({ label, items, onNavigate }) => (
+  <section aria-label={label}>
+    {label ? (
+      <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-admin-text-muted">
+        {label}
+      </p>
+    ) : null}
+    <div className="space-y-1">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <NavLink
+            key={item.id}
+            to={item.to}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              [
+                'flex min-h-11 w-full items-center gap-3 rounded-admin-control px-3 text-sm font-medium transition-colors duration-150',
+                isActive
+                  ? 'bg-admin-primary/10 text-admin-primary'
+                  : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover hover:text-admin-text-primary',
+              ].join(' ')
+            }
+          >
+            <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
+            <span>{item.label}</span>
+          </NavLink>
+        );
+      })}
+    </div>
+  </section>
+);
+
+export const Sidebar: React.FC<SidebarProps> = ({ onNavigate, onClose, closeButtonRef }) => {
   const navigate = useNavigate();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
 
-  const mainItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, to: '/admin/dashboard' },
-    { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag, to: '/admin/orders' },
-    { id: 'calendar', label: 'Lịch giao', icon: CalendarDays, to: '/admin/orders/calendar' },
-  ];
-
-  const settingsItems = [
-    { id: 'settings-products', label: 'Sản phẩm', icon: Flower2, to: '/admin/products' },
-    { id: 'settings-channels', label: 'Kênh bán', icon: Radio, to: '/admin/settings/channels' },
-    { id: 'settings-attributes', label: 'Thuộc tính', icon: Settings, to: '/admin/settings/attributes/categories' },
-  ];
-
-  const adminItems = isAdmin
+  const adminItems: NavigationItem[] = hasPermission(Permission.UsersView)
     ? [{ id: 'users', label: 'Người dùng', icon: Users, to: '/admin/users' }]
     : [];
 
   const handleLogout = async () => {
     await logout();
+    onNavigate?.();
     navigate('/login');
   };
 
   return (
     <aside
-      className={`w-64 glass-sidebar border-r border-white/30 flex flex-col h-full transition-transform duration-300 ease-out ${
-        open ? 'translate-x-0' : '-translate-x-full'
-      }`}
+      id="admin-sidebar"
+      className="glass-sidebar flex h-full w-full min-w-0 flex-col border-r border-admin-border"
+      aria-label="Điều hướng quản trị"
     >
-      <div className="p-5 pb-4 border-b border-admin-border/40">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-admin-primary/10 flex items-center justify-center text-sm font-bold text-admin-primary shadow-sm">
-            L
-          </div>
-          <div>
-            <p className="text-sm font-serif font-semibold text-admin-text-primary leading-tight">Lamie</p>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-admin-text-muted font-medium">
-              Flower Shop
-            </p>
-          </div>
+      <div className="flex min-h-admin-header items-center gap-3 border-b border-admin-border px-4">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-admin-control bg-admin-primary/10 text-sm font-bold text-admin-primary"
+          aria-hidden="true"
+        >
+          L
         </div>
-        {user && (
-          <p className="mt-3 text-[11px] text-admin-text-secondary truncate" title={user.email}>
-            {user.fullName}
-          </p>
-        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight text-admin-text-primary">Lamie</p>
+          <p className="truncate text-[11px] text-admin-text-muted">Quản trị cửa hàng hoa</p>
+        </div>
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary lg:hidden"
+          aria-label="Đóng menu điều hướng"
+        >
+          <X size={20} strokeWidth={1.8} aria-hidden="true" />
+        </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-        <div className="space-y-0.5 stagger">
-          {mainItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.id}
-                to={item.to}
-                className={({ isActive }) =>
-                  `w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 animate-slide-in-left ${
-                    isActive
-                      ? 'bg-white/70 text-admin-primary shadow-sm border border-white/50'
-                      : 'text-admin-sidebar-text hover:bg-white/40 border border-transparent'
-                  }`
-                }
-              >
-                <Icon size={18} strokeWidth={1.8} />
-                {item.label}
-              </NavLink>
-            );
-          })}
-        </div>
-
-        <div>
-          <p className="px-3.5 mb-2 text-[10px] font-semibold tracking-[0.16em] text-admin-text-muted uppercase">
-            Quản lý
+      {user ? (
+        <div className="border-b border-admin-border px-4 py-3">
+          <p className="truncate text-xs font-medium text-admin-text-primary" title={user.fullName}>
+            {user.fullName}
           </p>
-          <div className="space-y-0.5 stagger">
-            {settingsItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.id}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 animate-slide-in-left ${
-                      isActive
-                        ? 'bg-white/70 text-admin-primary shadow-sm border border-white/50'
-                        : 'text-admin-sidebar-text hover:bg-white/40 border border-transparent'
-                    }`
-                  }
-                >
-                  <Icon size={18} strokeWidth={1.8} />
-                  {item.label}
-                </NavLink>
-              );
-            })}
-          </div>
+          <p className="mt-0.5 truncate text-[11px] text-admin-text-muted" title={user.email}>
+            {user.email}
+          </p>
         </div>
+      ) : null}
 
-        {adminItems.length > 0 && (
-          <div>
-            <p className="px-3.5 mb-2 text-[10px] font-semibold tracking-[0.16em] text-admin-text-muted uppercase">
-              Hệ thống
-            </p>
-            <div className="space-y-0.5 stagger">
-              {adminItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      `w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 animate-slide-in-left ${
-                        isActive
-                          ? 'bg-white/70 text-admin-primary shadow-sm border border-white/50'
-                          : 'text-admin-sidebar-text hover:bg-white/40 border border-transparent'
-                      }`
-                    }
-                  >
-                    <Icon size={18} strokeWidth={1.8} />
-                    {item.label}
-                  </NavLink>
-                );
-              })}
-            </div>
-          </div>
-        )}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label="Menu chính">
+        <NavigationSection items={mainItems} onNavigate={onNavigate} />
+        <NavigationSection label="Quản lý" items={settingsItems} onNavigate={onNavigate} />
+        {adminItems.length > 0 ? (
+          <NavigationSection label="Hệ thống" items={adminItems} onNavigate={onNavigate} />
+        ) : null}
       </nav>
 
-      <div className="p-3 border-t border-admin-border/40">
+      <div className="border-t border-admin-border p-3">
         <button
           type="button"
           onClick={() => void handleLogout()}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-admin-text-muted hover:bg-admin-status-error/8 hover:text-admin-status-error rounded-xl transition-all duration-200"
+          className="flex min-h-11 w-full items-center gap-3 rounded-admin-control px-3 text-sm font-medium text-admin-text-secondary transition-colors hover:bg-admin-status-error/10 hover:text-admin-status-error"
         >
-          <LogOut size={18} strokeWidth={1.8} />
-          Sign Out
+          <LogOut size={19} strokeWidth={1.8} aria-hidden="true" />
+          <span>Đăng xuất</span>
         </button>
       </div>
     </aside>
   );
 };
-

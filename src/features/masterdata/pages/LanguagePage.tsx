@@ -1,27 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
-import { mockLanguages } from '@/shared/constants/masterdataMock';
+import { MasterdataApi } from '../api/masterdataApi';
 import type { Language } from '../types/masterdata.types';
 
 export const LanguagePage: React.FC = () => {
-  const [items, setItems] = useState<Language[]>(mockLanguages);
+  const [items, setItems] = useState<Language[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [isActive, setIsActive] = useState(true);
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setItems(await MasterdataApi.getLanguages());
+      } catch {
+        setError('Unable to load languages.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setCreating(true);
-      const newItem: Language = { code, name, isActive };
-      setItems((prev) => [...prev, newItem]);
+      await MasterdataApi.createLanguage({ code, name, isActive });
+      setItems(await MasterdataApi.getLanguages());
       setCode('');
       setName('');
       setIsActive(true);
-    } catch (error) {
-      console.error('Failed to create language', error);
+    } catch {
+      setError('Unable to create language.');
     } finally {
       setCreating(false);
     }
@@ -96,7 +111,9 @@ export const LanguagePage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-admin-border">
-              {items.length === 0 ? (
+              {loading ? (
+                <tr><td className="px-6 py-4 text-sm text-admin-text-secondary" colSpan={3}>Loading...</td></tr>
+              ) : items.length === 0 ? (
                 <tr>
                   <td className="px-6 py-4 text-sm text-admin-text-secondary" colSpan={3}>
                     No languages found.
@@ -117,6 +134,7 @@ export const LanguagePage: React.FC = () => {
           </table>
         </div>
       </div>
+      {error ? <p className="text-sm text-admin-status-error" role="alert">{error}</p> : null}
     </div>
   );
 };

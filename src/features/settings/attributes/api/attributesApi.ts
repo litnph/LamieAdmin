@@ -10,21 +10,26 @@ import type {
 
 const basePath = (attribute: AttributeName) => `/api/settings/attributes/${encodeURIComponent(attribute)}`;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const unwrapList = <T>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (!isRecord(value)) return [];
+  if (Array.isArray(value.items)) return value.items as T[];
+  if (Array.isArray(value.data)) return value.data as T[];
+  return [];
+};
+
 export const AttributesApi = {
   getAll: async <T extends AttributeItem = AttributeItem>(attribute: AttributeName): Promise<T[]> => {
     const { data } = await apiClient.get(basePath(attribute));
-    if (Array.isArray(data)) return data as T[];
-    if (Array.isArray((data as any).items)) return (data as any).items as T[];
-    if (Array.isArray((data as any).data)) return (data as any).data as T[];
-    return [];
+    return unwrapList<T>(data);
   },
 
   getAllLanguages: async (): Promise<LanguageAttributeItem[]> => {
     const { data } = await apiClient.get(basePath('languages'));
-    if (Array.isArray(data)) return data as LanguageAttributeItem[];
-    if (Array.isArray((data as any).items)) return (data as any).items as LanguageAttributeItem[];
-    if (Array.isArray((data as any).data)) return (data as any).data as LanguageAttributeItem[];
-    return [];
+    return unwrapList<LanguageAttributeItem>(data);
   },
 
   getLanguageByCode: async (code: string): Promise<LanguageAttributeItem> => {

@@ -9,14 +9,15 @@ import type {
   PaymentStatus,
   OrderStatus,
   UpdateOrderLine,
+  OrderImageUpload,
 } from '../types/order.types';
 
-const stripUndefined = <T extends Record<string, unknown>>(obj: T): Record<string, unknown> =>
+const stripUndefined = (obj: object): Record<string, unknown> =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== ''));
 
 export const ordersApi = {
   list: async (query: OrderListQuery): Promise<PagedOrders> => {
-    const { data } = await apiClient.get<PagedOrders>('/api/orders', { params: stripUndefined(query as any) });
+    const { data } = await apiClient.get<PagedOrders>('/api/orders', { params: stripUndefined(query) });
     return data;
   },
 
@@ -32,16 +33,19 @@ export const ordersApi = {
     recipientName: string;
     recipientPhone: string;
     pickupAtShop: boolean;
+    provinceShipping: boolean;
     deliveryAddress?: string;
+    deliveryAddressDescription?: string;
     deliveryLatitude?: number;
     deliveryLongitude?: number;
     deliveryAt: string;
+    deliveryTo?: string;
     depositAmount: number;
     shippingFee: number;
     description?: string;
     contentNote?: string;
     items: CreateOrderLine[];
-    imageFiles: File[];
+    imageFiles: OrderImageUpload[];
   }): Promise<OrderDetailDto> => {
     const fd = new FormData();
     fd.append('ordererName', payload.ordererName);
@@ -50,10 +54,13 @@ export const ordersApi = {
     fd.append('recipientName', payload.recipientName);
     fd.append('recipientPhone', payload.recipientPhone);
     fd.append('pickupAtShop', String(payload.pickupAtShop));
+    fd.append('provinceShipping', String(payload.provinceShipping));
     if (payload.deliveryAddress) fd.append('deliveryAddress', payload.deliveryAddress);
+    if (payload.deliveryAddressDescription) fd.append('deliveryAddressDescription', payload.deliveryAddressDescription);
     if (payload.deliveryLatitude != null) fd.append('deliveryLatitude', String(payload.deliveryLatitude));
     if (payload.deliveryLongitude != null) fd.append('deliveryLongitude', String(payload.deliveryLongitude));
     fd.append('deliveryAt', payload.deliveryAt);
+    if (payload.deliveryTo) fd.append('deliveryTo', payload.deliveryTo);
     fd.append('depositAmount', String(payload.depositAmount));
     fd.append('shippingFee', String(payload.shippingFee));
     if (payload.description) fd.append('description', payload.description);
@@ -68,9 +75,10 @@ export const ordersApi = {
       if (item.note) fd.append(`items[${i}].note`, item.note);
     });
 
-    payload.imageFiles.forEach((file, i) => {
-      fd.append(`images[${i}].imageFile`, file);
-      fd.append(`images[${i}].sortOrder`, String(i));
+    payload.imageFiles.forEach((image, i) => {
+      fd.append(`images[${i}].imageFile`, image.file);
+      fd.append(`images[${i}].orderItemIndex`, String(image.orderItemIndex));
+      fd.append(`images[${i}].sortOrder`, String(image.sortOrder));
     });
 
     const { data } = await apiClient.post<OrderDetailDto>('/api/orders', fd);
@@ -86,19 +94,59 @@ export const ordersApi = {
       recipientName: string;
       recipientPhone: string;
       pickupAtShop: boolean;
+      provinceShipping: boolean;
       deliveryAddress?: string;
+      deliveryAddressDescription?: string;
       deliveryLatitude?: number;
       deliveryLongitude?: number;
       deliveryAt: string;
+      deliveryTo?: string;
       depositAmount: number;
       shippingFee: number;
       shippingFeeActual?: number | null;
       description?: string;
       contentNote?: string;
       items: UpdateOrderLine[];
+      imageFiles: OrderImageUpload[];
     },
   ): Promise<OrderDetailDto> => {
-    const { data } = await apiClient.put<OrderDetailDto>(`/api/orders/${id}`, { ...body, id });
+    const fd = new FormData();
+    fd.append('id', id);
+    fd.append('ordererName', body.ordererName);
+    fd.append('ordererPhone', body.ordererPhone);
+    fd.append('channelId', body.channelId);
+    fd.append('recipientName', body.recipientName);
+    fd.append('recipientPhone', body.recipientPhone);
+    fd.append('pickupAtShop', String(body.pickupAtShop));
+    fd.append('provinceShipping', String(body.provinceShipping));
+    if (body.deliveryAddress) fd.append('deliveryAddress', body.deliveryAddress);
+    if (body.deliveryAddressDescription) fd.append('deliveryAddressDescription', body.deliveryAddressDescription);
+    if (body.deliveryLatitude != null) fd.append('deliveryLatitude', String(body.deliveryLatitude));
+    if (body.deliveryLongitude != null) fd.append('deliveryLongitude', String(body.deliveryLongitude));
+    fd.append('deliveryAt', body.deliveryAt);
+    if (body.deliveryTo) fd.append('deliveryTo', body.deliveryTo);
+    fd.append('depositAmount', String(body.depositAmount));
+    fd.append('shippingFee', String(body.shippingFee));
+    if (body.shippingFeeActual != null) fd.append('shippingFeeActual', String(body.shippingFeeActual));
+    if (body.description) fd.append('description', body.description);
+    if (body.contentNote) fd.append('contentNote', body.contentNote);
+
+    body.items.forEach((item, index) => {
+      if (item.id) fd.append(`items[${index}].id`, item.id);
+      if (item.productId) fd.append(`items[${index}].productId`, item.productId);
+      if (item.productSku) fd.append(`items[${index}].productSku`, item.productSku);
+      fd.append(`items[${index}].productName`, item.productName);
+      fd.append(`items[${index}].unitPrice`, String(item.unitPrice));
+      fd.append(`items[${index}].quantity`, String(item.quantity));
+      if (item.note) fd.append(`items[${index}].note`, item.note);
+    });
+    body.imageFiles.forEach((image, index) => {
+      fd.append(`images[${index}].imageFile`, image.file);
+      fd.append(`images[${index}].orderItemIndex`, String(image.orderItemIndex));
+      fd.append(`images[${index}].sortOrder`, String(image.sortOrder));
+    });
+
+    const { data } = await apiClient.put<OrderDetailDto>(`/api/orders/${id}`, fd);
     return data;
   },
 
@@ -110,7 +158,7 @@ export const ordersApi = {
     await apiClient.patch(`/api/orders/${id}/payment-status`, { status });
   },
 
-  remove: async (id: string): Promise<void> => {
+  delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/orders/${id}`);
   },
 

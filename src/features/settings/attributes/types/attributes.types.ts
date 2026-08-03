@@ -4,6 +4,7 @@ export type AttributeName =
   | 'colors'
   | 'languages'
   | 'occasions'
+  | 'product-types'
   | 'styles'
   | 'tags';
 
@@ -21,7 +22,9 @@ export interface AttributeTranslation {
 
 export interface AttributeItemBase {
   id: number;
+  code?: string;
   isActive: boolean;
+  sortOrder?: number;
   translations: AttributeTranslation[];
 }
 

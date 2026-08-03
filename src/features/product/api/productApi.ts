@@ -21,7 +21,9 @@ export interface CreateProductRequest {
   price: number;
   salePrice: number;
   stock: number;
+  tracksInventory: boolean;
   categoryId: number;
+  productTypeId: number;
   thumbnailUrl: string;
   tagIds: number[];
   colorIds: number[];
@@ -38,7 +40,9 @@ export interface ProductDto {
   price: number;
   salePrice: number | null;
   stock: number;
+  tracksInventory: boolean;
   categoryId: number;
+  productTypeId?: number | null;
   isActive: boolean;
   thumbnailUrl: string | null;
   translations: Array<{
@@ -62,10 +66,6 @@ export interface ProductDto {
 }
 
 export const ProductApi = {
-  create: async (payload: CreateProductRequest): Promise<void> => {
-    await apiClient.post('/api/settings/products', payload);
-  },
-
   /** Gửi product + file ảnh (thumbnail, images). BE lưu file và tạo URL. */
   createWithFormData: async (formData: FormData): Promise<void> => {
     await apiClient.post('/api/settings/products', formData, {
