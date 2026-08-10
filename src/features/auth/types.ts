@@ -22,6 +22,9 @@ export type AuthUser = {
   lastLoginAt?: string | null;
   createdAt: string;
   permissions?: string[];
+  roleId?: string | null;
+  roleName?: string | null;
+  roleCode?: string | null;
 };
 
 export type AuthResult = {

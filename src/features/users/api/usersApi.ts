@@ -20,6 +20,7 @@ export const usersApi = {
     fullName: string;
     phone?: string;
     role: UserRole;
+    roleId?: string;
     isActive: boolean;
   }): Promise<AuthUser> => {
     const { data } = await apiClient.post<AuthUser>('/api/users', payload);
@@ -28,7 +29,7 @@ export const usersApi = {
 
   update: async (
     id: string,
-    body: { fullName: string; phone?: string; role: UserRole; isActive: boolean },
+    body: { fullName: string; phone?: string; role: UserRole; roleId?: string; isActive: boolean },
   ): Promise<void> => {
     await apiClient.put(`/api/users/${id}`, { id, ...body });
   },

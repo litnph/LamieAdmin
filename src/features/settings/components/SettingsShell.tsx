@@ -8,6 +8,7 @@ import {
   Layers3,
   Palette,
   Radio,
+  ReceiptText,
   Tags,
   WandSparkles,
   type LucideIcon,
@@ -27,6 +28,17 @@ type SettingsNavigationGroup = {
 };
 
 const SETTINGS_NAVIGATION: SettingsNavigationGroup[] = [
+  {
+    label: 'Tài chính',
+    items: [
+      {
+        label: 'Danh mục chi phí',
+        description: 'Nhóm các khoản chi vận hành',
+        to: '/admin/settings/expense-categories',
+        icon: ReceiptText,
+      },
+    ],
+  },
   {
     label: 'Bán hàng',
     items: [

@@ -1,27 +1,10 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import {
-  CalendarDays,
-  ContactRound,
-  Flower2,
-  LayoutDashboard,
-  LogOut,
-  Radio,
-  Settings,
-  ShoppingBag,
-  Users,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, RefreshCw, X } from 'lucide-react';
+import { getIconDefinition } from '@/app/modules/iconRegistry';
 import { useAuth } from '@/features/auth/context/AuthContext';
-import { Permission } from '@/features/auth/permissions';
-
-type NavigationItem = {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  to: string;
-};
+import { useNavigation } from '@/features/navigation/context/NavigationContext';
+import type { CurrentNavigationItem } from '@/features/navigation/types/navigation.types';
 
 type SidebarProps = {
   onNavigate?: () => void;
@@ -29,65 +12,114 @@ type SidebarProps = {
   closeButtonRef?: React.RefObject<HTMLButtonElement | null>;
 };
 
-type NavigationSectionProps = {
-  label?: string;
-  items: NavigationItem[];
+type NavigationTreeProps = {
+  items: readonly CurrentNavigationItem[];
+  activeKey?: string;
+  depth?: number;
   onNavigate?: () => void;
 };
 
-const mainItems: NavigationItem[] = [
-  { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, to: '/admin/dashboard' },
-  { id: 'orders', label: 'Đơn hàng', icon: ShoppingBag, to: '/admin/orders' },
-  { id: 'customers', label: 'Khách hàng', icon: ContactRound, to: '/admin/customers' },
-  { id: 'calendar', label: 'Lịch giao', icon: CalendarDays, to: '/admin/orders/calendar' },
-];
+const normalizePath = (path: string): string =>
+  path.length > 1 ? path.replace(/\/+$/, '') : path;
 
-const settingsItems: NavigationItem[] = [
-  { id: 'settings-products', label: 'Sản phẩm', icon: Flower2, to: '/admin/products' },
-  { id: 'settings-channels', label: 'Kênh bán', icon: Radio, to: '/admin/settings/channels' },
-  { id: 'settings-attributes', label: 'Thuộc tính', icon: Settings, to: '/admin/settings/attributes/categories' },
-];
+const flattenNavigation = (
+  items: readonly CurrentNavigationItem[],
+): CurrentNavigationItem[] => items.flatMap((item) => [item, ...flattenNavigation(item.children)]);
 
-const NavigationSection: React.FC<NavigationSectionProps> = ({ label, items, onNavigate }) => (
-  <section aria-label={label}>
-    {label ? (
-      <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-admin-text-muted">
-        {label}
-      </p>
-    ) : null}
-    <div className="space-y-1">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <NavLink
-            key={item.id}
-            to={item.to}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              [
-                'flex min-h-11 w-full items-center gap-3 rounded-admin-control px-3 text-sm font-medium transition-colors duration-150',
+const findActiveKey = (
+  items: readonly CurrentNavigationItem[],
+  pathname: string,
+): string | undefined => {
+  const currentPath = normalizePath(pathname);
+  return flattenNavigation(items)
+    .filter((item) => {
+      if (!item.path) return false;
+      const itemPath = normalizePath(item.path);
+      return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+    })
+    .sort((left, right) => (right.path?.length ?? 0) - (left.path?.length ?? 0))[0]?.key;
+};
+
+const NavigationTree: React.FC<NavigationTreeProps> = ({
+  items,
+  activeKey,
+  depth = 0,
+  onNavigate,
+}) => (
+  <ul className={depth === 0 ? 'space-y-1' : 'mt-1 space-y-1'}>
+    {items.map((item) => {
+      const Icon = getIconDefinition(item.iconKey);
+      const isActive = item.key === activeKey;
+      const content = (
+        <>
+          <Icon size={depth === 0 ? 19 : 17} strokeWidth={1.8} aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        </>
+      );
+      return (
+        <li key={item.id}>
+          {item.path ? (
+            <Link
+              to={item.path}
+              target={item.openInNewTab ? '_blank' : undefined}
+              rel={item.openInNewTab ? 'noreferrer' : undefined}
+              onClick={onNavigate}
+              aria-current={isActive ? 'page' : undefined}
+              title={item.description ?? item.label}
+              className={[
+                'flex min-h-11 w-full items-center gap-3 rounded-admin-control pr-3 text-sm font-medium transition-colors duration-150',
                 isActive
                   ? 'bg-admin-primary/10 text-admin-primary'
                   : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover hover:text-admin-text-primary',
-              ].join(' ')
-            }
-          >
-            <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
-            <span>{item.label}</span>
-          </NavLink>
-        );
-      })}
-    </div>
-  </section>
+              ].join(' ')}
+              style={{ paddingLeft: `${0.75 + Math.min(depth, 5) * 0.75}rem` }}
+            >
+              {content}
+            </Link>
+          ) : (
+            <div
+              className="flex min-h-9 items-center gap-2 px-3 pt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-admin-text-muted"
+              title={item.description ?? item.label}
+            >
+              {content}
+            </div>
+          )}
+          {item.children.length > 0 ? (
+            <NavigationTree
+              items={item.children}
+              activeKey={activeKey}
+              depth={depth + 1}
+              onNavigate={onNavigate}
+            />
+          ) : null}
+        </li>
+      );
+    })}
+  </ul>
+);
+
+const NavigationLoading: React.FC = () => (
+  <div className="space-y-2 px-3 py-2" role="status" aria-live="polite" aria-label="Đang tải menu điều hướng">
+    {[0, 1, 2, 3, 4].map((item) => (
+      <div key={item} className="h-11 animate-pulse rounded-admin-control bg-admin-sidebar-hover" />
+    ))}
+  </div>
 );
 
 export const Sidebar: React.FC<SidebarProps> = ({ onNavigate, onClose, closeButtonRef }) => {
   const navigate = useNavigate();
-  const { user, logout, hasPermission } = useAuth();
-
-  const adminItems: NavigationItem[] = hasPermission(Permission.UsersView)
-    ? [{ id: 'users', label: 'Người dùng', icon: Users, to: '/admin/users' }]
-    : [];
+  const location = useLocation();
+  const { user, logout } = useAuth();
+  const {
+    items,
+    loading,
+    error,
+    refreshNavigation,
+  } = useNavigation();
+  const activeKey = useMemo(
+    () => findActiveKey(items, location.pathname),
+    [items, location.pathname],
+  );
 
   const handleLogout = async () => {
     await logout();
@@ -134,11 +166,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate, onClose, closeButt
         </div>
       ) : null}
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label="Menu chính">
-        <NavigationSection items={mainItems} onNavigate={onNavigate} />
-        <NavigationSection label="Quản lý" items={settingsItems} onNavigate={onNavigate} />
-        {adminItems.length > 0 ? (
-          <NavigationSection label="Hệ thống" items={adminItems} onNavigate={onNavigate} />
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="Menu chính">
+        {loading && items.length === 0 ? <NavigationLoading /> : null}
+        {error ? (
+          <div className="mb-3 rounded-admin-control border border-admin-status-warning/30 bg-admin-status-warning/10 p-3 text-xs text-admin-text-secondary" role="alert">
+            <p>Không thể tải menu điều hướng.</p>
+            <button
+              type="button"
+              onClick={refreshNavigation}
+              className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-admin-control px-2 font-semibold text-admin-primary hover:bg-admin-primary/10"
+            >
+              <RefreshCw size={15} strokeWidth={1.8} aria-hidden="true" />
+              Thử lại
+            </button>
+          </div>
+        ) : null}
+        {!loading && !error && items.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-admin-text-muted">
+            Không có mục điều hướng phù hợp.
+          </p>
+        ) : null}
+        {items.length > 0 ? (
+          <NavigationTree items={items} activeKey={activeKey} onNavigate={onNavigate} />
         ) : null}
       </nav>
 

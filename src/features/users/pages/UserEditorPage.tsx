@@ -5,6 +5,8 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { usersApi } from '../api/usersApi';
 import { UserRole } from '@/features/auth/types';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
+import { rolesApi } from '@/features/roles/api/rolesApi';
+import type { RoleDefinition } from '@/features/roles/types/role.types';
 
 const inputClass =
   'h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm text-admin-text-primary outline-none transition-colors placeholder:text-admin-text-muted focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15';
@@ -16,7 +18,7 @@ type Props = { userId?: string };
 const UserEditor: React.FC<Props> = ({ userId }) => {
   const navigate = useNavigate();
   const isEdit = Boolean(userId);
-  const [loading, setLoading] = useState(isEdit);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -26,25 +28,29 @@ const UserEditor: React.FC<Props> = ({ userId }) => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<UserRole>(UserRole.Staff);
+  const [roles, setRoles] = useState<RoleDefinition[]>([]);
+  const [roleId, setRoleId] = useState('');
   const [isActive, setIsActive] = useState(true);
 
   const load = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setLoadError(null);
     try {
-      const user = await usersApi.getById(userId);
-      setEmail(user.email);
-      setUserName(user.userName);
-      setFullName(user.fullName);
-      setPhone(user.phone ?? '');
-      setRole(user.role);
-      setIsActive(user.isActive);
+      const [roleRows, user] = await Promise.all([
+        rolesApi.list(false),
+        userId ? usersApi.getById(userId) : Promise.resolve(null),
+      ]);
+      setRoles(roleRows);
+      if (user) {
+        setEmail(user.email);
+        setUserName(user.userName);
+        setFullName(user.fullName);
+        setPhone(user.phone ?? '');
+        setRoleId(user.roleId ?? roleRows.find((item) => item.code === UserRole[user.role].toLowerCase())?.id ?? '');
+        setIsActive(user.isActive);
+      } else {
+        setRoleId(roleRows.find((item) => item.code === 'staff' && item.isActive)?.id ?? roleRows.find((item) => item.isActive)?.id ?? '');
+      }
     } catch (requestError) {
       setLoadError(getApiErrorMessage(requestError));
     } finally {
@@ -61,8 +67,15 @@ const UserEditor: React.FC<Props> = ({ userId }) => {
     setSaving(true);
     setSubmitError(null);
     try {
+      const selectedRole = roles.find((item) => item.id === roleId);
+      if (!selectedRole) throw new Error('Vui lòng chọn một vai trò đang tồn tại.');
+      const legacyRole = selectedRole.code === 'admin'
+        ? UserRole.Admin
+        : selectedRole.code === 'manager'
+          ? UserRole.Manager
+          : UserRole.Staff;
       if (isEdit && userId) {
-        await usersApi.update(userId, { fullName, phone: phone || undefined, role, isActive });
+        await usersApi.update(userId, { fullName, phone: phone || undefined, role: legacyRole, roleId, isActive });
       } else {
         await usersApi.create({
           email,
@@ -70,7 +83,8 @@ const UserEditor: React.FC<Props> = ({ userId }) => {
           password,
           fullName,
           phone: phone || undefined,
-          role,
+          role: legacyRole,
+          roleId,
           isActive,
         });
       }
@@ -227,13 +241,18 @@ const UserEditor: React.FC<Props> = ({ userId }) => {
             <select
               id="user-role"
               className={inputClass}
-              value={role}
-              onChange={(event) => setRole(Number(event.target.value) as UserRole)}
+              value={roleId}
+              onChange={(event) => setRoleId(event.target.value)}
+              required
             >
-              <option value={UserRole.Admin}>Admin</option>
-              <option value={UserRole.Manager}>Quản lý</option>
-              <option value={UserRole.Staff}>Nhân viên</option>
+              <option value="">Chọn vai trò</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id} disabled={!role.isActive && role.id !== roleId}>
+                  {role.name}{role.isActive ? '' : ' (đã tắt)'}
+                </option>
+              ))}
             </select>
+            <p className="mt-1.5 text-xs leading-5 text-admin-text-secondary">Quyền truy cập được lấy từ vai trò đã chọn.</p>
           </div>
           <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-admin-control border border-admin-border px-3 text-sm text-admin-text-primary">
             <input

@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
 import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  ImageOff,
   ImagePlus,
   LoaderCircle,
   LocateFixed,
@@ -15,19 +17,21 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
+import { ImagePreview, type ImagePreviewItem } from '@/shared/components/ImagePreview';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
 import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { ordersApi } from '../api/ordersApi';
+import { orderStatusLabel } from '../constants/orderLabels';
 import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
-import type { OrderImageDto, OrderImageUpload, UpdateOrderLine } from '../types/order.types';
+import { OrderStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
 import { formatOrderCurrency } from '../utils/orderListFormatters';
 import { nominatimReverse, nominatimSearch } from '../utils/geocode';
 
 const inputClass =
-  'min-h-10 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 py-2 text-sm text-admin-text-primary placeholder:text-admin-text-muted transition-colors focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15 disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text';
-const labelClass = 'mb-1 block text-xs font-medium text-admin-text-secondary';
+  'min-h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 py-2 text-sm text-admin-text-primary placeholder:text-admin-text-muted transition-colors focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15 disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text';
+const labelClass = 'mb-1 block min-h-4 text-xs font-medium leading-4 text-admin-text-secondary';
 const panelClass = 'rounded-admin-panel border border-admin-border bg-admin-card p-4 shadow-admin-panel';
 const formatVndInput = (value: number | string) => {
   const numericValue = typeof value === 'number' ? value : Number(value);
@@ -39,10 +43,16 @@ type LineDraft = UpdateOrderLine & {
   key: string;
   imageFiles: File[];
   existingImages: OrderImageDto[];
+  snapshotThumbnailUrl?: string | null;
 };
 
 type ProductSelectOption = AdminSelectOption<string> & {
   searchText: string;
+  productCode?: string;
+  productName: string;
+  price?: number;
+  thumbnailUrl?: string | null;
+  isManual?: boolean;
 };
 
 type EditorProps = { orderId?: string };
@@ -66,6 +76,14 @@ const productName = (product: ProductDto) =>
   || product.translations[0]?.name?.trim()
   || product.sku;
 
+const productCode = (value?: string | null) => value?.trim() || 'Chưa có mã';
+
+const productOptionLabel = (
+  code: string | null | undefined,
+  name: string | null | undefined,
+  price: number,
+) => `${productCode(code)} - ${name?.trim() || 'Chưa có tên'} - ${formatOrderCurrency(price)}`;
+
 const normalizeProductSearch = (value: string) => value
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -74,11 +92,122 @@ const normalizeProductSearch = (value: string) => value
   .toLocaleLowerCase('vi')
   .trim();
 
-const productImage = (product: ProductDto) => {
+const productImageSource = (product: ProductDto) => {
   const detailImage = [...product.images]
     .filter((image) => image.isActive)
     .sort((left, right) => left.sortOrder - right.sortOrder)[0]?.imageUrl;
-  return resolveApiResourceUrl(product.thumbnailUrl || detailImage);
+  return product.thumbnailUrl || detailImage || '';
+};
+
+const productPreviewItems = (
+  product: ProductDto | undefined,
+  fallbackSrc: string | null | undefined,
+  alt: string,
+): ImagePreviewItem[] => {
+  const catalogImages = product
+    ? [
+        product.thumbnailUrl,
+        ...[...product.images]
+          .filter((image) => image.isActive)
+          .sort((left, right) => left.sortOrder - right.sortOrder)
+          .map((image) => image.imageUrl),
+      ]
+    : [];
+
+  return [fallbackSrc, ...catalogImages]
+    .filter((source): source is string => Boolean(source?.trim()))
+    .map((source, index) => ({
+      src: source,
+      alt: index === 0 ? alt : `${alt}, ảnh ${index + 1}`,
+      title: alt,
+    }));
+};
+
+const ProductOptionThumbnail: React.FC<{ src?: string | null }> = ({ src }) => {
+  const resolvedSrc = resolveApiResourceUrl(src);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [resolvedSrc]);
+
+  if (!resolvedSrc || failed) {
+    return (
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-admin-control border border-admin-border bg-admin-muted text-admin-text-muted"
+        aria-hidden="true"
+        title="Sản phẩm chưa có ảnh"
+      >
+        <ImageOff size={16} strokeWidth={1.7} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt=""
+      aria-hidden="true"
+      width={36}
+      height={36}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="h-9 w-9 shrink-0 rounded-admin-control border border-admin-border object-cover"
+    />
+  );
+};
+
+const ProductOptionContent: React.FC<{
+  option: ProductSelectOption;
+  context: 'menu' | 'value';
+}> = ({ option, context }) => {
+  if (context === 'value') {
+    return <span className="block truncate" title={option.label}>{option.label}</span>;
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <ProductOptionThumbnail src={option.thumbnailUrl} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-admin-text-primary" title={option.label}>
+          {option.productCode ? <span className="font-mono text-xs font-semibold">{option.productCode}</span> : null}
+          {option.productCode ? <span className="text-admin-text-muted"> - </span> : null}
+          <span>{option.productName}</span>
+        </p>
+        {option.price != null ? (
+          <p className="mt-0.5 text-xs tabular-nums text-admin-text-secondary">
+            {formatOrderCurrency(option.price)}
+          </p>
+        ) : (
+          <p className="mt-0.5 text-xs text-admin-text-muted">Nhập thông tin sản phẩm riêng</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getOrderEditorErrorMessage = (requestError: unknown, orderStatus: OrderStatus | null) => {
+  if (!axios.isAxiosError(requestError)) return getApiErrorMessage(requestError);
+  if (requestError.response?.status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+  if (requestError.response?.status === 403) return 'Bạn không có quyền cập nhật đơn hàng này.';
+
+  const data: unknown = requestError.response?.data;
+  const code = isRecord(data) && typeof data.code === 'string' ? data.code : null;
+  const fallback = getApiErrorMessage(requestError);
+  if (code === 'BUSINESS_RULE_VIOLATION' && orderStatus !== null && orderStatus !== OrderStatus.Created) {
+    return orderStatus === OrderStatus.Completed || orderStatus === OrderStatus.Cancelled
+      ? 'Không thể chỉnh sửa đơn hàng đã hoàn tất hoặc đã hủy.'
+      : 'Đơn hàng chỉ có thể chỉnh sửa khi ở trạng thái Đã tạo.';
+  }
+  if (fallback === 'Only a Created order without reserved inventory can be edited.') {
+    return 'Đơn hàng chỉ có thể chỉnh sửa khi ở trạng thái Đã tạo.';
+  }
+  if (fallback === 'The order was changed by another request. Reload and try again.') {
+    return 'Đơn hàng đã được xử lý bởi người khác, vui lòng tải lại.';
+  }
+  return fallback;
 };
 
 const toLocalInput = (iso: string) => {
@@ -88,10 +217,12 @@ const toLocalInput = (iso: string) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const FilePreviews: React.FC<{
+const OrderItemImagePreviews: React.FC<{
+  existingImages: OrderImageDto[];
   files: File[];
+  productName: string;
   onRemove: (index: number) => void;
-}> = ({ files, onRemove }) => {
+}> = ({ existingImages, files, productName: itemProductName, onRemove }) => {
   const previews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [files],
@@ -99,19 +230,59 @@ const FilePreviews: React.FC<{
 
   useEffect(() => () => previews.forEach((preview) => URL.revokeObjectURL(preview.url)), [previews]);
 
-  return previews.map((preview, index) => (
-    <div key={`${preview.file.name}-${preview.file.lastModified}`} className="group relative h-14 w-14 overflow-hidden rounded-admin-control border border-admin-border bg-admin-muted">
-      <img src={preview.url} alt={`Ảnh mới ${index + 1}`} className="h-full w-full object-cover" />
-      <button
-        type="button"
-        onClick={() => onRemove(index)}
-        className="absolute right-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded bg-admin-card/90 text-admin-status-error opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-        aria-label={`Bỏ ảnh ${preview.file.name}`}
-      >
-        <X size={13} aria-hidden="true" />
-      </button>
-    </div>
-  ));
+  const gallery: ImagePreviewItem[] = [
+    ...existingImages.map((image, index) => ({
+      src: image.imageUrl,
+      alt: image.description || `Ảnh minh họa đã lưu ${index + 1} của ${itemProductName}`,
+      title: `Ảnh minh họa của ${itemProductName}`,
+      caption: image.description || undefined,
+    })),
+    ...previews.map((preview, index) => ({
+      src: preview.url,
+      alt: `Ảnh minh họa mới ${index + 1} của ${itemProductName}`,
+      title: `Ảnh minh họa của ${itemProductName}`,
+      caption: preview.file.name,
+    })),
+  ];
+
+  return (
+    <>
+      {existingImages.map((image, index) => (
+        <ImagePreview
+          key={image.id}
+          src={image.imageUrl}
+          alt={image.description || `Ảnh minh họa đã lưu ${index + 1} của ${itemProductName}`}
+          title={`Ảnh minh họa của ${itemProductName}`}
+          caption={image.description || undefined}
+          gallery={gallery}
+          buttonClassName="h-14 w-14 rounded-admin-control"
+          thumbnailClassName="h-14 w-14 rounded-admin-control border border-admin-border object-cover"
+        />
+      ))}
+      {previews.map((preview, index) => (
+        <div key={`${preview.file.name}-${preview.file.lastModified}`} className="group relative h-14 w-14 shrink-0">
+          <ImagePreview
+            src={preview.url}
+            alt={`Ảnh minh họa mới ${index + 1} của ${itemProductName}`}
+            title={`Ảnh minh họa của ${itemProductName}`}
+            caption={preview.file.name}
+            gallery={gallery}
+            loading="eager"
+            buttonClassName="h-full w-full rounded-admin-control"
+            thumbnailClassName="h-full w-full rounded-admin-control border border-admin-border object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            className="absolute right-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded bg-admin-card/90 text-admin-status-error opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+            aria-label={`Bỏ ảnh ${preview.file.name}`}
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+    </>
+  );
 };
 
 const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
@@ -125,6 +296,8 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lineErrors, setLineErrors] = useState<Record<number, string>>({});
+  const [loadedOrderStatus, setLoadedOrderStatus] = useState<OrderStatus | null>(null);
+  const [rowVersion, setRowVersion] = useState<string | undefined>();
 
   const [ordererName, setOrdererName] = useState('');
   const [ordererPhone, setOrdererPhone] = useState('');
@@ -155,11 +328,21 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const skipAddressSearchRef = useRef(false);
 
   const productOptions = useMemo<ProductSelectOption[]>(() => [
-    { value: 'manual', label: 'Sản phẩm ngoài danh mục', searchText: 'san pham ngoai danh muc' },
+    {
+      value: 'manual',
+      label: 'Sản phẩm ngoài danh mục',
+      searchText: 'san pham ngoai danh muc',
+      productName: 'Sản phẩm ngoài danh mục',
+      isManual: true,
+    },
     ...products.map((product) => ({
       value: String(product.id),
-      label: productName(product),
+      label: productOptionLabel(product.sku, productName(product), product.salePrice ?? product.price),
       searchText: normalizeProductSearch(`${product.sku} ${productName(product)}`),
+      productCode: product.sku,
+      productName: productName(product),
+      price: product.salePrice ?? product.price,
+      thumbnailUrl: productImageSource(product),
       isDisabled: !product.isActive,
     })),
   ], [products]);
@@ -204,6 +387,8 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       setShippingFeeActual(order.shippingFeeActual == null ? '' : String(order.shippingFeeActual));
       setDescription(order.description ?? '');
       setContentNote(order.contentNote ?? '');
+      setLoadedOrderStatus(order.orderStatus);
+      setRowVersion(order.rowVersion ?? undefined);
       setItems(order.items.length > 0
         ? order.items.map((item) => ({
             key: item.id,
@@ -216,10 +401,11 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             note: item.note ?? undefined,
             imageFiles: [],
             existingImages: order.images.filter((image) => image.orderItemId === item.id),
+            snapshotThumbnailUrl: item.thumbnailUrl,
           }))
         : [emptyLine()]);
     } catch (requestError) {
-      setLoadError(getApiErrorMessage(requestError));
+      setLoadError(getOrderEditorErrorMessage(requestError, null));
     } finally {
       setLoading(false);
     }
@@ -241,7 +427,13 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
 
   const selectProduct = (index: number, value: string) => {
     if (value === 'manual') {
-      updateLine(index, { productId: undefined, productSku: undefined, productName: '', unitPrice: 0 });
+      updateLine(index, {
+        productId: undefined,
+        productSku: undefined,
+        productName: '',
+        unitPrice: 0,
+        snapshotThumbnailUrl: undefined,
+      });
       return;
     }
     const selected = products.find((product) => String(product.id) === value);
@@ -251,6 +443,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       productSku: selected.sku,
       productName: productName(selected),
       unitPrice: selected.salePrice ?? selected.price,
+      snapshotThumbnailUrl: productImageSource(selected),
     });
   };
 
@@ -450,17 +643,18 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       if (orderId) {
         await ordersApi.update(orderId, {
           ...commonPayload,
+          rowVersion,
           shippingFeeActual: pickupAtShop || shippingFeeActual.trim() === ''
             ? null
             : Number(shippingFeeActual),
         });
-        navigate(`/admin/orders/${orderId}`);
+        navigate(`/admin/orders/${orderId}`, { state: { successMessage: 'Đã cập nhật đơn hàng.' } });
       } else {
         const created = await ordersApi.create(commonPayload);
-        navigate(`/admin/orders/${created.id}`);
+        navigate(`/admin/orders/${created.id}`, { state: { successMessage: 'Đã tạo đơn hàng.' } });
       }
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
+      setError(getOrderEditorErrorMessage(requestError, loadedOrderStatus));
     } finally {
       submitLockRef.current = false;
       setSaving(false);
@@ -474,6 +668,40 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         <div className="flex min-h-64 items-center justify-center rounded-admin-panel border border-admin-border bg-admin-card" role="status">
           <LoaderCircle className="mr-2 animate-spin text-admin-primary" size={18} aria-hidden="true" />
           <span className="text-sm text-admin-text-secondary">Đang tải thông tin</span>
+        </div>
+      </div>
+    );
+  }
+
+  const editBlocked = isEdit
+    && loadedOrderStatus !== null
+    && loadedOrderStatus !== OrderStatus.Created;
+
+  if (editBlocked) {
+    const terminal = loadedOrderStatus === OrderStatus.Completed || loadedOrderStatus === OrderStatus.Cancelled;
+    return (
+      <div className="min-w-0 pb-2">
+        <PageHeader
+          title="Sửa đơn hàng"
+          description="Kiểm tra trạng thái đơn hàng trước khi chỉnh sửa."
+          actions={(
+            <Link
+              to={orderId ? `/admin/orders/${orderId}` : '/admin/orders'}
+              className="btn-press inline-flex min-h-11 items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted"
+            >
+              <ArrowLeft size={16} aria-hidden="true" /> Quay lại đơn hàng
+            </Link>
+          )}
+        />
+        <div className="rounded-admin-control border border-admin-status-error/30 bg-red-50 px-4 py-4 text-sm leading-6 text-admin-status-error" role="alert">
+          <p className="font-semibold">
+            {terminal
+              ? 'Không thể chỉnh sửa đơn hàng đã hoàn tất hoặc đã hủy.'
+              : 'Đơn hàng chỉ có thể chỉnh sửa khi ở trạng thái Đã tạo.'}
+          </p>
+          <p className="mt-1 text-admin-text-secondary">
+            Trạng thái hiện tại: {orderStatusLabel[loadedOrderStatus]}.
+          </p>
         </div>
       </div>
     );
@@ -525,7 +753,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       ) : null}
 
       <form id="order-editor-form" noValidate onSubmit={(event) => void submit(event)} className="space-y-4">
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(28rem,1fr)] xl:items-start">
+        <div className="grid min-w-0 gap-4 min-[1400px]:grid-cols-[minmax(0,1.1fr)_minmax(28rem,1fr)] min-[1400px]:items-start">
           <div className="min-w-0 space-y-4">
             <section className={panelClass} aria-labelledby="customer-section-title">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -616,47 +844,78 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                   const selectedProduct = item.productId
                     ? products.find((product) => String(product.id) === item.productId)
                     : undefined;
-                  const selectedProductImage = selectedProduct ? productImage(selectedProduct) : '';
+                  const selectedProductImage = item.snapshotThumbnailUrl || (selectedProduct ? productImageSource(selectedProduct) : '');
+                  const selectedProductAlt = `${productCode(item.productSku)} - ${item.productName}`;
+                  const selectedProductGallery = productPreviewItems(
+                    selectedProduct,
+                    selectedProductImage,
+                    selectedProductAlt,
+                  );
                   const isManual = !item.productId;
                   const catalogPrice = selectedProduct ? selectedProduct.salePrice ?? selectedProduct.price : null;
                   const priceDifference = catalogPrice == null ? 0 : item.unitPrice - catalogPrice;
+                  const fallbackProductOption: ProductSelectOption | null = item.productId
+                    ? {
+                        value: item.productId,
+                        label: productOptionLabel(item.productSku, item.productName, item.unitPrice),
+                        searchText: normalizeProductSearch(`${item.productSku ?? ''} ${item.productName}`),
+                        productCode: item.productSku ?? undefined,
+                        productName: item.productName,
+                        price: item.unitPrice,
+                        thumbnailUrl: item.snapshotThumbnailUrl,
+                      }
+                    : null;
+                  const hasLoadedProductOption = productOptions.some((option) => option.value === item.productId);
+                  const lineProductOptions = [
+                    ...productOptions.map((option) => (
+                      option.value === item.productId ? { ...option, isDisabled: false } : option
+                    )),
+                    ...(!hasLoadedProductOption && fallbackProductOption ? [fallbackProductOption] : []),
+                  ];
+                  const selectedProductOption = lineProductOptions.find(
+                    (option) => option.value === (item.productId ?? 'manual'),
+                  ) ?? lineProductOptions[0];
                   return (
-                    <fieldset key={item.key} className={`rounded-admin-control border p-3 ${lineErrors[index] ? 'border-admin-status-error/45 bg-red-50/50' : 'border-admin-border bg-admin-muted/25'}`}>
+                    <fieldset key={item.key} className={`min-w-0 rounded-admin-control border p-3 ${lineErrors[index] ? 'border-admin-status-error/45 bg-red-50/50' : 'border-admin-border bg-admin-muted/25'}`}>
                       <legend className="px-1 text-[11px] font-semibold text-admin-text-muted">#{index + 1}</legend>
-                      <div className="grid items-end gap-2.5 md:grid-cols-[minmax(13rem,1fr)_minmax(8rem,0.42fr)_5rem_2.5rem]">
-                        <div>
+                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(5.5rem,6rem)_2.75rem] items-start gap-2.5 md:grid-cols-[minmax(0,1fr)_minmax(10rem,11rem)_minmax(5rem,6rem)_2.75rem]">
+                        <div className="col-span-3 min-w-0 md:col-span-1">
                           <label htmlFor={`order-line-product-${index}`} className={labelClass}>Sản phẩm cụ thể</label>
                           <AdminSelect<string, ProductSelectOption>
                             inputId={`order-line-product-${index}`}
                             aria-label={`Tìm sản phẩm cụ thể cho dòng ${index + 1}`}
-                            options={productOptions.map((option) => (
-                              option.value === item.productId ? { ...option, isDisabled: false } : option
-                            ))}
-                            value={productOptions.find((option) => option.value === (item.productId ?? 'manual')) ?? productOptions[0]}
+                            options={lineProductOptions}
+                            value={selectedProductOption}
                             onChange={(option) => selectProduct(index, option?.value ?? 'manual')}
                             placeholder="Tìm theo mã hoặc tên sản phẩm"
                             filterOption={(option, inputValue) => (
                               option.data.searchText.includes(normalizeProductSearch(inputValue))
                             )}
+                            formatOptionLabel={(option, meta) => (
+                              <ProductOptionContent option={option} context={meta.context} />
+                            )}
                             isSearchable
                             openMenuOnFocus
                           />
-                          <p className="mt-1 text-[11px] text-admin-text-muted">Tìm theo mã SKU hoặc tên; danh sách chỉ hiển thị tên sản phẩm.</p>
+                          <p className="mt-1 text-[11px] leading-4 text-admin-text-muted">Tìm theo mã SKU hoặc tên sản phẩm.</p>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <label htmlFor={`order-line-price-${index}`} className={labelClass}>Đơn giá</label>
                           <div className="relative">
                             <input id={`order-line-price-${index}`} type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(item.unitPrice)} onChange={(event) => updateLine(index, { unitPrice: parseVndInput(event.target.value) })} />
-                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-admin-text-muted">₫</span>
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <label htmlFor={`order-line-quantity-${index}`} className={labelClass}>SL</label>
                           <input id={`order-line-quantity-${index}`} type="number" min={1} step={1} className={inputClass} value={item.quantity} onChange={(event) => updateLine(index, { quantity: Number(event.target.value) })} />
                         </div>
-                        <button type="button" onClick={() => removeLine(index)} disabled={items.length <= 1} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control text-admin-status-error transition-colors hover:bg-admin-status-error/10 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Xóa sản phẩm ${index + 1}`}>
-                          <Trash2 size={16} aria-hidden="true" />
-                        </button>
+                        <div className="min-w-0">
+                          <span className={`${labelClass} invisible`} aria-hidden="true">Xóa</span>
+                          <button type="button" onClick={() => removeLine(index)} disabled={items.length <= 1} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-status-error transition-colors hover:bg-admin-status-error/10 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Xóa sản phẩm ${index + 1}`}>
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
 
                       {isManual ? (
@@ -665,31 +924,52 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                           <input id={`order-line-name-${index}`} className={inputClass} value={item.productName} onChange={(event) => updateLine(index, { productName: event.target.value })} placeholder="Ví dụ: Bó hoa thiết kế riêng" />
                         </div>
                       ) : (
-                        <div className="mt-2.5 flex min-w-0 items-center gap-2 text-xs text-admin-text-secondary">
-                          {selectedProductImage ? <img src={selectedProductImage} alt="" className="h-9 w-9 shrink-0 rounded-admin-control object-cover" /> : null}
+                        <div className="mt-2.5 flex min-w-0 items-center gap-2.5 text-xs text-admin-text-secondary">
+                          <ImagePreview
+                            src={selectedProductImage}
+                            alt={selectedProductAlt}
+                            title={selectedProductAlt}
+                            previewTitle={selectedProductAlt}
+                            gallery={selectedProductGallery}
+                            buttonClassName="h-10 w-10 rounded-admin-control"
+                            thumbnailClassName="h-10 w-10 rounded-admin-control border border-admin-border object-cover"
+                          />
                           <div className="min-w-0">
-                            <p className="truncate">{item.productName} · {item.productSku}</p>
+                            <p className="truncate font-medium text-admin-text-primary" title={`${productCode(item.productSku)} - ${item.productName}`}>
+                              {productCode(item.productSku)} - {item.productName}
+                            </p>
+                            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-admin-text-muted">
+                              <span>Giá danh mục: {formatOrderCurrency(catalogPrice ?? item.unitPrice)}</span>
+                              <span>
+                                {selectedProduct
+                                  ? selectedProduct.tracksInventory
+                                    ? `Tồn kho: ${selectedProduct.stock}`
+                                    : 'Làm theo đơn, không trừ tồn kho'
+                                  : 'Tồn kho: chưa có dữ liệu'}
+                              </span>
+                            </div>
                             {priceDifference !== 0 ? (
                               <p className={`mt-0.5 font-medium ${priceDifference < 0 ? 'text-admin-status-warning' : 'text-admin-status-success'}`}>
                                 {priceDifference < 0 ? 'Giảm size' : 'Tăng size'} {priceDifference > 0 ? '+' : ''}{formatOrderCurrency(priceDifference)} so với giá danh mục
                               </p>
-                            ) : <p className="mt-0.5 text-admin-text-muted">Đang dùng giá danh mục</p>}
-                            {!selectedProduct?.tracksInventory ? <p className="mt-0.5 text-admin-primary">Làm theo đơn, không trừ tồn kho</p> : null}
+                            ) : null}
                           </div>
                         </div>
                       )}
-                      <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
-                        <div>
+                      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
+                        <div className="min-w-0">
                           <label htmlFor={`order-line-note-${index}`} className={labelClass}>Ghi chú riêng cho sản phẩm</label>
-                          <textarea id={`order-line-note-${index}`} className={`${inputClass} min-h-16 resize-y`} value={item.note ?? ''} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Màu hoa, kích thước, nội dung thiệp…" />
+                          <textarea id={`order-line-note-${index}`} className={`${inputClass} min-h-24 resize-y break-words`} value={item.note ?? ''} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Màu hoa, kích thước, nội dung thiệp…" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <span className={labelClass}>Ảnh minh họa {isManual ? <span className="text-admin-status-error">*</span> : <span className="text-admin-text-muted">(không bắt buộc)</span>}</span>
-                          <div className="flex min-h-16 flex-wrap items-center gap-2 rounded-admin-control border border-dashed border-admin-border p-2">
-                            {item.existingImages.map((image) => (
-                              <img key={image.id} src={resolveApiResourceUrl(image.imageUrl)} alt="Ảnh minh họa đã lưu" className="h-14 w-14 rounded-admin-control border border-admin-border object-cover" />
-                            ))}
-                            <FilePreviews files={item.imageFiles} onRemove={(fileIndex) => updateLine(index, { imageFiles: item.imageFiles.filter((_, currentIndex) => currentIndex !== fileIndex) })} />
+                          <div className="flex min-h-24 min-w-0 flex-wrap content-start items-center gap-2 rounded-admin-control border border-dashed border-admin-border p-2">
+                            <OrderItemImagePreviews
+                              existingImages={item.existingImages}
+                              files={item.imageFiles}
+                              productName={item.productName || `sản phẩm ${index + 1}`}
+                              onRemove={(fileIndex) => updateLine(index, { imageFiles: item.imageFiles.filter((_, currentIndex) => currentIndex !== fileIndex) })}
+                            />
                             <label htmlFor={`order-line-images-${index}`} className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-admin-control border border-admin-primary/35 px-3 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/8">
                               <ImagePlus size={15} aria-hidden="true" /> Thêm ảnh
                             </label>
@@ -716,7 +996,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             </section>
           </div>
 
-          <div className="min-w-0 space-y-4 xl:sticky xl:top-4">
+          <div className="min-w-0 space-y-4 min-[1400px]:sticky min-[1400px]:top-4">
             <section className={panelClass} aria-labelledby="delivery-section-title">
               <div className="mb-3">
                 <h2 id="delivery-section-title" className="text-sm font-semibold text-admin-text-primary">Giao nhận</h2>

@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { authApi } from '@/features/auth/api/authApi';
 import type { AuthUser } from '@/features/auth/types';
 import { UserRole } from '@/features/auth/types';
-import { userHasPermission, type PermissionName } from '@/features/auth/permissions';
+import { userHasPermission } from '@/features/auth/permissions';
 import { AUTH_EXPIRED_EVENT } from '@/services/authEvents';
 import { tokenStorage, type StoredUserSnapshot } from '@/services/tokenStorage';
 
@@ -14,7 +14,7 @@ type AuthContextValue = {
   refreshUser: () => Promise<void>;
   isAdmin: boolean;
   isManagerOrAbove: boolean;
-  hasPermission: (permission: PermissionName) => boolean;
+  hasPermission: (permission: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -115,10 +115,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     tokenStorage.setUserSnapshot(toSnapshot(me));
   }, []);
 
-  const isAdmin = user?.role === UserRole.Admin;
-  const isManagerOrAbove = user?.role === UserRole.Admin || user?.role === UserRole.Manager;
+  const isAdmin = user?.roleCode === 'admin' || user?.role === UserRole.Admin;
+  const isManagerOrAbove = isAdmin || user?.roleCode === 'manager' || user?.role === UserRole.Manager;
   const hasPermission = useCallback(
-    (permission: PermissionName) => userHasPermission(user, permission),
+    (permission: string) => userHasPermission(user, permission),
     [user],
   );
 

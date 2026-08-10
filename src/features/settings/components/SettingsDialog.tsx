@@ -19,7 +19,7 @@ type SettingsDialogProps = {
   onRequestClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  width?: 'medium' | 'wide';
+  width?: 'medium' | 'wide' | 'viewport';
   focusKey?: string;
 };
 
@@ -35,15 +35,26 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
   focusKey = 'default',
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onRequestCloseRef = useRef(onRequestClose);
   const titleId = useId();
   const descriptionId = useId();
+
+  useEffect(() => {
+    onRequestCloseRef.current = onRequestClose;
+  }, [onRequestClose]);
 
   useEffect(() => {
     if (!open) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      const currentPaddingRight = Number.parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
+      document.body.style.paddingRight = `${currentPaddingRight + scrollbarWidth}px`;
+    }
 
     const frame = window.requestAnimationFrame(() => {
       const autofocusTarget = dialogRef.current?.querySelector<HTMLElement>('[data-autofocus]');
@@ -54,7 +65,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onRequestClose();
+        onRequestCloseRef.current();
         return;
       }
 
@@ -83,10 +94,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     return () => {
       window.cancelAnimationFrame(frame);
       document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
       document.removeEventListener('keydown', handleKeyDown);
       window.requestAnimationFrame(() => previousFocus?.focus());
     };
-  }, [onRequestClose, open]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,7 +129,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
         tabIndex={-1}
         className={[
           'relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-admin-panel border border-admin-border bg-admin-card shadow-admin-popover sm:rounded-admin-panel',
-          width === 'wide' ? 'sm:max-w-3xl' : 'sm:max-w-lg',
+          width === 'viewport'
+            ? 'sm:max-w-[90vw]'
+            : width === 'wide'
+              ? 'sm:max-w-3xl'
+              : 'sm:max-w-lg',
         ].join(' ')}
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-admin-border px-4 py-4 sm:px-5">

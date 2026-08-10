@@ -88,6 +88,7 @@ export type OrderDetailDto = OrderListItemDto & {
   description?: string | null;
   contentNote?: string | null;
   updatedAt?: string | null;
+  rowVersion?: string | null;
   items: OrderItemDto[];
   images: OrderImageDto[];
   changeLogs: OrderChangeLogDto[];

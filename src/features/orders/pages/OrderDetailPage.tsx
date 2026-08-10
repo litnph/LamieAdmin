@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,8 +22,8 @@ import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
 import { ConfirmationPanel, SettingsDialog } from '@/features/settings/components/SettingsDialog';
+import { ImagePreview, type ImagePreviewItem } from '@/shared/components/ImagePreview';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
-import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 import { ordersApi } from '../api/ordersApi';
 import { OrderStatusBadge, PaymentStatusBadge, DeliveryUrgencyBadge } from '../components/OrderStatusBadges';
 import {
@@ -32,7 +32,7 @@ import {
   orderStatusLabel,
   paymentStatusLabel,
 } from '../constants/orderLabels';
-import type { OrderChangeLogDto, OrderDetailDto, OrderItemDto } from '../types/order.types';
+import type { OrderChangeLogDto, OrderDetailDto, OrderImageDto, OrderItemDto } from '../types/order.types';
 import { OrderStatus, PaymentStatus } from '../types/order.types';
 import {
   formatOrderCurrency,
@@ -54,6 +54,12 @@ const formatDateTime = (value: string) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+
+const navigationSuccessMessage = (state: unknown): string | null => {
+  if (typeof state !== 'object' || state === null || !('successMessage' in state)) return null;
+  const message = state.successMessage;
+  return typeof message === 'string' && message.trim() ? message : null;
+};
 
 const isOrderStatus = (value: number): value is OrderStatus =>
   [
@@ -97,21 +103,38 @@ const formatLogValue = (fieldName: string, value?: string | null) => {
   return value;
 };
 
-const ProductVisual: React.FC<{ item: OrderItemDto; illustrationUrl?: string }> = ({ item, illustrationUrl }) => {
-  const visuals = [
-    item.thumbnailUrl ? { url: item.thumbnailUrl, alt: `Ảnh đại diện sản phẩm ${item.productName}` } : null,
-    illustrationUrl ? { url: illustrationUrl, alt: `Ảnh minh họa ${item.productName}` } : null,
-  ].filter((visual): visual is { url: string; alt: string } => visual !== null);
+const ProductVisual: React.FC<{ item: OrderItemDto; illustrations: OrderImageDto[] }> = ({ item, illustrations }) => {
+  const productTitle = [item.productSku, item.productName].filter(Boolean).join(' - ');
+  const visuals: ImagePreviewItem[] = [
+    ...(item.thumbnailUrl ? [{
+      src: item.thumbnailUrl,
+      alt: `Ảnh đại diện sản phẩm ${item.productName}`,
+      title: productTitle,
+      caption: 'Ảnh đại diện được lưu cùng đơn hàng',
+    }] : []),
+    ...[...illustrations]
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((image, index) => ({
+        src: image.imageUrl,
+        alt: image.description || `${index === 0 ? 'Ảnh minh họa' : `Ảnh minh họa ${index + 1}`} ${item.productName}`,
+        title: productTitle,
+        caption: image.description || `Ảnh đính kèm sản phẩm ${item.productName}`,
+      })),
+  ];
 
   return visuals.length > 0 ? (
     <div className="flex shrink-0 gap-1" aria-label={`Hình ảnh của ${item.productName}`}>
       {visuals.map((visual) => (
-        <img
-          key={`${visual.alt}-${visual.url}`}
-          src={resolveApiResourceUrl(visual.url)}
+        <ImagePreview
+          key={`${visual.alt}-${visual.src}`}
+          src={visual.src}
           alt={visual.alt}
-          title={visual.alt}
-          className="h-12 w-12 rounded-admin-control border border-admin-border object-cover"
+          title={visual.title}
+          caption={visual.caption}
+          previewTitle={productTitle}
+          gallery={visuals}
+          buttonClassName="h-12 w-12 rounded-admin-control"
+          thumbnailClassName="h-12 w-12 rounded-admin-control border border-admin-border object-cover"
         />
       ))}
     </div>
@@ -191,6 +214,7 @@ const DetailLoadingState: React.FC = () => (
 
 export const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { hasPermission } = useAuth();
   const canManageOrder = hasPermission(Permission.OrdersManage);
   const canCancelOrder = hasPermission(Permission.OrdersCancel);
@@ -198,7 +222,7 @@ export const OrderDetailPage: React.FC = () => {
   const [channels, setChannels] = useState<ChannelDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(() => navigationSuccessMessage(location.state));
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
   const actionLockRef = useRef(false);
@@ -253,6 +277,17 @@ export const OrderDetailPage: React.FC = () => {
           ? Math.min(Math.max(order.depositAmount, 0), Math.max(order.totalAmount, 0))
           : 0;
     return { paid, remaining: Math.max(order.totalAmount - paid, 0) };
+  }, [order]);
+
+  const imagesByItemId = useMemo(() => {
+    const grouped = new Map<string, OrderImageDto[]>();
+    order?.images.forEach((image) => {
+      if (!image.orderItemId) return;
+      const current = grouped.get(image.orderItemId) ?? [];
+      current.push(image);
+      grouped.set(image.orderItemId, current);
+    });
+    return grouped;
   }, [order]);
 
   const changeStatus = async (status: OrderStatus) => {
@@ -352,6 +387,17 @@ export const OrderDetailPage: React.FC = () => {
 
   const pendingStatusIsCancel = pendingStatus === OrderStatus.Cancelled;
   const statusDialogBusy = pendingStatus != null && busyAction === `status-${pendingStatus}`;
+  const attachmentGallery: ImagePreviewItem[] = order.images.map((image, index) => {
+    const item = order.items.find((orderItem) => orderItem.id === image.orderItemId);
+    return {
+      src: image.imageUrl,
+      alt: image.description || `Ảnh đính kèm ${index + 1} của đơn ${order.orderCode}`,
+      title: item
+        ? `${item.productSku ? `${item.productSku} - ` : ''}${item.productName}`
+        : `Ảnh đính kèm đơn ${order.orderCode}`,
+      caption: image.description || item?.productName,
+    };
+  });
 
   return (
     <div className="min-w-0 pb-4">
@@ -401,7 +447,7 @@ export const OrderDetailPage: React.FC = () => {
                   : PRIMARY_STATUS_ACTION[primaryStatus] ?? orderStatusLabel[primaryStatus]}
               </button>
             ) : null}
-            {canManageOrder ? (
+            {canManageOrder && order.orderStatus === OrderStatus.Created ? (
               <Link
                 to={`/admin/orders/${order.id}/edit`}
                 className="btn-press inline-flex min-h-11 items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-surface px-4 text-sm font-semibold text-admin-text-primary transition-colors hover:border-admin-primary/45 hover:bg-admin-primary/5 hover:text-admin-primary"
@@ -642,7 +688,7 @@ export const OrderDetailPage: React.FC = () => {
                   {order.items.map((item) => (
                     <li key={item.id} className="px-4 py-4">
                       <div className="flex min-w-0 items-start gap-3">
-                        <ProductVisual item={item} illustrationUrl={order.images.find((image) => image.orderItemId === item.id)?.imageUrl} />
+                        <ProductVisual item={item} illustrations={imagesByItemId.get(item.id) ?? []} />
                         <div className="min-w-0 flex-1">
                           <p className="break-words font-semibold leading-5 text-admin-text-primary">{item.productName}</p>
                           {item.productSku ? <p className="mt-1 font-mono text-xs text-admin-text-muted">{item.productSku}</p> : null}
@@ -692,7 +738,7 @@ export const OrderDetailPage: React.FC = () => {
                       <tr key={item.id}>
                         <th scope="row" className="px-4 py-4 font-normal sm:px-5">
                           <div className="flex min-w-0 items-start gap-3">
-                            <ProductVisual item={item} illustrationUrl={order.images.find((image) => image.orderItemId === item.id)?.imageUrl} />
+                            <ProductVisual item={item} illustrations={imagesByItemId.get(item.id) ?? []} />
                             <div className="min-w-0">
                               <p className="break-words font-semibold leading-5 text-admin-text-primary">{item.productName}</p>
                               {item.productSku ? <p className="mt-1 font-mono text-xs text-admin-text-muted">{item.productSku}</p> : null}
@@ -787,39 +833,32 @@ export const OrderDetailPage: React.FC = () => {
                   <ImageIcon size={19} strokeWidth={1.8} className="text-admin-primary" aria-hidden="true" />
                   <div>
                     <h2 id="attachments-title" className="text-base font-semibold text-admin-text-primary">Ảnh đính kèm</h2>
-                    <p className="mt-0.5 text-xs text-admin-text-muted">Nhấp đúp vào ảnh để mở bản đầy đủ.</p>
+                    <p className="mt-0.5 text-xs text-admin-text-muted">Nhấp đúp vào ảnh để xem ảnh lớn.</p>
                   </div>
                 </div>
                 <span className="text-sm tabular-nums text-admin-text-secondary">{order.images.length} ảnh</span>
               </div>
               <ul className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 sm:p-5 lg:grid-cols-4">
                 {order.images.map((image, index) => {
-                  const imageUrl = resolveApiResourceUrl(image.imageUrl);
-                  const openPreview = () => window.open(imageUrl, '_blank', 'noopener,noreferrer');
+                  const item = order.items.find((orderItem) => orderItem.id === image.orderItemId);
+                  const imageAlt = image.description || `Ảnh đính kèm ${index + 1} của đơn ${order.orderCode}`;
 
                   return (
                     <li key={image.id} className="min-w-0">
-                      <button
-                        type="button"
-                        onDoubleClick={openPreview}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter') return;
-                          event.preventDefault();
-                          openPreview();
-                        }}
-                        className="group block w-full cursor-zoom-in overflow-hidden rounded-admin-control border border-admin-border bg-admin-muted text-left transition-colors hover:border-admin-primary/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary/25"
-                        aria-label={`Nhấp đúp để mở ảnh đính kèm ${index + 1} của đơn ${order.orderCode} trong cửa sổ mới`}
-                        title="Nhấp đúp để mở ảnh trong cửa sổ mới"
-                      >
-                      <img
-                        src={imageUrl}
-                        alt={image.description || `Ảnh đính kèm ${index + 1} của đơn ${order.orderCode}`}
-                        loading="lazy"
-                        className="aspect-square w-full object-cover transition-opacity group-hover:opacity-90"
+                      <ImagePreview
+                        src={image.imageUrl}
+                        alt={imageAlt}
+                        title={item
+                          ? `${item.productSku ? `${item.productSku} - ` : ''}${item.productName}`
+                          : `Ảnh đính kèm đơn ${order.orderCode}`}
+                        caption={image.description || item?.productName}
+                        gallery={attachmentGallery}
+                        buttonClassName="block w-full rounded-admin-control border border-admin-border bg-admin-muted transition-colors hover:border-admin-primary/45"
+                        thumbnailClassName="aspect-square w-full rounded-admin-control object-cover"
+                        fallbackClassName="border border-admin-border"
                       />
-                      </button>
                       <p className="mt-1.5 break-words text-xs text-admin-text-secondary">
-                        {order.items.find((item) => item.id === image.orderItemId)?.productName ?? image.description ?? 'Ảnh minh họa đơn hàng'}
+                        {item?.productName ?? image.description ?? 'Ảnh minh họa đơn hàng'}
                       </p>
                     </li>
                   );

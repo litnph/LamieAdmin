@@ -7,6 +7,8 @@ import { usersApi } from '../api/usersApi';
 import type { AuthUser } from '@/features/auth/types';
 import { UserRole } from '@/features/auth/types';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
+import { useAuth } from '@/features/auth/context/AuthContext';
+import { Permission } from '@/features/auth/permissions';
 
 const roleLabel: Record<UserRole, string> = {
   [UserRole.Admin]: 'Admin',
@@ -18,6 +20,8 @@ const actionClass =
   'inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary focus-visible:ring-offset-2';
 
 export const UsersListPage: React.FC = () => {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(Permission.UsersManage);
   const [rows, setRows] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -151,17 +155,17 @@ export const UsersListPage: React.FC = () => {
                 </div>
                 <div>
                   <dt className="text-xs text-admin-text-muted">Vai trò</dt>
-                  <dd className="mt-1 font-medium text-admin-text-primary">{roleLabel[user.role]}</dd>
+                  <dd className="mt-1 font-medium text-admin-text-primary">{user.roleName ?? roleLabel[user.role]}</dd>
                 </div>
               </dl>
-              <div className="mt-4 flex justify-end gap-1 border-t border-admin-border pt-3">
+              {canManage ? <div className="mt-4 flex justify-end gap-1 border-t border-admin-border pt-3">
                 <Link to={`/admin/users/${user.id}/edit`} className={actionClass} aria-label={`Sửa người dùng ${user.fullName}`}>
                   <Pencil size={18} aria-hidden="true" />
                 </Link>
                 <button type="button" onClick={() => openReset(user.id)} className={actionClass} aria-label={`Đặt lại mật khẩu cho ${user.fullName}`}>
                   <KeyRound size={18} aria-hidden="true" />
                 </button>
-              </div>
+              </div> : null}
             </article>
           ))}
         </div>
@@ -186,7 +190,7 @@ export const UsersListPage: React.FC = () => {
                     <span className="mt-0.5 block text-xs text-admin-text-muted">{user.userName}</span>
                   </th>
                   <td className="px-4 py-3.5 text-admin-text-primary">{user.fullName}</td>
-                  <td className="px-4 py-3.5 text-admin-text-secondary">{roleLabel[user.role]}</td>
+                  <td className="px-4 py-3.5 text-admin-text-secondary">{user.roleName ?? roleLabel[user.role]}</td>
                   <td className="px-4 py-3.5">
                     <span
                       className={[
@@ -200,14 +204,14 @@ export const UsersListPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <div className="flex justify-end gap-1">
+                    {canManage ? <div className="flex justify-end gap-1">
                       <Link to={`/admin/users/${user.id}/edit`} className={actionClass} aria-label={`Sửa người dùng ${user.fullName}`}>
                         <Pencil size={18} aria-hidden="true" />
                       </Link>
                       <button type="button" onClick={() => openReset(user.id)} className={actionClass} aria-label={`Đặt lại mật khẩu cho ${user.fullName}`}>
                         <KeyRound size={18} aria-hidden="true" />
                       </button>
-                    </div>
+                    </div> : null}
                   </td>
                 </tr>
               ))}
@@ -222,13 +226,13 @@ export const UsersListPage: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <PageHeader title="Người dùng" subtitle="Quản lý tài khoản và vai trò truy cập hệ thống." />
-        <Link
+        {canManage ? <Link
           to="/admin/users/new"
           className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-admin-primary-hover sm:w-auto"
         >
           <Plus size={18} aria-hidden="true" />
           Tạo người dùng
-        </Link>
+        </Link> : null}
       </div>
 
       {successMessage ? (

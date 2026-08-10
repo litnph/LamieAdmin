@@ -104,6 +104,7 @@ export const ordersApi = {
       depositAmount: number;
       shippingFee: number;
       shippingFeeActual?: number | null;
+      rowVersion?: string;
       description?: string;
       contentNote?: string;
       items: UpdateOrderLine[];
@@ -112,6 +113,7 @@ export const ordersApi = {
   ): Promise<OrderDetailDto> => {
     const fd = new FormData();
     fd.append('id', id);
+    if (body.rowVersion) fd.append('rowVersion', body.rowVersion);
     fd.append('ordererName', body.ordererName);
     fd.append('ordererPhone', body.ordererPhone);
     fd.append('channelId', body.channelId);
