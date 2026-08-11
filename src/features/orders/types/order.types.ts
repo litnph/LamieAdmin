@@ -33,6 +33,10 @@ export type OrderItemDto = {
   quantity: number;
   lineTotal: number;
   note?: string | null;
+  hasCard: boolean;
+  cardMessage?: string | null;
+  hasBanner: boolean;
+  bannerMessage?: string | null;
 };
 
 export type OrderImageDto = {
@@ -153,6 +157,10 @@ export type CreateOrderLine = {
   unitPrice: number;
   quantity: number;
   note?: string;
+  hasCard: boolean;
+  cardMessage?: string | null;
+  hasBanner: boolean;
+  bannerMessage?: string | null;
 };
 
 export type UpdateOrderLine = CreateOrderLine & { id?: string };

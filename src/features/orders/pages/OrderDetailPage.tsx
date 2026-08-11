@@ -697,6 +697,8 @@ export const OrderDetailPage: React.FC = () => {
                               Ghi chú: {item.note}
                             </p>
                           ) : null}
+                          {item.hasCard && item.cardMessage ? <p className="mt-2 break-words text-xs leading-5 text-admin-text-secondary"><strong>Thiệp:</strong> {item.cardMessage}</p> : null}
+                          {item.hasBanner && item.bannerMessage ? <p className="mt-1 break-words text-xs leading-5 text-admin-text-secondary"><strong>Banner:</strong> {item.bannerMessage}</p> : null}
                         </div>
                       </div>
                       <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-admin-border pt-3 text-sm">
@@ -745,6 +747,8 @@ export const OrderDetailPage: React.FC = () => {
                               {item.note ? (
                                 <p className="mt-2 break-words text-xs leading-5 text-admin-text-secondary">Ghi chú: {item.note}</p>
                               ) : null}
+                              {item.hasCard && item.cardMessage ? <p className="mt-2 break-words text-xs leading-5 text-admin-text-secondary"><strong>Thiệp:</strong> {item.cardMessage}</p> : null}
+                              {item.hasBanner && item.bannerMessage ? <p className="mt-1 break-words text-xs leading-5 text-admin-text-secondary"><strong>Banner:</strong> {item.bannerMessage}</p> : null}
                             </div>
                           </div>
                         </th>

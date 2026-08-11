@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   LocateFixed,
   MapPin,
+  MessageSquareText,
   Plus,
   Search,
   Trash2,
@@ -28,6 +29,8 @@ import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
 import { OrderStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
 import { formatOrderCurrency } from '../utils/orderListFormatters';
 import { nominatimReverse, nominatimSearch } from '../utils/geocode';
+import { calculateDefaultDeposit } from '../utils/deposit';
+import { parseOrderText, type ParsedOrderText } from '../utils/orderTextParser';
 
 const inputClass =
   'min-h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 py-2 text-sm text-admin-text-primary placeholder:text-admin-text-muted transition-colors focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15 disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text';
@@ -69,6 +72,10 @@ const emptyLine = (): LineDraft => ({
   quantity: 1,
   imageFiles: [],
   existingImages: [],
+  hasCard: false,
+  cardMessage: null,
+  hasBanner: false,
+  bannerMessage: null,
 });
 
 const productName = (product: ProductDto) =>
@@ -314,11 +321,16 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [deliveryTo, setDeliveryTo] = useState('');
   const [deliveryMode, setDeliveryMode] = useState<'exact' | 'range'>('exact');
   const [depositAmount, setDepositAmount] = useState(100_000);
+  const [depositWasManuallyEdited, setDepositWasManuallyEdited] = useState(isEdit);
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingFeeActual, setShippingFeeActual] = useState('');
   const [description, setDescription] = useState('');
   const [contentNote, setContentNote] = useState('');
   const [items, setItems] = useState<LineDraft[]>([emptyLine()]);
+  const [quickImportOpen, setQuickImportOpen] = useState(false);
+  const [quickImportText, setQuickImportText] = useState('');
+  const [quickImportResult, setQuickImportResult] = useState<ParsedOrderText | null>(null);
+  const [quickImportFiles, setQuickImportFiles] = useState<File[]>([]);
 
   const [showMap, setShowMap] = useState(false);
   const [geoSearching, setGeoSearching] = useState(false);
@@ -402,6 +414,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             imageFiles: [],
             existingImages: order.images.filter((image) => image.orderItemId === item.id),
             snapshotThumbnailUrl: item.thumbnailUrl,
+            hasCard: item.hasCard,
+            cardMessage: item.cardMessage,
+            hasBanner: item.hasBanner,
+            bannerMessage: item.bannerMessage,
           }))
         : [emptyLine()]);
     } catch (requestError) {
@@ -410,6 +426,46 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       setLoading(false);
     }
   }, [orderId]);
+
+  const orderValue = useMemo(
+    () => items.reduce((total, item) => total + item.unitPrice * Math.max(0, item.quantity), 0) + (pickupAtShop ? 0 : shippingFee),
+    [items, pickupAtShop, shippingFee],
+  );
+
+  useEffect(() => {
+    if (!isEdit && !depositWasManuallyEdited) setDepositAmount(calculateDefaultDeposit(orderValue));
+  }, [depositWasManuallyEdited, isEdit, orderValue]);
+
+  const applyQuickImport = () => {
+    if (!quickImportResult) return;
+    const parsed = quickImportResult;
+    if (parsed.phone) setRecipientPhone(parsed.phone);
+    if (parsed.address) setDeliveryAddress(parsed.address);
+    if (parsed.shippingFee != null) setShippingFee(parsed.shippingFee);
+    if (parsed.deposit != null) {
+      setDepositAmount(parsed.deposit);
+      setDepositWasManuallyEdited(true);
+    }
+    if (parsed.deliveryDate && parsed.deliveryStartTime) {
+      setDeliveryAt(`${parsed.deliveryDate}T${parsed.deliveryStartTime}`);
+      if (parsed.deliveryEndTime) {
+        setDeliveryMode('range');
+        setDeliveryTo(`${parsed.deliveryDate}T${parsed.deliveryEndTime}`);
+      }
+    }
+    setItems((current) => current.map((item, index) => index === 0 ? {
+      ...item,
+      unitPrice: parsed.price ?? item.unitPrice,
+      productName: !item.productId && parsed.productHint ? parsed.productHint : item.productName,
+      hasCard: parsed.cardMessage ? true : item.hasCard,
+      cardMessage: parsed.cardMessage ?? item.cardMessage,
+      hasBanner: parsed.bannerMessage ? true : item.hasBanner,
+      bannerMessage: parsed.bannerMessage ?? item.bannerMessage,
+      imageFiles: [...item.imageFiles, ...quickImportFiles],
+    } : item));
+    setQuickImportFiles([]);
+    setQuickImportOpen(false);
+  };
 
   useEffect(() => {
     void load();
@@ -578,6 +634,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         nextLineErrors[index] = 'Đơn giá sản phẩm phải lớn hơn 0.';
       } else if (!item.productId && item.existingImages.length + item.imageFiles.length === 0) {
         nextLineErrors[index] = 'Sản phẩm ngoài danh mục cần ít nhất 1 ảnh minh họa.';
+      } else if (item.hasCard && !item.cardMessage?.trim()) {
+        nextLineErrors[index] = 'Nhập nội dung thiệp hoặc tắt Ghi thiệp.';
+      } else if (item.hasBanner && !item.bannerMessage?.trim()) {
+        nextLineErrors[index] = 'Nhập nội dung banner hoặc tắt In banner.';
       }
       if (nextLineErrors[index] && !firstField) firstField = `order-line-product-${index}`;
     });
@@ -603,7 +663,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     submitLockRef.current = true;
     setSaving(true);
     setError(null);
-    const orderItems = items.map(({ id, productId, productSku, productName: name, unitPrice, quantity, note }) => ({
+    const orderItems = items.map(({ id, productId, productSku, productName: name, unitPrice, quantity, note, hasCard, cardMessage, hasBanner, bannerMessage }) => ({
       id,
       productId,
       productSku,
@@ -611,6 +671,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       unitPrice,
       quantity,
       note: note?.trim() || undefined,
+      hasCard,
+      cardMessage: hasCard ? cardMessage?.trim() || null : null,
+      hasBanner,
+      bannerMessage: hasBanner ? bannerMessage?.trim() || null : null,
     }));
 
     try {
@@ -714,6 +778,11 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         description="Thông tin chính, sản phẩm và giao nhận được gom trong một màn hình."
         actions={(
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            {!isEdit ? (
+              <button type="button" onClick={() => setQuickImportOpen(true)} className="btn-press inline-flex min-h-10 shrink-0 items-center gap-2 rounded-admin-control border border-admin-primary/35 px-3 text-sm font-semibold text-admin-primary hover:bg-admin-primary/8">
+                <MessageSquareText size={16} aria-hidden="true" /> Nhập nhanh
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => navigate(-1)}
@@ -771,6 +840,14 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
               </div>
               <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
+                  <label htmlFor="recipient-name" className={labelClass}>Người nhận</label>
+                  <input id="recipient-name" className={inputClass} value={recipientName} onChange={(event) => setRecipientName(event.target.value)} autoComplete="shipping name" />
+                </div>
+                <div>
+                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận</label>
+                  <input id="recipient-phone" type="tel" className={inputClass} value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} autoComplete="shipping tel" />
+                </div>
+                <div>
                   <label htmlFor="orderer-name" className={labelClass}>Người đặt</label>
                   <input id="orderer-name" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" />
                 </div>
@@ -784,14 +861,6 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                     <option value="">Chọn kênh</option>
                     {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label htmlFor="recipient-name" className={labelClass}>Người nhận</label>
-                  <input id="recipient-name" className={inputClass} value={recipientName} onChange={(event) => setRecipientName(event.target.value)} autoComplete="shipping name" />
-                </div>
-                <div>
-                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận</label>
-                  <input id="recipient-phone" type="tel" className={inputClass} value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} autoComplete="shipping tel" />
                 </div>
                 <fieldset className="sm:col-span-2 lg:col-span-3">
                   <legend className={labelClass}>{provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận'}</legend>
@@ -988,6 +1057,25 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                           </div>
                         </div>
                       </div>
+                      <div className="mt-3 rounded-admin-control border border-admin-border bg-admin-card p-3">
+                        <p className="mb-2 text-xs font-semibold text-admin-text-secondary">Thiệp & banner</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {([
+                            ['hasCard', 'cardMessage', 'Ghi thiệp', 'Nội dung thiệp'],
+                            ['hasBanner', 'bannerMessage', 'In banner', 'Nội dung banner'],
+                          ] as const).map(([toggleKey, messageKey, toggleLabel, messageLabel]) => (
+                            <div key={toggleKey}>
+                              <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-xs font-semibold text-admin-text-primary">
+                                <input type="checkbox" checked={item[toggleKey]} onChange={(event) => updateLine(index, { [toggleKey]: event.target.checked, ...(!event.target.checked ? { [messageKey]: null } : {}) })} className="h-4 w-4 accent-admin-primary" />
+                                {toggleLabel}
+                              </label>
+                              {item[toggleKey] ? (
+                                <textarea aria-label={messageLabel} className={`${inputClass} mt-1 min-h-16 resize-y`} value={item[messageKey] ?? ''} onChange={(event) => updateLine(index, { [messageKey]: event.target.value })} placeholder={messageLabel} />
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                       {lineErrors[index] ? <p className="mt-2 text-xs font-medium text-admin-status-error" role="alert">{lineErrors[index]}</p> : null}
                     </fieldset>
                   );
@@ -1119,9 +1207,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                 <div>
                   <label htmlFor="deposit-amount" className={labelClass}>Tiền cọc</label>
                   <div className="relative">
-                    <input id="deposit-amount" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(depositAmount)} onChange={(event) => setDepositAmount(parseVndInput(event.target.value))} />
+                    <input id="deposit-amount" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(depositAmount)} onChange={(event) => { setDepositAmount(parseVndInput(event.target.value)); setDepositWasManuallyEdited(true); }} />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
                   </div>
+                  <button type="button" onClick={() => { setDepositAmount(calculateDefaultDeposit(orderValue)); setDepositWasManuallyEdited(false); }} className="mt-1 text-[11px] font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
                 </div>
                 <div>
                   <label htmlFor="shipping-fee" className={labelClass}>Phí giao dự kiến</label>
@@ -1149,6 +1238,33 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         </div>
 
       </form>
+
+      {quickImportOpen ? (
+        <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="quick-import-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuickImportOpen(false); }}>
+          <div className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-admin-panel border border-admin-border bg-admin-card p-4 shadow-xl sm:rounded-admin-panel sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div><h2 id="quick-import-title" className="text-base font-semibold text-admin-text-primary">Nhập nhanh từ đoạn chat</h2><p className="mt-1 text-xs text-admin-text-muted">Phân tích trước, kiểm tra rồi mới áp dụng vào đơn.</p></div>
+              <button type="button" onClick={() => setQuickImportOpen(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control hover:bg-admin-muted" aria-label="Đóng nhập nhanh"><X size={18} /></button>
+            </div>
+            <textarea autoFocus className={`${inputClass} mt-4 min-h-48 resize-y`} value={quickImportText} onChange={(event) => setQuickImportText(event.target.value)} placeholder={'11/08 17h15-17h30\nBó 550, 50 ship cọc 200\n0352752593\n461 Phan Văn Trị, Phường An Nhơn'} />
+            <div className="mt-3 rounded-admin-control border border-dashed border-admin-border p-3">
+              <label htmlFor="quick-import-images" className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-admin-control border border-admin-border px-3 text-xs font-semibold text-admin-primary"><ImagePlus size={15} /> Thêm ảnh chụp chat</label>
+              <input id="quick-import-images" type="file" accept="image/*" multiple className="sr-only" onChange={(event) => { setQuickImportFiles((current) => [...current, ...Array.from(event.target.files ?? [])]); event.target.value = ''; }} />
+              {quickImportFiles.length ? <ul className="mt-2 space-y-1">{quickImportFiles.map((file, index) => <li key={`${file.name}-${file.lastModified}`} className="flex items-center justify-between gap-2 text-xs text-admin-text-secondary"><span className="truncate">{file.name}</span><button type="button" onClick={() => setQuickImportFiles((current) => current.filter((_, i) => i !== index))} className="font-semibold text-admin-status-error">Bỏ</button></li>)}</ul> : <p className="mt-2 text-xs text-admin-text-muted">Ảnh sẽ gắn vào sản phẩm đầu tiên và dùng chung luồng ảnh minh họa.</p>}
+            </div>
+            <button type="button" onClick={() => setQuickImportResult(parseOrderText(quickImportText))} disabled={!quickImportText.trim()} className="mt-3 min-h-10 rounded-admin-control border border-admin-primary/35 px-4 text-sm font-semibold text-admin-primary disabled:opacity-50">Phân tích</button>
+            {quickImportResult ? (
+              <div className="mt-4 rounded-admin-control bg-admin-muted p-3 text-sm">
+                <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                  {Object.entries({ Ngày: quickImportResult.deliveryDate, 'Thời gian': [quickImportResult.deliveryStartTime, quickImportResult.deliveryEndTime].filter(Boolean).join(' – '), 'Gợi ý sản phẩm': quickImportResult.productHint, Giá: quickImportResult.price ? formatOrderCurrency(quickImportResult.price) : undefined, Ship: quickImportResult.shippingFee != null ? formatOrderCurrency(quickImportResult.shippingFee) : undefined, Cọc: quickImportResult.deposit != null ? formatOrderCurrency(quickImportResult.deposit) : undefined, 'SĐT người nhận': quickImportResult.phone, 'Địa chỉ': quickImportResult.address, Thiệp: quickImportResult.cardMessage, Banner: quickImportResult.bannerMessage }).filter(([, value]) => value).map(([label, value]) => <div key={label}><dt className="text-xs font-semibold text-admin-text-muted">{label}</dt><dd className="mt-0.5 break-words text-admin-text-primary">{value}</dd></div>)}
+                </dl>
+                {quickImportResult.warnings.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-admin-status-warning">{quickImportResult.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
+              </div>
+            ) : null}
+            <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setQuickImportOpen(false)} className="min-h-10 rounded-admin-control px-3 text-sm font-semibold text-admin-text-secondary">Hủy</button><button type="button" onClick={applyQuickImport} disabled={!quickImportResult} className="min-h-10 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground disabled:opacity-50">Áp dụng vào đơn</button></div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -95,15 +95,14 @@ const getVietnameseAttributeName = (item: AttributeItem) =>
   ?? '';
 
 const createProductCodeSuffix = () =>
-  `${Date.now().toString(36).slice(-5)}${Math.random().toString(36).slice(2, 4)}`.toUpperCase();
+  `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`.replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase().padStart(4, '0');
 
 const buildCategoryIdentifiers = (category: AttributeItem | undefined, suffix: string) => {
   if (!category) return { sku: '', slug: '' };
   const source = category.code?.trim() || getVietnameseAttributeName(category) || `DM-${category.id}`;
-  const skuPrefix = toIdentifier(source, true) || `DM-${category.id}`;
   const slugPrefix = toIdentifier(getVietnameseAttributeName(category) || source) || `danh-muc-${category.id}`;
   return {
-    sku: `${skuPrefix}-${suffix}`.slice(0, 50),
+    sku: suffix,
     slug: `${slugPrefix}-${suffix.toLowerCase()}`,
   };
 };
@@ -185,10 +184,14 @@ function serializeDraft(
 function validateProduct(
   form: ProductFormState,
   translations: ProductTranslation[],
+  mode: ProductFormMode,
+  originalSku?: string,
 ): FieldErrors {
   const errors: FieldErrors = {};
 
   if (!form.sku.trim()) errors.sku = 'Nhập mã SKU để nhận diện sản phẩm.';
+  else if (mode === 'create' && !/^[A-Z0-9]{4}$/.test(form.sku)) errors.sku = 'SKU mới phải gồm đúng 4 chữ in hoa hoặc số.';
+  else if (mode === 'edit' && form.sku !== originalSku && !/^[A-Z0-9]{4}$/.test(form.sku)) errors.sku = 'SKU đã thay đổi phải gồm đúng 4 chữ in hoa hoặc số.';
   if (!Number.isFinite(form.price) || form.price <= 0) errors.price = 'Giá bán phải là số lớn hơn 0.';
   if (!Number.isFinite(form.salePrice) || form.salePrice < 0) {
     errors.salePrice = 'Giá khuyến mãi phải là số từ 0 trở lên.';
@@ -643,7 +646,7 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
     event.preventDefault();
     if (saving || deleting) return;
 
-    const nextErrors = validateProduct(form, translations);
+    const nextErrors = validateProduct(form, translations, mode, initialProduct?.sku);
     setFieldErrors(nextErrors);
     setSubmitError(null);
     if (Object.keys(nextErrors).length > 0) {
@@ -880,7 +883,8 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
                             id="product-sku"
                             className={`mt-2 ${formInputClass('sku')}`}
                             value={form.sku}
-                            onChange={(event) => updateForm('sku', event.target.value)}
+                            onChange={(event) => updateForm('sku', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, mode === 'create' ? 4 : 50))}
+                            maxLength={mode === 'create' ? 4 : 50}
                             aria-invalid={Boolean(fieldErrors.sku)}
                             aria-describedby={fieldErrors.sku ? 'product-sku-error' : undefined}
                           />

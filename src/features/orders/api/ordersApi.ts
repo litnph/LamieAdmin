@@ -73,6 +73,10 @@ export const ordersApi = {
       fd.append(`items[${i}].unitPrice`, String(item.unitPrice));
       fd.append(`items[${i}].quantity`, String(item.quantity));
       if (item.note) fd.append(`items[${i}].note`, item.note);
+      fd.append(`items[${i}].hasCard`, String(item.hasCard));
+      if (item.cardMessage) fd.append(`items[${i}].cardMessage`, item.cardMessage);
+      fd.append(`items[${i}].hasBanner`, String(item.hasBanner));
+      if (item.bannerMessage) fd.append(`items[${i}].bannerMessage`, item.bannerMessage);
     });
 
     payload.imageFiles.forEach((image, i) => {
@@ -141,6 +145,10 @@ export const ordersApi = {
       fd.append(`items[${index}].unitPrice`, String(item.unitPrice));
       fd.append(`items[${index}].quantity`, String(item.quantity));
       if (item.note) fd.append(`items[${index}].note`, item.note);
+      fd.append(`items[${index}].hasCard`, String(item.hasCard));
+      if (item.cardMessage) fd.append(`items[${index}].cardMessage`, item.cardMessage);
+      fd.append(`items[${index}].hasBanner`, String(item.hasBanner));
+      if (item.bannerMessage) fd.append(`items[${index}].bannerMessage`, item.bannerMessage);
     });
     body.imageFiles.forEach((image, index) => {
       fd.append(`images[${index}].imageFile`, image.file);
