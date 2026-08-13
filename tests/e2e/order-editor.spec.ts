@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 const ORDER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const ITEM_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -96,6 +96,10 @@ const createOrder = (orderStatus: number) => ({
     quantity: 1,
     lineTotal: 500000,
     note: 'Giữ nguyên ghi chú riêng của sản phẩm',
+    hasCard: false,
+    cardMessage: null,
+    hasBanner: false,
+    bannerMessage: null,
   }],
   images: [{
     id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
@@ -115,16 +119,21 @@ type MockOptions = {
   rejectUpdate?: boolean;
   includeProduct?: boolean;
   invalidProductImage?: boolean;
+  legacyDescriptionOnly?: boolean;
+  rejectBatch?: boolean;
 };
 
 const installMocks = async (page: Page, options: MockOptions = {}) => {
   const order = createOrder(options.orderStatus ?? 1);
+  if (options.legacyDescriptionOnly) order.deliveryAddress = '';
   const loadedProduct = {
     ...product,
     thumbnailUrl: options.invalidProductImage ? 'https://images.test/missing.jpg' : product.thumbnailUrl,
   };
   order.items[0].thumbnailUrl = loadedProduct.thumbnailUrl;
   const updateBodies: string[] = [];
+  const createBodies: string[] = [];
+  const batchBodies: string[] = [];
 
   await page.addInitScript(({ user }) => {
     localStorage.setItem('lamie_access_token', 'e2e-access-token');
@@ -167,12 +176,352 @@ const installMocks = async (page: Page, options: MockOptions = {}) => {
       }
       return json(route, { ...order, rowVersion: 'AgMEBQYHCAk=' });
     }
+    if (url.pathname === '/api/orders/batch' && request.method() === 'POST') {
+      const body = request.postData() ?? '';
+      batchBodies.push(body);
+      const draftMatches = [...body.matchAll(/name="orders\[(\d+)\]\.clientDraftId"\r?\n\r?\n([^\r\n]+)/g)];
+      if (options.rejectBatch) {
+        const failedDraftId = draftMatches.find((match) => match[1] === '1')?.[2] ?? '';
+        return json(route, {
+          success: false,
+          code: 'BATCH_ORDER_FAILED',
+          message: 'Order #2: Sản phẩm không hợp lệ.',
+          batchError: {
+            clientDraftId: failedDraftId,
+            index: 1,
+            code: 'VALIDATION_ERROR',
+            message: 'Sản phẩm không hợp lệ.',
+            fieldErrors: { items: ['Sản phẩm không hợp lệ.'] },
+          },
+        }, 400);
+      }
+      return json(route, {
+        createdCount: draftMatches.length,
+        orders: draftMatches.map((match, index) => ({
+          clientDraftId: match[2],
+          orderId: `${index + 1}`.padStart(8, '0') + '-0000-0000-0000-000000000000',
+          orderNumber: `L260812-${index + 1}`,
+        })),
+      });
+    }
+    if (url.pathname === '/api/orders' && request.method() === 'POST') {
+      createBodies.push(request.postData() ?? '');
+      return json(route, order);
+    }
     if (url.pathname === `/api/orders/${ORDER_ID}`) return json(route, order);
     return json(route, { success: false, code: 'NOT_FOUND', message: `Unhandled ${url.pathname}` }, 404);
   });
 
-  return { updateBodies };
+  return { createBodies, updateBodies, batchBodies };
 };
+
+const addQuickDraft = async (
+  dialog: Locator,
+  index: number,
+  options: { imageName?: string; card?: string; banner?: string } = {},
+) => {
+  await dialog.getByLabel('Tên người nhận').fill(`Người nhận ${index}`);
+  await dialog.getByLabel('Tên người đặt').fill(`Người đặt ${index}`);
+  const phone = `03527525${String(90 + index)}`;
+  const extra = [
+    options.card ? `thiệp: ${options.card}` : '',
+    options.banner ? `banner: ${options.banner}` : '',
+  ].filter(Boolean).join('\n');
+  await dialog.getByLabel('Đoạn chat').fill(
+    `11/08 17h15-17h30\n${product.translations[0].name} 500, 50 ship cọc 200\n${phone}\n461 Phan Văn Trị, Phường An Nhơn${extra ? `\n${extra}` : ''}`,
+  );
+  if (options.imageName) {
+    await dialog.locator('#quick-import-images').setInputFiles({
+      name: options.imageName,
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+    });
+  }
+  await dialog.getByRole('button', { name: 'Phân tích' }).click();
+  await dialog.getByRole('button', { name: 'Áp dụng', exact: true }).click();
+};
+
+test('new and loaded order items start collapsed and expose only the primary row', async ({ page }) => {
+  await installMocks(page);
+  await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+
+  const expandButton = page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' });
+  await expect(expandButton).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#order-line-product-0')).toBeVisible();
+  await expect(page.locator('#order-line-price-0')).toBeVisible();
+  await expect(page.locator('#order-line-quantity-0')).toBeVisible();
+  await expect(page.locator('#order-line-note-0')).toHaveCount(0);
+  await expect(page.locator('#order-line-images-0')).toHaveCount(0);
+
+  await expandButton.click();
+  await expect(page.getByRole('button', { name: 'Thu gọn chi tiết sản phẩm 1' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#order-line-note-0')).toHaveValue('Giữ nguyên ghi chú riêng của sản phẩm');
+  await expect(page.locator('#order-line-images-0')).toBeAttached();
+
+  await page.getByRole('button', { name: 'Thu gọn chi tiết sản phẩm 1' }).click();
+  await expect(page.locator('#order-line-note-0')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mở chi tiết sản phẩm 2' })).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('each order item expands independently and keeps detail state while collapsed', async ({ page }) => {
+  await installMocks(page);
+  await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
+  await expect(page.getByRole('button', { name: 'Mở chi tiết sản phẩm 2' })).toHaveAttribute('aria-expanded', 'false');
+  await page.locator('#order-line-note-0').fill('Giữ dữ liệu khi thu gọn');
+  await page.getByLabel('Ghi thiệp').check();
+  await page.locator('#order-line-card-message-0').fill('Chúc mừng sinh nhật');
+  await page.locator('#order-line-images-0').setInputFiles({
+    name: 'chi-tiet.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  });
+
+  await page.getByRole('button', { name: 'Thu gọn chi tiết sản phẩm 1' }).click();
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
+  await expect(page.locator('#order-line-note-0')).toHaveValue('Giữ dữ liệu khi thu gọn');
+  await expect(page.locator('#order-line-card-message-0')).toHaveValue('Chúc mừng sinh nhật');
+  await expect(page.getByAltText(/Ảnh minh họa mới 1/)).toBeVisible();
+});
+
+test('collapsed item submits note, card, banner and image detail data', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
+  await page.locator('#order-line-note-0').fill('Giao bó hoa tông trắng');
+  await page.getByLabel('Ghi thiệp').check();
+  await page.locator('#order-line-card-message-0').fill('Chúc mừng sinh nhật');
+  await page.getByLabel('In banner').check();
+  await page.locator('#order-line-banner-message-0').fill('Happy Birthday');
+  await page.locator('#order-line-images-0').setInputFiles({
+    name: 'minh-hoa.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  });
+  await page.getByRole('button', { name: 'Thu gọn chi tiết sản phẩm 1' }).click();
+
+  await page.getByRole('button', { name: 'Cập nhật đơn' }).click();
+
+  expect(mocks.updateBodies).toHaveLength(1);
+  expect(mocks.updateBodies[0]).toContain('Giao bó hoa tông trắng');
+  expect(mocks.updateBodies[0]).toContain('Chúc mừng sinh nhật');
+  expect(mocks.updateBodies[0]).toContain('Happy Birthday');
+  expect(mocks.updateBodies[0]).toContain('name="images[0].imageFile"');
+  expect(mocks.updateBodies[0]).toContain('filename="minh-hoa.png"');
+});
+
+test('detail validation expands the item and focuses the invalid field', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
+  await page.getByLabel('Ghi thiệp').check();
+  await page.getByRole('button', { name: 'Thu gọn chi tiết sản phẩm 1' }).click();
+
+  await page.getByRole('button', { name: 'Cập nhật đơn' }).click();
+
+  await expect(page.getByRole('button', { name: 'Thu gọn chi tiết sản phẩm 1' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#order-line-card-message-0')).toBeFocused();
+  await expect(page.locator('#order-line-error-0')).toContainText('Nhập nội dung thiệp');
+  expect(mocks.updateBodies).toHaveLength(0);
+});
+
+test('delivery uses one text field, falls back to the legacy description and hides location controls', async ({ page }) => {
+  const mocks = await installMocks(page, { legacyDescriptionOnly: true });
+  await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+
+  const address = page.getByLabel('Mô tả địa chỉ nhận');
+  await expect(address).toHaveValue('Cầu ba tây, xã thường lạc, huyện hồng ngự, tỉnh đồng tháp');
+  await expect(page.getByLabel('Địa chỉ nhận', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Tìm địa chỉ trên bản đồ' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Vị trí hiện tại|Mở bản đồ/ })).toHaveCount(0);
+  await expect(page.getByText('Đã ghim vị trí')).toHaveCount(0);
+
+  await address.fill('461 Phan Văn Trị, Phường An Nhơn, TP.HCM - cổng màu xanh');
+  await page.getByRole('button', { name: 'Cập nhật đơn' }).click();
+  expect(mocks.updateBodies).toHaveLength(1);
+  expect(mocks.updateBodies[0]).toContain('name="deliveryAddress"');
+  expect(mocks.updateBodies[0]).toContain('461 Phan Văn Trị');
+  expect(mocks.updateBodies[0]).not.toContain('name="deliveryLatitude"');
+  expect(mocks.updateBodies[0]).not.toContain('name="deliveryLongitude"');
+});
+
+test('create submits an address description without map coordinates', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('SĐT người nhận').fill('0909000111');
+  await page.getByLabel('Người đặt', { exact: true }).fill('Nguyễn An');
+  await page.locator('#delivery-at').fill('2026-08-15T10:30');
+  await page.getByLabel('Mô tả địa chỉ nhận').fill('461 Phan Văn Trị, Phường An Nhơn - cổng màu xanh');
+  const productSearch = page.locator('#order-line-product-0');
+  await productSearch.fill(product.sku);
+  await page.getByRole('option', { name: PRODUCT_OPTION_NAME }).click();
+
+  await page.getByRole('button', { name: 'Tạo đơn' }).click();
+
+  await expect(page).toHaveURL(`/admin/orders/${ORDER_ID}`);
+  expect(mocks.createBodies).toHaveLength(1);
+  expect(mocks.createBodies[0]).toContain('name="deliveryAddress"');
+  expect(mocks.createBodies[0]).toContain('461 Phan Văn Trị');
+  expect(mocks.createBodies[0]).not.toContain('deliveryLatitude');
+  expect(mocks.createBodies[0]).not.toContain('deliveryLongitude');
+});
+
+test('shop pickup still submits without address or location fields', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('radio', { name: 'Lấy tại shop' }).click();
+  await expect(page.getByLabel('Mô tả địa chỉ nhận')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cập nhật đơn' }).click();
+
+  expect(mocks.updateBodies).toHaveLength(1);
+  expect(mocks.updateBodies[0]).toContain('name="pickupAtShop"');
+  expect(mocks.updateBodies[0]).not.toContain('name="deliveryAddress"');
+  expect(mocks.updateBodies[0]).not.toContain('name="deliveryLatitude"');
+  expect(mocks.updateBodies[0]).not.toContain('name="deliveryLongitude"');
+});
+
+test('quick import queues independently, resets only input and never creates on Apply', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+
+  await expect(dialog.getByRole('button', { name: 'Lưu 0 đơn' })).toBeDisabled();
+  await addQuickDraft(dialog, 1, { imageName: 'chat-order-1.png' });
+  await expect(dialog.getByRole('heading', { name: 'Danh sách đơn chờ (1)' })).toBeVisible();
+  await expect(dialog.getByText('chat-order-1.png')).toHaveCount(0);
+  await expect(dialog.getByLabel('Đoạn chat')).toHaveValue('');
+  expect(mocks.createBodies).toHaveLength(0);
+  expect(mocks.batchBodies).toHaveLength(0);
+
+  await addQuickDraft(dialog, 2);
+  await expect(dialog.getByRole('heading', { name: 'Danh sách đơn chờ (2)' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Xóa đơn chờ 1' }).click();
+  await expect(dialog.getByRole('heading', { name: 'Danh sách đơn chờ (1)' })).toBeVisible();
+  await expect(dialog.getByText('Người nhận 2 - 0352752592')).toBeVisible();
+  await expect(dialog.getByText('Người nhận 1 - 0352752591')).toHaveCount(0);
+  expect(mocks.createBodies).toHaveLength(0);
+  expect(mocks.batchBodies).toHaveLength(0);
+});
+
+test('double clicking Apply adds only one draft', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+  await dialog.getByLabel('Tên người nhận').fill('Người nhận chống trùng');
+  await dialog.getByLabel('Tên người đặt').fill('Người đặt chống trùng');
+  await dialog.getByLabel('Đoạn chat').fill(`11/08 17h15\n${product.translations[0].name} 500, 50 ship cọc 200\n0352752593`);
+  await dialog.getByRole('button', { name: 'Phân tích' }).click();
+
+  await dialog.getByRole('button', { name: 'Áp dụng', exact: true }).dblclick();
+
+  await expect(dialog.getByRole('heading', { name: 'Danh sách đơn chờ (1)' })).toBeVisible();
+  await expect(dialog.locator('li[id^="quick-draft-"]')).toHaveCount(1);
+});
+
+test('deleting one draft does not remove another draft attachment mapping', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+  await addQuickDraft(dialog, 1, { imageName: 'remove-this.png' });
+  await addQuickDraft(dialog, 2, { imageName: 'keep-this.png' });
+  await dialog.getByRole('button', { name: 'Xóa đơn chờ 1' }).click();
+
+  await dialog.getByRole('button', { name: 'Lưu 1 đơn' }).click();
+
+  expect(mocks.batchBodies).toHaveLength(1);
+  expect(mocks.batchBodies[0]).not.toContain('remove-this.png');
+  expect(mocks.batchBodies[0]).toContain('name="orders[0].images[0].imageFile"');
+  expect(mocks.batchBodies[0]).toContain('keep-this.png');
+});
+
+test('Save All sends one multipart batch with three orders and isolated attachments', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+  await addQuickDraft(dialog, 1, { imageName: 'order-one.png' });
+  await addQuickDraft(dialog, 2, { imageName: 'order-two.png' });
+  await addQuickDraft(dialog, 3, { card: 'Chúc mừng sinh nhật', banner: 'Happy Birthday' });
+
+  const saveButton = dialog.getByRole('button', { name: 'Lưu 3 đơn' });
+  await saveButton.dblclick();
+
+  await expect(page).toHaveURL('/admin/orders');
+  await expect(page.getByText('Đã tạo thành công 3 đơn hàng.')).toBeVisible();
+  expect(mocks.createBodies).toHaveLength(0);
+  expect(mocks.batchBodies).toHaveLength(1);
+  const body = mocks.batchBodies[0];
+  expect(body).toContain('name="orders[0].recipientName"');
+  expect(body).toContain('name="orders[1].recipientName"');
+  expect(body).toContain('name="orders[2].recipientName"');
+  expect(body).toContain('name="orders[0].images[0].imageFile"');
+  expect(body).toContain('filename="order-one.png"');
+  expect(body).toContain('name="orders[1].images[0].imageFile"');
+  expect(body).toContain('filename="order-two.png"');
+  expect(body).toContain('name="orders[2].items[0].cardMessage"');
+  expect(body).toContain('Chúc mừng sinh nhật');
+  expect(body).toContain('name="orders[2].items[0].bannerMessage"');
+  expect(body).toContain('Happy Birthday');
+});
+
+test('batch failure keeps the queue and highlights the row mapped by clientDraftId', async ({ page }) => {
+  const mocks = await installMocks(page, { rejectBatch: true });
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+  await addQuickDraft(dialog, 1);
+  await addQuickDraft(dialog, 2);
+
+  await dialog.getByRole('button', { name: 'Lưu 2 đơn' }).click();
+
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Danh sách đơn chờ (2)' })).toBeVisible();
+  await expect(dialog.getByText('Sản phẩm không hợp lệ.', { exact: true })).toHaveCount(2);
+  await expect(dialog.locator('li[id^="quick-draft-"]').nth(1)).toHaveClass(/border-admin-status-error/);
+  expect(mocks.batchBodies).toHaveLength(1);
+});
+
+test('closing with queued drafts requires confirmation and can preserve or discard them', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+  await addQuickDraft(dialog, 1);
+
+  await dialog.getByRole('button', { name: 'Đóng nhập nhiều đơn hàng' }).click();
+  const confirmation = page.getByRole('alertdialog', { name: 'Bỏ 1 đơn chưa lưu?' });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Tiếp tục nhập' }).click();
+  await expect(dialog.getByRole('heading', { name: 'Danh sách đơn chờ (1)' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Đóng nhập nhiều đơn hàng' }).click();
+  await page.getByRole('button', { name: 'Bỏ dữ liệu và đóng' }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
+test('quick import uses two panels on desktop and stacks without overflow on mobile', async ({ page }) => {
+  await installMocks(page);
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const inputPanel = page.getByRole('region', { name: 'Nhập và phân tích' });
+  const queuePanel = page.getByRole('region', { name: /Danh sách đơn chờ/ });
+  const desktop = await Promise.all([inputPanel.boundingBox(), queuePanel.boundingBox()]);
+  expect(desktop[0]?.y).toBe(desktop[1]?.y);
+  expect((desktop[0]?.x ?? 0)).toBeLessThan(desktop[1]?.x ?? 0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await Promise.all([inputPanel.boundingBox(), queuePanel.boundingBox()]);
+  expect((mobile[0]?.y ?? 0)).toBeLessThan(mobile[1]?.y ?? 0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
 
 test('product option and selected value use code, name and formatted price while search supports both fields', async ({ page }) => {
   await installMocks(page);
@@ -191,6 +540,7 @@ test('product option and selected value use code, name and formatted price while
 test('selected product avatar opens the reusable preview and Escape closes it', async ({ page }) => {
   await installMocks(page);
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
 
   const imageAlt = `${product.sku} - ${product.translations[0].name}`;
   await page.getByAltText(imageAlt).dblclick();
@@ -204,6 +554,7 @@ test('selected product avatar opens the reusable preview and Escape closes it', 
 test('invalid product image renders fallbacks in the selector and selected product row', async ({ page }) => {
   await installMocks(page, { invalidProductImage: true });
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
 
   const imageAlt = `${product.sku} - ${product.translations[0].name}`;
   await expect(page.getByRole('img', { name: `Không có ảnh: ${imageAlt}` })).toBeVisible();
@@ -215,6 +566,7 @@ test('invalid product image renders fallbacks in the selector and selected produ
 test('existing item keeps a safe snapshot label when product list no longer contains it', async ({ page }) => {
   await installMocks(page, { includeProduct: false });
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
 
   await expect(page.getByText(PRODUCT_LABEL, { exact: true })).toBeVisible();
   await expect(page.getByText('Tồn kho: chưa có dữ liệu')).toBeVisible();
@@ -231,6 +583,7 @@ test('existing item keeps a safe snapshot label when product list no longer cont
 test('new illustration preview opens without changing editor form state', async ({ page }) => {
   await installMocks(page);
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
   const recipient = page.getByLabel('Người nhận', { exact: true });
   await recipient.fill('Dữ liệu đang nhập');
   await page.locator('#order-line-images-0').setInputFiles({
@@ -300,6 +653,7 @@ test('order item controls align on desktop and wrap without horizontal overflow 
     productControl.boundingBox(),
     page.locator('#order-line-price-0').boundingBox(),
     page.locator('#order-line-quantity-0').boundingBox(),
+    page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).boundingBox(),
     page.getByRole('button', { name: 'Xóa sản phẩm 1' }).boundingBox(),
   ]);
   expect(desktopBoxes.every(Boolean)).toBe(true);
@@ -315,12 +669,13 @@ test('order item controls align on desktop and wrap without horizontal overflow 
       : undefined;
     const priceControl = document.querySelector<HTMLElement>('#order-line-price-0')?.getBoundingClientRect();
     const quantityControl = document.querySelector<HTMLElement>('#order-line-quantity-0')?.getBoundingClientRect();
+    const expandControl = document.querySelector<HTMLElement>('button[aria-label="Mở chi tiết sản phẩm 1"]')?.getBoundingClientRect();
     const deleteControl = document.querySelector<HTMLElement>('button[aria-label="Xóa sản phẩm 1"]')?.getBoundingClientRect();
     return {
       noOverflow: document.documentElement.scrollWidth <= window.innerWidth,
       productBottom: productControl?.bottom ?? 0,
       priceTop: priceControl?.top ?? 0,
-      rowY: [priceControl?.y ?? 0, quantityControl?.y ?? 0, deleteControl?.y ?? 0],
+      rowY: [priceControl?.y ?? 0, quantityControl?.y ?? 0, expandControl?.y ?? 0, deleteControl?.y ?? 0],
     };
   });
   expect(mobileLayout.noOverflow).toBe(true);

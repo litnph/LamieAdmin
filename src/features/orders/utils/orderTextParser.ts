@@ -1,4 +1,6 @@
 export type ParsedOrderText = {
+  recipientName?: string;
+  ordererName?: string;
   deliveryDate?: string;
   deliveryStartTime?: string;
   deliveryEndTime?: string;
@@ -31,6 +33,17 @@ export const parseOrderText = (input: string, currentYear = new Date().getFullYe
   const consumed = new Set<number>();
 
   lines.forEach((line, index) => {
+    const recipientName = line.match(/^(?:người\s*nhận|nguoi\s*nhan)\s*[:\-]\s*(.+)$/i);
+    const ordererName = line.match(/^(?:người\s*đặt|nguoi\s*dat|người\s*đặt\s*hàng|nguoi\s*dat\s*hang)\s*[:\-]\s*(.+)$/i);
+    if (recipientName?.[1]) {
+      result.recipientName = recipientName[1].trim();
+      consumed.add(index);
+    }
+    if (ordererName?.[1]) {
+      result.ordererName = ordererName[1].trim();
+      consumed.add(index);
+    }
+
     const dateMatch = line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/);
     if (dateMatch) {
       const day = Number(dateMatch[1]);
@@ -69,7 +82,7 @@ export const parseOrderText = (input: string, currentYear = new Date().getFullYe
         .replace(deposit?.[0] ?? '', ' ')
         .replace(/[,;]/g, ' ')
         .replace(/\s+/g, ' ').trim();
-      const product = stripped.match(/^([^\d]+?)\s+(\d+(?:[.,]\d+)?)[kK]?\b/);
+      const product = stripped.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)[kK]?\b/);
       if (product) {
         result.productHint = product[1].trim();
         result.price = money(product[2]);
@@ -82,6 +95,6 @@ export const parseOrderText = (input: string, currentYear = new Date().getFullYe
   if (addressLines.length) result.address = addressLines.join(', ');
   if (!result.productHint) result.warnings.push('Không xác định được sản phẩm cụ thể.');
   else if (result.price != null) result.warnings.push(`Tìm thấy giá ${result.price.toLocaleString('vi-VN')}đ nhưng chưa chọn sản phẩm.`);
-  result.warnings.push('Không tìm thấy thông tin người đặt.');
+  if (!result.ordererName) result.warnings.push('Không tìm thấy thông tin người đặt.');
   return result;
 };

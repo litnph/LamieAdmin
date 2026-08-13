@@ -37,6 +37,7 @@ export type OrderItemDto = {
   cardMessage?: string | null;
   hasBanner: boolean;
   bannerMessage?: string | null;
+  images?: OrderImageDto[];
 };
 
 export type OrderImageDto = {
@@ -169,4 +170,41 @@ export type OrderImageUpload = {
   file: File;
   orderItemIndex: number;
   sortOrder: number;
+};
+
+export type CreateOrderPayload = {
+  ordererName: string;
+  ordererPhone: string;
+  channelId: string;
+  recipientName: string;
+  recipientPhone: string;
+  pickupAtShop: boolean;
+  provinceShipping: boolean;
+  deliveryAddress?: string;
+  deliveryAddressDescription?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  deliveryAt: string;
+  deliveryTo?: string;
+  depositAmount?: number | null;
+  shippingFee: number;
+  description?: string;
+  contentNote?: string;
+  items: CreateOrderLine[];
+  imageFiles: OrderImageUpload[];
+};
+
+export type BatchCreateOrderPayload = CreateOrderPayload & {
+  clientDraftId: string;
+};
+
+export type BatchCreatedOrderDto = {
+  clientDraftId: string;
+  orderId: string;
+  orderNumber: string;
+};
+
+export type BatchCreateOrdersDto = {
+  createdCount: number;
+  orders: BatchCreatedOrderDto[];
 };

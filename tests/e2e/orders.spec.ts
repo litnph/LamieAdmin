@@ -246,7 +246,7 @@ test('create order exposes optional contact fields and an exact-or-range deliver
   await expect(page.getByRole('link', { name: 'Hủy' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
   await expect(page.getByText('SĐT người đặt (không bắt buộc)')).toBeVisible();
-  await expect(page.getByText('Địa chỉ nhận (không bắt buộc)')).toBeVisible();
+  await expect(page.getByLabel('Mô tả địa chỉ nhận')).toBeVisible();
   await page.getByRole('radio', { name: 'Ship tỉnh' }).click();
   await expect(page.getByRole('group', { name: 'Thời gian gửi đơn vị vận chuyển' })).toBeVisible();
   await expect(page.getByText('lúc bàn giao cho đơn vị vận chuyển')).toBeVisible();

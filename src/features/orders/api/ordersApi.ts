@@ -1,6 +1,5 @@
 import { apiClient } from '@/services/apiClient';
 import type {
-  CreateOrderLine,
   OrderCalendarItemDto,
   OrderDeliveryLocationDto,
   OrderDetailDto,
@@ -10,10 +9,56 @@ import type {
   OrderStatus,
   UpdateOrderLine,
   OrderImageUpload,
+  CreateOrderPayload,
+  BatchCreateOrderPayload,
+  BatchCreateOrdersDto,
 } from '../types/order.types';
 
 const stripUndefined = (obj: object): Record<string, unknown> =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== ''));
+
+const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '') => {
+  const field = (name: string) => `${prefix}${name}`;
+  const itemField = (index: number, name: string) => `${prefix}items[${index}].${name}`;
+  const imageField = (index: number, name: string) => `${prefix}images[${index}].${name}`;
+
+  fd.append(field('ordererName'), payload.ordererName);
+  fd.append(field('ordererPhone'), payload.ordererPhone);
+  fd.append(field('channelId'), payload.channelId);
+  fd.append(field('recipientName'), payload.recipientName);
+  fd.append(field('recipientPhone'), payload.recipientPhone);
+  fd.append(field('pickupAtShop'), String(payload.pickupAtShop));
+  fd.append(field('provinceShipping'), String(payload.provinceShipping));
+  if (payload.deliveryAddress) fd.append(field('deliveryAddress'), payload.deliveryAddress);
+  if (payload.deliveryAddressDescription) fd.append(field('deliveryAddressDescription'), payload.deliveryAddressDescription);
+  if (payload.deliveryLatitude != null) fd.append(field('deliveryLatitude'), String(payload.deliveryLatitude));
+  if (payload.deliveryLongitude != null) fd.append(field('deliveryLongitude'), String(payload.deliveryLongitude));
+  fd.append(field('deliveryAt'), payload.deliveryAt);
+  if (payload.deliveryTo) fd.append(field('deliveryTo'), payload.deliveryTo);
+  if (payload.depositAmount != null) fd.append(field('depositAmount'), String(payload.depositAmount));
+  fd.append(field('shippingFee'), String(payload.shippingFee));
+  if (payload.description) fd.append(field('description'), payload.description);
+  if (payload.contentNote) fd.append(field('contentNote'), payload.contentNote);
+
+  payload.items.forEach((item, index) => {
+    if (item.productId) fd.append(itemField(index, 'productId'), item.productId);
+    if (item.productSku) fd.append(itemField(index, 'productSku'), item.productSku);
+    fd.append(itemField(index, 'productName'), item.productName);
+    fd.append(itemField(index, 'unitPrice'), String(item.unitPrice));
+    fd.append(itemField(index, 'quantity'), String(item.quantity));
+    if (item.note) fd.append(itemField(index, 'note'), item.note);
+    fd.append(itemField(index, 'hasCard'), String(item.hasCard));
+    if (item.cardMessage) fd.append(itemField(index, 'cardMessage'), item.cardMessage);
+    fd.append(itemField(index, 'hasBanner'), String(item.hasBanner));
+    if (item.bannerMessage) fd.append(itemField(index, 'bannerMessage'), item.bannerMessage);
+  });
+
+  payload.imageFiles.forEach((image, index) => {
+    fd.append(imageField(index, 'imageFile'), image.file);
+    fd.append(imageField(index, 'orderItemIndex'), String(image.orderItemIndex));
+    fd.append(imageField(index, 'sortOrder'), String(image.sortOrder));
+  });
+};
 
 export const ordersApi = {
   list: async (query: OrderListQuery): Promise<PagedOrders> => {
@@ -26,66 +71,21 @@ export const ordersApi = {
     return data;
   },
 
-  create: async (payload: {
-    ordererName: string;
-    ordererPhone: string;
-    channelId: string;
-    recipientName: string;
-    recipientPhone: string;
-    pickupAtShop: boolean;
-    provinceShipping: boolean;
-    deliveryAddress?: string;
-    deliveryAddressDescription?: string;
-    deliveryLatitude?: number;
-    deliveryLongitude?: number;
-    deliveryAt: string;
-    deliveryTo?: string;
-    depositAmount: number;
-    shippingFee: number;
-    description?: string;
-    contentNote?: string;
-    items: CreateOrderLine[];
-    imageFiles: OrderImageUpload[];
-  }): Promise<OrderDetailDto> => {
+  create: async (payload: CreateOrderPayload): Promise<OrderDetailDto> => {
     const fd = new FormData();
-    fd.append('ordererName', payload.ordererName);
-    fd.append('ordererPhone', payload.ordererPhone);
-    fd.append('channelId', payload.channelId);
-    fd.append('recipientName', payload.recipientName);
-    fd.append('recipientPhone', payload.recipientPhone);
-    fd.append('pickupAtShop', String(payload.pickupAtShop));
-    fd.append('provinceShipping', String(payload.provinceShipping));
-    if (payload.deliveryAddress) fd.append('deliveryAddress', payload.deliveryAddress);
-    if (payload.deliveryAddressDescription) fd.append('deliveryAddressDescription', payload.deliveryAddressDescription);
-    if (payload.deliveryLatitude != null) fd.append('deliveryLatitude', String(payload.deliveryLatitude));
-    if (payload.deliveryLongitude != null) fd.append('deliveryLongitude', String(payload.deliveryLongitude));
-    fd.append('deliveryAt', payload.deliveryAt);
-    if (payload.deliveryTo) fd.append('deliveryTo', payload.deliveryTo);
-    fd.append('depositAmount', String(payload.depositAmount));
-    fd.append('shippingFee', String(payload.shippingFee));
-    if (payload.description) fd.append('description', payload.description);
-    if (payload.contentNote) fd.append('contentNote', payload.contentNote);
-
-    payload.items.forEach((item, i) => {
-      if (item.productId) fd.append(`items[${i}].productId`, item.productId);
-      if (item.productSku) fd.append(`items[${i}].productSku`, item.productSku);
-      fd.append(`items[${i}].productName`, item.productName);
-      fd.append(`items[${i}].unitPrice`, String(item.unitPrice));
-      fd.append(`items[${i}].quantity`, String(item.quantity));
-      if (item.note) fd.append(`items[${i}].note`, item.note);
-      fd.append(`items[${i}].hasCard`, String(item.hasCard));
-      if (item.cardMessage) fd.append(`items[${i}].cardMessage`, item.cardMessage);
-      fd.append(`items[${i}].hasBanner`, String(item.hasBanner));
-      if (item.bannerMessage) fd.append(`items[${i}].bannerMessage`, item.bannerMessage);
-    });
-
-    payload.imageFiles.forEach((image, i) => {
-      fd.append(`images[${i}].imageFile`, image.file);
-      fd.append(`images[${i}].orderItemIndex`, String(image.orderItemIndex));
-      fd.append(`images[${i}].sortOrder`, String(image.sortOrder));
-    });
+    appendCreateOrder(fd, payload);
 
     const { data } = await apiClient.post<OrderDetailDto>('/api/orders', fd);
+    return data;
+  },
+
+  createBatch: async (payloads: BatchCreateOrderPayload[]): Promise<BatchCreateOrdersDto> => {
+    const fd = new FormData();
+    payloads.forEach((payload, index) => {
+      fd.append(`orders[${index}].clientDraftId`, payload.clientDraftId);
+      appendCreateOrder(fd, payload, `orders[${index}].`);
+    });
+    const { data } = await apiClient.post<BatchCreateOrdersDto>('/api/orders/batch', fd);
     return data;
   },
 

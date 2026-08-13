@@ -191,7 +191,7 @@ function validateProduct(
 
   if (!form.sku.trim()) errors.sku = 'Nhập mã SKU để nhận diện sản phẩm.';
   else if (mode === 'create' && !/^[A-Z0-9]{4}$/.test(form.sku)) errors.sku = 'SKU mới phải gồm đúng 4 chữ in hoa hoặc số.';
-  else if (mode === 'edit' && form.sku !== originalSku && !/^[A-Z0-9]{4}$/.test(form.sku)) errors.sku = 'SKU đã thay đổi phải gồm đúng 4 chữ in hoa hoặc số.';
+  else if (mode === 'edit' && form.sku !== originalSku) errors.sku = 'SKU không thể thay đổi sau khi tạo sản phẩm.';
   if (!Number.isFinite(form.price) || form.price <= 0) errors.price = 'Giá bán phải là số lớn hơn 0.';
   if (!Number.isFinite(form.salePrice) || form.salePrice < 0) {
     errors.salePrice = 'Giá khuyến mãi phải là số từ 0 trở lên.';
@@ -885,10 +885,12 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
                             value={form.sku}
                             onChange={(event) => updateForm('sku', event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, mode === 'create' ? 4 : 50))}
                             maxLength={mode === 'create' ? 4 : 50}
+                            disabled={mode === 'edit'}
                             aria-invalid={Boolean(fieldErrors.sku)}
                             aria-describedby={fieldErrors.sku ? 'product-sku-error' : undefined}
                           />
                           <FieldMessage id="product-sku-error" message={fieldErrors.sku} />
+                          {mode === 'edit' ? <p className="mt-1.5 text-xs text-admin-text-muted">SKU được giữ nguyên để không làm sai watermark và dữ liệu đơn hàng cũ.</p> : null}
                         </div>
                       ) : null}
                       <div>

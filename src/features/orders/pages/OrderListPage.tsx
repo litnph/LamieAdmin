@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Filter, Plus, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';
@@ -119,7 +119,14 @@ const filtersToParams = (filters: OrderFilterDraft, page: number): URLSearchPara
 const sameFilters = (left: OrderFilterDraft, right: OrderFilterDraft) =>
   (Object.keys(EMPTY_FILTERS) as Array<keyof OrderFilterDraft>).every((key) => left[key] === right[key]);
 
+const getSuccessMessage = (state: unknown) => {
+  if (typeof state !== 'object' || state === null || !('successMessage' in state)) return null;
+  const message = state.successMessage;
+  return typeof message === 'string' ? message : null;
+};
+
 export const OrderListPage: React.FC = () => {
+  const location = useLocation();
   const { hasPermission } = useAuth();
   const canManageOrders = hasPermission(Permission.OrdersManage);
   const canCancelOrders = hasPermission(Permission.OrdersCancel);
@@ -142,7 +149,7 @@ export const OrderListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filterError, setFilterError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(() => getSuccessMessage(location.state));
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<OrderListItemDto | null>(null);
   const [advancedFilterOpen, setAdvancedFilterOpen] = useState(false);
