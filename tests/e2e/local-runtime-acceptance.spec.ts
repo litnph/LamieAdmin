@@ -352,8 +352,6 @@ test('Lamie local Admin/API/DB acceptance flow', async ({ page, request }) => {
   await page.getByRole('button', { name: 'Nhập nhanh' }).click();
   const quickImport = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
   const queueOrder = async (index: number, withImage: boolean, withCardAndBanner = false) => {
-    await quickImport.getByLabel('Tên người nhận').fill(`${runTag} Batch Recipient ${index}`);
-    await quickImport.getByLabel('Tên người đặt').fill(`${runTag} Batch Orderer ${index}`);
     await quickImport.getByLabel('Đoạn chat').fill([
       '15/08 17h15-17h30',
       `${productAfterNoUpload.translations[0].name} 550, 50 ship cọc 200`,
@@ -363,7 +361,12 @@ test('Lamie local Admin/API/DB acceptance flow', async ({ page, request }) => {
     ].join('\n'));
     if (withImage) await quickImport.locator('#quick-import-images').setInputFiles(orderImagePath);
     await quickImport.getByRole('button', { name: 'Phân tích' }).click();
+    await quickImport.getByLabel('Người nhận', { exact: true }).fill(`${runTag} Batch Recipient ${index}`);
+    await quickImport.getByLabel('Người đặt', { exact: true }).fill(`${runTag} Batch Orderer ${index}`);
     await expect(quickImport).toContainText('17:15 - 17:30');
+    await expect(quickImport.getByLabel('Địa chỉ chi tiết')).toHaveValue('461 Phan Văn Trị');
+    await expect(quickImport.getByText('Thành phố Hồ Chí Minh', { exact: true }).first()).toBeVisible();
+    await expect(quickImport.getByText('Phường An Nhơn', { exact: true }).first()).toBeVisible();
     await quickImport.getByRole('button', { name: 'Áp dụng', exact: true }).click();
   };
 
@@ -401,12 +404,13 @@ test('Lamie local Admin/API/DB acceptance flow', async ({ page, request }) => {
     recipientPhone: '0352752593',
     ordererName: `${runTag} Batch Orderer 3`,
     ordererPhone: '',
-    deliveryAddress: '461 Phan Văn Trị, Phường An Nhơn',
     depositAmount: 200000,
     shippingFee: 50000,
     subTotal: 550000,
     totalAmount: 600000,
   });
+  expect(createdOrder.deliveryAddress).toContain('461 Phan Văn Trị');
+  expect(createdOrder.deliveryAddress).toContain('Phường An Nhơn');
   expect(createdOrder.deliveryAt).toBe('2026-08-15T10:15:00+00:00');
   expect(createdOrder.deliveryTo).toBe('2026-08-15T10:30:00+00:00');
   expect(createdOrder.items[0]).toMatchObject({

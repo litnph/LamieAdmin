@@ -1,4 +1,47 @@
-import type { CreateOrderLine } from './order.types';
+import type { AddressResolutionDto, AdministrativeAddressValue } from './administrativeAddress.types';
+import type { ChatPlatform, ChatScreenshotAnalysis } from './chatScreenshot.types';
+import type { AdministrativeAddressSnapshot, CreateOrderLine } from './order.types';
+
+export const quickOrderReviewFields = [
+  'channelId',
+  'ordererName',
+  'recipientName',
+  'deliveryDate',
+  'deliveryStartTime',
+  'deliveryEndTime',
+  'recipientPhone',
+  'address',
+  'productHint',
+  'price',
+  'shippingFee',
+  'deposit',
+  'cardMessage',
+  'bannerMessage',
+] as const;
+
+export type QuickOrderReviewField = typeof quickOrderReviewFields[number];
+
+export type QuickOrderReviewState = Record<QuickOrderReviewField, string>;
+
+export type QuickOrderReviewErrors = Partial<Record<QuickOrderReviewField, string>>;
+
+export type ConfirmedQuickOrderReview = {
+  channelId: string;
+  ordererName: string;
+  recipientName: string;
+  deliveryDate: string;
+  deliveryStartTime: string;
+  deliveryEndTime?: string;
+  recipientPhone: string;
+  address?: string;
+  administrativeAddress: AdministrativeAddressValue;
+  productHint: string;
+  price: number;
+  shippingFee: number;
+  deposit?: number;
+  cardMessage?: string;
+  bannerMessage?: string;
+};
 
 export type QuickOrderAttachment = {
   clientAttachmentId: string;
@@ -11,7 +54,7 @@ export type QuickOrderItemDraft = CreateOrderLine & {
   productHint: string;
 };
 
-export type QuickOrderDraft = {
+export type QuickOrderDraft = AdministrativeAddressSnapshot & {
   clientDraftId: string;
   fingerprint: string;
   recipientName: string;
@@ -28,6 +71,15 @@ export type QuickOrderDraft = {
   deposit?: number;
   sourceText: string;
   attachments: QuickOrderAttachment[];
+  addressRawText?: string;
+  addressConfidence?: number;
+  addressWarnings: string[];
+  addressUsedDefaultProvince: boolean;
+  addressAnalysis?: AddressResolutionDto;
+  screenshotAnalysis?: ChatScreenshotAnalysis;
+  detectedPlatform?: ChatPlatform;
+  detectedOrdererName?: string;
+  analysisWarnings: string[];
   warnings: string[];
   validationErrors: string[];
   isValid: boolean;

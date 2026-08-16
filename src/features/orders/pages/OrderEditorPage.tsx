@@ -27,7 +27,10 @@ import { ordersApi } from '../api/ordersApi';
 import { orderStatusLabel } from '../constants/orderLabels';
 import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
 import { QuickOrderBatchImportDialog } from '../components/QuickOrderBatchImportDialog';
-import { OrderStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
+import { AdministrativeAddressFields, type AdministrativeAddressValue } from '../components/AdministrativeAddressFields';
+import { AddressAutoImport } from '../components/AddressAutoImport';
+import type { AddressResolutionDto } from '../types/administrativeAddress.types';
+import { AdministrativeScheme, OrderStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
 import { formatOrderCurrency } from '../utils/orderListFormatters';
 import { nominatimReverse, nominatimSearch } from '../utils/geocode';
 import { calculateDefaultDeposit } from '../utils/deposit';
@@ -307,6 +310,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [addressImporting, setAddressImporting] = useState(false);
   const submitLockRef = useRef(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -322,6 +326,17 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [pickupAtShop, setPickupAtShop] = useState(false);
   const [provinceShipping, setProvinceShipping] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [administrativeAddress, setAdministrativeAddress] = useState<AdministrativeAddressValue>({
+    scheme: AdministrativeScheme.Current,
+    provinceCode: '',
+    provinceName: '',
+    districtCode: '',
+    districtName: '',
+    communeCode: '',
+    communeName: '',
+    detail: '',
+  });
+  const [fullAddressSnapshot, setFullAddressSnapshot] = useState('');
   const [deliveryAddressDescription, setDeliveryAddressDescription] = useState('');
   const [deliveryLatitude, setDeliveryLatitude] = useState<number | null>(null);
   const [deliveryLongitude, setDeliveryLongitude] = useState<number | null>(null);
@@ -396,6 +411,17 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       const primaryDeliveryAddress = order.deliveryAddress?.trim() ?? '';
       const legacyAddressDescription = order.deliveryAddressDescription?.trim() ?? '';
       setDeliveryAddress(primaryDeliveryAddress || legacyAddressDescription);
+      setAdministrativeAddress({
+        scheme: order.addressScheme ?? AdministrativeScheme.Current,
+        provinceCode: order.provinceCode ?? '',
+        provinceName: order.provinceName ?? '',
+        districtCode: order.districtCode ?? '',
+        districtName: order.districtName ?? '',
+        communeCode: order.communeCode ?? '',
+        communeName: order.communeName ?? '',
+        detail: order.addressDetail ?? (order.addressScheme == null ? primaryDeliveryAddress || legacyAddressDescription : ''),
+      });
+      setFullAddressSnapshot(order.fullAddressSnapshot ?? (primaryDeliveryAddress || legacyAddressDescription));
       setDeliveryAddressDescription(primaryDeliveryAddress ? legacyAddressDescription : '');
       setDeliveryLatitude(order.deliveryLatitude ?? null);
       setDeliveryLongitude(order.deliveryLongitude ?? null);
@@ -435,6 +461,33 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       setLoading(false);
     }
   }, [orderId]);
+
+  const applyResolvedAddress = useCallback((resolution: AddressResolutionDto) => {
+    const selected = resolution.selectedCandidate;
+    setAdministrativeAddress(selected ? {
+      scheme: selected.scheme,
+      provinceCode: selected.provinceCode ?? '',
+      provinceName: selected.provinceName ?? '',
+      districtCode: selected.districtCode ?? '',
+      districtName: selected.districtName ?? '',
+      communeCode: selected.communeCode ?? '',
+      communeName: selected.communeName ?? '',
+      detail: selected.addressDetail ?? '',
+    } : {
+      scheme: AdministrativeScheme.Current,
+      provinceCode: '',
+      provinceName: '',
+      districtCode: '',
+      districtName: '',
+      communeCode: '',
+      communeName: '',
+      detail: resolution.originalText,
+    });
+    setDeliveryAddress(resolution.originalText);
+    setFullAddressSnapshot(resolution.originalText);
+    setDeliveryLatitude(null);
+    setDeliveryLongitude(null);
+  }, []);
 
   const orderValue = useMemo(
     () => items.reduce((total, item) => total + item.unitPrice * Math.max(0, item.quantity), 0) + (pickupAtShop ? 0 : shippingFee),
@@ -612,6 +665,22 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       if (!firstField) firstField = 'deposit-amount';
     }
 
+    const hasAnyAdministrativeSelection = Boolean(
+      administrativeAddress.provinceCode
+      || administrativeAddress.districtCode
+      || administrativeAddress.communeCode,
+    );
+    if (!pickupAtShop && hasAnyAdministrativeSelection) {
+      if (!administrativeAddress.provinceCode) problems.push('Vui lòng chọn tỉnh hoặc thành phố.');
+      if (administrativeAddress.scheme === AdministrativeScheme.Legacy && !administrativeAddress.districtCode) {
+        problems.push('Địa chỉ cũ cần quận, huyện, thị xã hoặc thành phố.');
+      }
+      if (!administrativeAddress.communeCode) problems.push('Vui lòng chọn xã, phường hoặc đơn vị tương ứng.');
+      if (!firstField && (!administrativeAddress.provinceCode || !administrativeAddress.communeCode)) {
+        firstField = 'address-province';
+      }
+    }
+
     items.forEach((item, index) => {
       if (item.quantity < 1 || !Number.isInteger(item.quantity)) {
         nextLineErrors[index] = {
@@ -683,6 +752,11 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (submitLockRef.current) return;
+    if (addressImporting) {
+      setError('Địa chỉ đang được phân tích. Vui lòng chờ hoàn tất trước khi lưu đơn.');
+      document.getElementById('address-auto-import')?.focus();
+      return;
+    }
     if (!validate()) return;
     submitLockRef.current = true;
     setSaving(true);
@@ -714,8 +788,29 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         recipientPhone: recipientPhone.trim(),
         pickupAtShop,
         provinceShipping,
-        deliveryAddress: pickupAtShop ? undefined : deliveryAddress.trim() || undefined,
-        deliveryAddressDescription: pickupAtShop ? undefined : deliveryAddressDescription || undefined,
+        deliveryAddress: pickupAtShop || administrativeAddress.provinceCode
+          ? undefined
+          : (ORDER_DELIVERY_LOCATION_UI_ENABLED
+            ? deliveryAddress.trim()
+            : administrativeAddress.detail.trim()) || undefined,
+        deliveryAddressDescription: pickupAtShop || !ORDER_DELIVERY_LOCATION_UI_ENABLED
+          ? undefined
+          : deliveryAddressDescription || undefined,
+        addressScheme: !pickupAtShop && administrativeAddress.provinceCode && administrativeAddress.communeCode
+          ? administrativeAddress.scheme
+          : undefined,
+        provinceCode: !pickupAtShop ? administrativeAddress.provinceCode || undefined : undefined,
+        provinceName: !pickupAtShop ? administrativeAddress.provinceName || undefined : undefined,
+        districtCode: !pickupAtShop && administrativeAddress.scheme === AdministrativeScheme.Legacy
+          ? administrativeAddress.districtCode || undefined
+          : undefined,
+        districtName: !pickupAtShop && administrativeAddress.scheme === AdministrativeScheme.Legacy
+          ? administrativeAddress.districtName || undefined
+          : undefined,
+        communeCode: !pickupAtShop ? administrativeAddress.communeCode || undefined : undefined,
+        communeName: !pickupAtShop ? administrativeAddress.communeName || undefined : undefined,
+        addressDetail: !pickupAtShop ? administrativeAddress.detail.trim() || undefined : undefined,
+        fullAddressSnapshot: !pickupAtShop ? fullAddressSnapshot.trim() || undefined : undefined,
         deliveryLatitude: pickupAtShop ? undefined : deliveryLatitude ?? undefined,
         deliveryLongitude: pickupAtShop ? undefined : deliveryLongitude ?? undefined,
         deliveryAt: deliveryIso,
@@ -823,7 +918,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             <button
               type="submit"
               form="order-editor-form"
-              disabled={saving || Boolean(loadError)}
+              disabled={saving || addressImporting || Boolean(loadError)}
               className="btn-press inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : null}
@@ -1282,19 +1377,21 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                     ) : null}
                   </div>
                 ) : (
-                  <div>
-                    <label htmlFor="delivery-address" className={labelClass}>Mô tả địa chỉ nhận</label>
-                    <textarea
-                      id="delivery-address"
-                      className={`${inputClass} min-h-20 resize-y`}
-                      value={deliveryAddress}
-                      onChange={(event) => {
-                        setDeliveryAddress(event.target.value);
+                  <div className="space-y-3">
+                    <AddressAutoImport
+                      disabled={saving}
+                      onResolved={applyResolvedAddress}
+                      onBusyChange={setAddressImporting}
+                    />
+                    <AdministrativeAddressFields
+                      value={administrativeAddress}
+                      onChange={(next) => {
+                        setAdministrativeAddress(next);
+                        setDeliveryAddress(next.detail);
+                        setFullAddressSnapshot('');
                         setDeliveryLatitude(null);
                         setDeliveryLongitude(null);
                       }}
-                      autoComplete="shipping street-address"
-                      placeholder="Nhập đầy đủ địa chỉ và ghi chú chỉ đường nếu cần"
                     />
                   </div>
                 )
@@ -1344,6 +1441,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       {quickImportOpen ? (
         <QuickOrderBatchImportDialog
           channelId={channelId}
+          channels={channels}
           products={products}
           initialRecipientName={recipientName}
           initialOrdererName={ordererName}

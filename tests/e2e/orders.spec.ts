@@ -148,6 +148,7 @@ const installApiMocks = async (page: Page) => {
     if (url.pathname === '/api/settings/attributes/channels') {
       return json(route, [{ id: CHANNEL_ID, code: 'admin', name: 'Admin', isActive: true, sortOrder: 10 }]);
     }
+    if (url.pathname === '/api/admin/administrative-units/provinces') return json(route, []);
     if (url.pathname === '/api/settings/products') {
       return json(route, [{
         id: 12,
@@ -246,7 +247,7 @@ test('create order exposes optional contact fields and an exact-or-range deliver
   await expect(page.getByRole('link', { name: 'Hủy' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
   await expect(page.getByText('SĐT người đặt (không bắt buộc)')).toBeVisible();
-  await expect(page.getByLabel('Mô tả địa chỉ nhận')).toBeVisible();
+  await expect(page.getByLabel('Địa chỉ chi tiết')).toBeVisible();
   await page.getByRole('radio', { name: 'Ship tỉnh' }).click();
   await expect(page.getByRole('group', { name: 'Thời gian gửi đơn vị vận chuyển' })).toBeVisible();
   await expect(page.getByText('lúc bàn giao cho đơn vị vận chuyển')).toBeVisible();

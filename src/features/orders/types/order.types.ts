@@ -23,6 +23,23 @@ export enum SortDirection {
   Descending = 2,
 }
 
+export enum AdministrativeScheme {
+  Current = 1,
+  Legacy = 2,
+}
+
+export type AdministrativeAddressSnapshot = {
+  addressScheme?: AdministrativeScheme | null;
+  provinceCode?: string | null;
+  provinceName?: string | null;
+  districtCode?: string | null;
+  districtName?: string | null;
+  communeCode?: string | null;
+  communeName?: string | null;
+  addressDetail?: string | null;
+  fullAddressSnapshot?: string | null;
+};
+
 export type OrderItemDto = {
   id: string;
   productId?: string | null;
@@ -86,7 +103,7 @@ export type OrderListItemDto = {
   imageUrl?: string | null;
 };
 
-export type OrderDetailDto = OrderListItemDto & {
+export type OrderDetailDto = OrderListItemDto & AdministrativeAddressSnapshot & {
   deliveryAddressDescription?: string | null;
   deliveryLatitude?: number | null;
   deliveryLongitude?: number | null;
@@ -172,7 +189,7 @@ export type OrderImageUpload = {
   sortOrder: number;
 };
 
-export type CreateOrderPayload = {
+export type CreateOrderPayload = AdministrativeAddressSnapshot & {
   ordererName: string;
   ordererPhone: string;
   channelId: string;

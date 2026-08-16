@@ -1,7 +1,13 @@
 import type { ProductDto } from '@/features/product/api/productApi';
-import type { BatchCreateOrderPayload } from '../types/order.types';
-import type { QuickOrderAttachment, QuickOrderDraft } from '../types/quickOrder.types';
-import type { ParsedOrderText } from './orderTextParser';
+import { AdministrativeScheme, type BatchCreateOrderPayload } from '../types/order.types';
+import type {
+  ConfirmedQuickOrderReview,
+  QuickOrderAttachment,
+  QuickOrderDraft,
+} from '../types/quickOrder.types';
+import type { AddressResolutionDto } from '../types/administrativeAddress.types';
+import type { ChatScreenshotAnalysis } from '../types/chatScreenshot.types';
+import { validateQuickOrderFiles } from './quickOrderFiles';
 
 const createClientId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -31,31 +37,67 @@ const matchProduct = (hint: string, products: ProductDto[]) => {
 };
 
 const toIso = (date: string, time: string) => new Date(`${date}T${time}`).toISOString();
-const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const maximumImageBytes = 10 * 1024 * 1024;
+
+const sameOptional = (left: string | null | undefined, right: string | null | undefined) =>
+  (left ?? '') === (right ?? '');
+
+const formatAdministrativeAddress = (review: ConfirmedQuickOrderReview) => {
+  const address = review.administrativeAddress;
+  return [
+    address.detail.trim(),
+    address.communeName,
+    address.scheme === AdministrativeScheme.Legacy ? address.districtName : '',
+    address.provinceName,
+  ].filter(Boolean).join(', ');
+};
+
+const analysisMatchesVisibleAddress = (
+  analysis: AddressResolutionDto | undefined,
+  review: ConfirmedQuickOrderReview,
+) => {
+  const candidate = analysis?.selectedCandidate;
+  const address = review.administrativeAddress;
+  return Boolean(candidate
+    && candidate.scheme === address.scheme
+    && sameOptional(candidate.provinceCode, address.provinceCode)
+    && sameOptional(candidate.districtCode, address.districtCode)
+    && sameOptional(candidate.communeCode, address.communeCode)
+    && normalize(candidate.addressDetail ?? '') === normalize(address.detail));
+};
 
 export type BuildQuickOrderDraftInput = {
-  parsed: ParsedOrderText;
+  review: ConfirmedQuickOrderReview;
   sourceText: string;
-  recipientName: string;
-  ordererName: string;
-  channelId: string;
   files: File[];
   products: ProductDto[];
+  parserWarnings?: string[];
+  addressAnalysis?: AddressResolutionDto;
+  screenshotAnalysis?: ChatScreenshotAnalysis;
 };
 
 export const buildQuickOrderDraft = ({
-  parsed,
+  review,
   sourceText,
-  recipientName,
-  ordererName,
-  channelId,
   files,
   products,
+  parserWarnings = [],
+  addressAnalysis,
+  screenshotAnalysis,
 }: BuildQuickOrderDraftInput): QuickOrderDraft => {
-  const resolvedRecipientName = recipientName.trim() || parsed.recipientName?.trim() || '';
-  const resolvedOrdererName = ordererName.trim() || parsed.ordererName?.trim() || '';
-  const productHint = parsed.productHint?.trim() || '';
+  const resolvedRecipientName = review.recipientName.trim();
+  const resolvedOrdererName = review.ordererName.trim();
+  const resolvedChannelId = review.channelId;
+  const applicableAddressAnalysis = analysisMatchesVisibleAddress(addressAnalysis, review)
+    ? addressAnalysis
+    : undefined;
+  const administrativeAddress = review.administrativeAddress;
+  const hasStructuredAddress = Boolean(
+    administrativeAddress.provinceCode
+    && administrativeAddress.communeCode
+    && (administrativeAddress.scheme === AdministrativeScheme.Current || administrativeAddress.districtCode),
+  );
+  const visibleFullAddress = formatAdministrativeAddress(review);
+  const productHint = review.productHint.trim();
   const product = productHint ? matchProduct(productHint, products) : undefined;
   const attachments: QuickOrderAttachment[] = files.map((file, index) => ({
     clientAttachmentId: createClientId(),
@@ -67,27 +109,30 @@ export const buildQuickOrderDraft = ({
 
   if (!resolvedRecipientName) validationErrors.push('Thiếu tên người nhận.');
   if (!resolvedOrdererName) validationErrors.push('Thiếu tên người đặt.');
-  if (!parsed.phone?.trim()) validationErrors.push('Thiếu số điện thoại người nhận.');
-  if (!parsed.deliveryDate || !parsed.deliveryStartTime) validationErrors.push('Thiếu ngày hoặc giờ nhận hàng.');
-  if (!channelId) validationErrors.push('Chưa xác định được kênh bán.');
+  if (!review.recipientPhone.trim()) validationErrors.push('Thiếu số điện thoại người nhận.');
+  if (!review.deliveryDate || !review.deliveryStartTime) validationErrors.push('Thiếu ngày hoặc giờ nhận hàng.');
+  if (!resolvedChannelId) validationErrors.push('Chưa xác định được kênh bán.');
   if (!productHint) validationErrors.push('Chưa nhận diện được sản phẩm.');
-  if (parsed.price == null || parsed.price <= 0) validationErrors.push('Đơn giá sản phẩm phải lớn hơn 0.');
+  if (review.price <= 0) validationErrors.push('Đơn giá sản phẩm phải lớn hơn 0.');
   if (!product && productHint && attachments.length === 0) {
     validationErrors.push('Sản phẩm ngoài danh mục cần ít nhất 1 ảnh minh họa.');
   }
-  if (attachments.length > 10) validationErrors.push('Mỗi đơn chỉ được tải tối đa 10 ảnh.');
-  if (files.some((file) => !allowedImageTypes.has(file.type) || file.size <= 0 || file.size > maximumImageBytes)) {
-    validationErrors.push('Ảnh phải là JPG, PNG, WEBP hoặc GIF và không vượt quá 10 MB.');
-  }
-  if ((parsed.shippingFee ?? 0) < 0) validationErrors.push('Phí giao hàng không được âm.');
-  if (parsed.deposit != null && parsed.deposit < 0) validationErrors.push('Tiền cọc không được âm.');
+  validationErrors.push(...validateQuickOrderFiles(files));
+  if (review.shippingFee < 0) validationErrors.push('Phí giao hàng không được âm.');
+  if (review.deposit != null && review.deposit < 0) validationErrors.push('Tiền cọc không được âm.');
 
-  const warnings = parsed.warnings.filter((warning) => {
+  const warnings = parserWarnings.filter((warning) => {
     if (product && warning.includes('chưa chọn sản phẩm')) return false;
     if (resolvedOrdererName && warning.includes('người đặt')) return false;
     return true;
   });
-  if (!parsed.address) warnings.push('Chưa nhận diện được mô tả địa chỉ nhận.');
+  if (!administrativeAddress.detail && !hasStructuredAddress) {
+    warnings.push('Chưa nhận diện được mô tả địa chỉ nhận.');
+  }
+  if (applicableAddressAnalysis && !applicableAddressAnalysis.isConfident && applicableAddressAnalysis.selectedCandidate) {
+    warnings.push('Địa chỉ đã tự chọn kết quả có điểm cao nhất nhưng cần kiểm tra lại.');
+  }
+  if (applicableAddressAnalysis) warnings.push(...applicableAddressAnalysis.warnings);
   if (!product && productHint && attachments.length > 0) {
     warnings.push('Sản phẩm sẽ được lưu ngoài danh mục cùng ảnh minh họa.');
   }
@@ -96,6 +141,22 @@ export const buildQuickOrderDraft = ({
     normalize(sourceText),
     normalize(resolvedRecipientName),
     normalize(resolvedOrdererName),
+    resolvedChannelId,
+    review.recipientPhone,
+    review.deliveryDate,
+    review.deliveryStartTime,
+    review.deliveryEndTime ?? '',
+    String(administrativeAddress.scheme),
+    normalize(administrativeAddress.detail),
+    administrativeAddress.provinceCode,
+    administrativeAddress.districtCode,
+    administrativeAddress.communeCode,
+    normalize(productHint),
+    String(review.price),
+    String(review.shippingFee),
+    String(review.deposit ?? ''),
+    normalize(review.cardMessage ?? ''),
+    normalize(review.bannerMessage ?? ''),
     ...files.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
   ].join('|');
 
@@ -103,28 +164,50 @@ export const buildQuickOrderDraft = ({
     clientDraftId: createClientId(),
     fingerprint,
     recipientName: resolvedRecipientName,
-    recipientPhone: parsed.phone?.trim() || '',
+    recipientPhone: review.recipientPhone.trim(),
     ordererName: resolvedOrdererName,
     ordererPhone: '',
-    channelId,
-    deliveryDate: parsed.deliveryDate || '',
-    deliveryStartTime: parsed.deliveryStartTime || '',
-    deliveryEndTime: parsed.deliveryEndTime,
-    deliveryAddress: parsed.address?.trim() || undefined,
+    channelId: resolvedChannelId,
+    deliveryDate: review.deliveryDate,
+    deliveryStartTime: review.deliveryStartTime,
+    deliveryEndTime: review.deliveryEndTime,
+    deliveryAddress: hasStructuredAddress ? undefined : administrativeAddress.detail || undefined,
+    addressScheme: hasStructuredAddress ? administrativeAddress.scheme : undefined,
+    provinceCode: hasStructuredAddress ? administrativeAddress.provinceCode : undefined,
+    provinceName: hasStructuredAddress ? administrativeAddress.provinceName : undefined,
+    districtCode: hasStructuredAddress && administrativeAddress.scheme === AdministrativeScheme.Legacy
+      ? administrativeAddress.districtCode
+      : undefined,
+    districtName: hasStructuredAddress && administrativeAddress.scheme === AdministrativeScheme.Legacy
+      ? administrativeAddress.districtName
+      : undefined,
+    communeCode: hasStructuredAddress ? administrativeAddress.communeCode : undefined,
+    communeName: hasStructuredAddress ? administrativeAddress.communeName : undefined,
+    addressDetail: administrativeAddress.detail || undefined,
+    fullAddressSnapshot: hasStructuredAddress ? visibleFullAddress : undefined,
+    addressRawText: applicableAddressAnalysis?.originalText ?? (administrativeAddress.detail || undefined),
+    addressConfidence: applicableAddressAnalysis?.confidence,
+    addressWarnings: applicableAddressAnalysis?.warnings ?? [],
+    addressUsedDefaultProvince: applicableAddressAnalysis?.selectedCandidate?.usedDefaultProvince ?? false,
+    addressAnalysis: applicableAddressAnalysis,
+    screenshotAnalysis,
+    detectedPlatform: screenshotAnalysis?.detectedPlatform,
+    detectedOrdererName: screenshotAnalysis?.detectedOrdererName ?? undefined,
+    analysisWarnings: screenshotAnalysis?.warnings ?? [],
     items: productHint ? [{
       productId: product ? String(product.id) : undefined,
       productSku: product?.sku,
       productName: product ? getProductName(product) : productHint,
       productHint,
-      unitPrice: parsed.price ?? 0,
+      unitPrice: review.price,
       quantity: 1,
-      hasCard: Boolean(parsed.cardMessage),
-      cardMessage: parsed.cardMessage?.trim() || null,
-      hasBanner: Boolean(parsed.bannerMessage),
-      bannerMessage: parsed.bannerMessage?.trim() || null,
+      hasCard: Boolean(review.cardMessage),
+      cardMessage: review.cardMessage?.trim() || null,
+      hasBanner: Boolean(review.bannerMessage),
+      bannerMessage: review.bannerMessage?.trim() || null,
     }] : [],
-    shippingFee: parsed.shippingFee ?? 0,
-    deposit: parsed.deposit,
+    shippingFee: review.shippingFee,
+    deposit: review.deposit,
     sourceText: sourceText.trim(),
     attachments,
     warnings: [...new Set(warnings)],
@@ -132,6 +215,13 @@ export const buildQuickOrderDraft = ({
     isValid: validationErrors.length === 0,
   };
 };
+
+const hasCompleteStructuredAddress = (draft: QuickOrderDraft) => Boolean(
+  draft.provinceCode
+  && draft.communeCode
+  && (draft.addressScheme === AdministrativeScheme.Current
+    || (draft.addressScheme === AdministrativeScheme.Legacy && draft.districtCode)),
+);
 
 export const toBatchCreatePayload = (draft: QuickOrderDraft): BatchCreateOrderPayload => ({
   clientDraftId: draft.clientDraftId,
@@ -143,6 +233,15 @@ export const toBatchCreatePayload = (draft: QuickOrderDraft): BatchCreateOrderPa
   pickupAtShop: false,
   provinceShipping: false,
   deliveryAddress: draft.deliveryAddress,
+  addressScheme: hasCompleteStructuredAddress(draft) ? draft.addressScheme : undefined,
+  provinceCode: hasCompleteStructuredAddress(draft) ? draft.provinceCode : undefined,
+  provinceName: hasCompleteStructuredAddress(draft) ? draft.provinceName : undefined,
+  districtCode: hasCompleteStructuredAddress(draft) ? draft.districtCode : undefined,
+  districtName: hasCompleteStructuredAddress(draft) ? draft.districtName : undefined,
+  communeCode: hasCompleteStructuredAddress(draft) ? draft.communeCode : undefined,
+  communeName: hasCompleteStructuredAddress(draft) ? draft.communeName : undefined,
+  addressDetail: draft.addressDetail,
+  fullAddressSnapshot: draft.fullAddressSnapshot,
   deliveryAt: toIso(draft.deliveryDate, draft.deliveryStartTime),
   deliveryTo: draft.deliveryEndTime
     ? toIso(draft.deliveryDate, draft.deliveryEndTime)
