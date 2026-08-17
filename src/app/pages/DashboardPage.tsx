@@ -12,6 +12,7 @@ import { RevenueChart } from '@/features/dashboard/components/RevenueChart';
 import { useDashboardData } from '@/features/dashboard/hooks/useDashboardData';
 import type { DashboardPeriodKey } from '@/features/dashboard/types/dashboard.types';
 import {
+  formatCurrency,
   formatDateTime,
   formatInteger,
   formatRevenueChange,
@@ -131,8 +132,8 @@ export const DashboardPage: React.FC = () => {
               />
               <KpiCard
                 label="Doanh thu"
-                value={revenue ? formatInteger(revenue.currentRevenue) : 'Chưa có'}
-                unit="VND"
+                value={revenue ? formatCurrency(revenue.currentRevenue) : 'Chưa có'}
+                unit=""
                 period={data.period.label}
                 context={revenueChange?.label ?? 'Nguồn doanh thu chưa tải được'}
                 unavailable={!revenue}

@@ -7,7 +7,7 @@ import type { OrderCalendarItemDto, OrderDeliveryLocationDto } from '../types/or
 import { orderStatusLabel, paymentStatusLabel } from '../constants/orderLabels';
 import { OrdersDeliveryMap } from '../components/OrdersDeliveryMap';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
-import { formatDeliveryWindow } from '../utils/orderListFormatters';
+import { formatDeliveryWindow, formatOrderCurrency } from '../utils/orderListFormatters';
 
 const todayLocal = () => {
   const date = new Date();
@@ -179,7 +179,7 @@ export const OrdersCalendarPage: React.FC = () => {
                   </div>
                   <p className="text-xs leading-5 text-admin-text-secondary sm:text-right">
                     {orderStatusLabel[order.orderStatus]}<br />
-                    {paymentStatusLabel[order.paymentStatus]} - {order.totalAmount.toLocaleString('vi-VN')} đ
+                    {paymentStatusLabel[order.paymentStatus]} - {formatOrderCurrency(order.totalAmount)}
                   </p>
                 </li>
               ))}

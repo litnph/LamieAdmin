@@ -19,7 +19,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
 }) => (
   <article
     className="min-w-0 rounded-admin-panel border border-admin-border bg-admin-card p-4 shadow-admin-panel sm:p-5"
-    aria-label={`${label}: ${value} ${unit}. ${period}. ${context}`}
+    aria-label={`${label}: ${value}${unit ? ` ${unit}` : ''}. ${period}. ${context}`}
   >
     <p className="text-sm font-medium text-admin-text-secondary">{label}</p>
     <div className="mt-3 flex min-w-0 items-baseline gap-2">
@@ -31,7 +31,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
       >
         {value}
       </p>
-      <span className="shrink-0 text-xs font-medium text-admin-text-muted">{unit}</span>
+      {unit ? <span className="shrink-0 text-xs font-medium text-admin-text-muted">{unit}</span> : null}
     </div>
     <p className="mt-3 text-xs font-medium text-admin-text-secondary">{period}</p>
     <p className="mt-1 min-h-9 text-xs leading-[1.45] text-admin-text-muted">{context}</p>

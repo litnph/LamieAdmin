@@ -126,7 +126,7 @@ export const buildQuickOrderDraft = ({
     if (resolvedOrdererName && warning.includes('người đặt')) return false;
     return true;
   });
-  if (!administrativeAddress.detail && !hasStructuredAddress) {
+  if (!review.pickupAtShop && !administrativeAddress.detail && !hasStructuredAddress) {
     warnings.push('Chưa nhận diện được mô tả địa chỉ nhận.');
   }
   if (applicableAddressAnalysis && !applicableAddressAnalysis.isConfident && applicableAddressAnalysis.selectedCandidate) {
@@ -143,6 +143,9 @@ export const buildQuickOrderDraft = ({
     normalize(resolvedOrdererName),
     resolvedChannelId,
     review.recipientPhone,
+    review.ordererPhone,
+    String(review.pickupAtShop),
+    String(review.provinceShipping),
     review.deliveryDate,
     review.deliveryStartTime,
     review.deliveryEndTime ?? '',
@@ -153,10 +156,13 @@ export const buildQuickOrderDraft = ({
     administrativeAddress.communeCode,
     normalize(productHint),
     String(review.price),
+    String(review.quantity),
+    normalize(review.productNote ?? ''),
     String(review.shippingFee),
     String(review.deposit ?? ''),
     normalize(review.cardMessage ?? ''),
     normalize(review.bannerMessage ?? ''),
+    normalize(review.contentNote ?? ''),
     ...files.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
   ].join('|');
 
@@ -166,25 +172,27 @@ export const buildQuickOrderDraft = ({
     recipientName: resolvedRecipientName,
     recipientPhone: review.recipientPhone.trim(),
     ordererName: resolvedOrdererName,
-    ordererPhone: '',
+    ordererPhone: review.ordererPhone,
     channelId: resolvedChannelId,
+    pickupAtShop: review.pickupAtShop,
+    provinceShipping: review.provinceShipping,
     deliveryDate: review.deliveryDate,
     deliveryStartTime: review.deliveryStartTime,
     deliveryEndTime: review.deliveryEndTime,
-    deliveryAddress: hasStructuredAddress ? undefined : administrativeAddress.detail || undefined,
-    addressScheme: hasStructuredAddress ? administrativeAddress.scheme : undefined,
-    provinceCode: hasStructuredAddress ? administrativeAddress.provinceCode : undefined,
-    provinceName: hasStructuredAddress ? administrativeAddress.provinceName : undefined,
-    districtCode: hasStructuredAddress && administrativeAddress.scheme === AdministrativeScheme.Legacy
+    deliveryAddress: review.pickupAtShop || hasStructuredAddress ? undefined : administrativeAddress.detail || undefined,
+    addressScheme: !review.pickupAtShop && hasStructuredAddress ? administrativeAddress.scheme : undefined,
+    provinceCode: !review.pickupAtShop && hasStructuredAddress ? administrativeAddress.provinceCode : undefined,
+    provinceName: !review.pickupAtShop && hasStructuredAddress ? administrativeAddress.provinceName : undefined,
+    districtCode: !review.pickupAtShop && hasStructuredAddress && administrativeAddress.scheme === AdministrativeScheme.Legacy
       ? administrativeAddress.districtCode
       : undefined,
-    districtName: hasStructuredAddress && administrativeAddress.scheme === AdministrativeScheme.Legacy
+    districtName: !review.pickupAtShop && hasStructuredAddress && administrativeAddress.scheme === AdministrativeScheme.Legacy
       ? administrativeAddress.districtName
       : undefined,
-    communeCode: hasStructuredAddress ? administrativeAddress.communeCode : undefined,
-    communeName: hasStructuredAddress ? administrativeAddress.communeName : undefined,
-    addressDetail: administrativeAddress.detail || undefined,
-    fullAddressSnapshot: hasStructuredAddress ? visibleFullAddress : undefined,
+    communeCode: !review.pickupAtShop && hasStructuredAddress ? administrativeAddress.communeCode : undefined,
+    communeName: !review.pickupAtShop && hasStructuredAddress ? administrativeAddress.communeName : undefined,
+    addressDetail: review.pickupAtShop ? undefined : administrativeAddress.detail || undefined,
+    fullAddressSnapshot: !review.pickupAtShop && hasStructuredAddress ? visibleFullAddress : undefined,
     addressRawText: applicableAddressAnalysis?.originalText ?? (administrativeAddress.detail || undefined),
     addressConfidence: applicableAddressAnalysis?.confidence,
     addressWarnings: applicableAddressAnalysis?.warnings ?? [],
@@ -200,14 +208,16 @@ export const buildQuickOrderDraft = ({
       productName: product ? getProductName(product) : productHint,
       productHint,
       unitPrice: review.price,
-      quantity: 1,
-      hasCard: Boolean(review.cardMessage),
+      quantity: review.quantity,
+      note: review.productNote,
+      hasCard: review.hasCard,
       cardMessage: review.cardMessage?.trim() || null,
-      hasBanner: Boolean(review.bannerMessage),
+      hasBanner: review.hasBanner,
       bannerMessage: review.bannerMessage?.trim() || null,
     }] : [],
     shippingFee: review.shippingFee,
     deposit: review.deposit,
+    contentNote: review.contentNote,
     sourceText: sourceText.trim(),
     attachments,
     warnings: [...new Set(warnings)],
@@ -230,8 +240,8 @@ export const toBatchCreatePayload = (draft: QuickOrderDraft): BatchCreateOrderPa
   channelId: draft.channelId,
   recipientName: draft.recipientName,
   recipientPhone: draft.recipientPhone,
-  pickupAtShop: false,
-  provinceShipping: false,
+  pickupAtShop: draft.pickupAtShop,
+  provinceShipping: draft.provinceShipping,
   deliveryAddress: draft.deliveryAddress,
   addressScheme: hasCompleteStructuredAddress(draft) ? draft.addressScheme : undefined,
   provinceCode: hasCompleteStructuredAddress(draft) ? draft.provinceCode : undefined,
@@ -248,6 +258,7 @@ export const toBatchCreatePayload = (draft: QuickOrderDraft): BatchCreateOrderPa
     : undefined,
   depositAmount: draft.deposit,
   shippingFee: draft.shippingFee,
+  contentNote: draft.contentNote,
   items: draft.items.map((item) => ({
     productId: item.productId,
     productSku: item.productSku,

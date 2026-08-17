@@ -1,31 +1,19 @@
 import axios from 'axios';
 import { OrderStatus, PaymentStatus } from '@/features/orders/types/order.types';
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatVndCurrency,
+} from '@/shared/utils/displayFormatters';
 
-const currencyFormatter = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
-
-export const formatCustomerCurrency = (value: number): string => currencyFormatter.format(value);
+export const formatCustomerCurrency = formatVndCurrency;
 
 export const formatCustomerDate = (value: string | null): string => {
   if (!value) return 'Chưa có giao dịch thanh toán';
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(value));
+  return formatDisplayDate(value);
 };
 
-export const formatCustomerDateTime = (value: string): string =>
-  new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+export const formatCustomerDateTime = formatDisplayDateTime;
 
 export const isCustomerRequestForbidden = (error: unknown): boolean =>
   axios.isAxiosError(error) && error.response?.status === 403;

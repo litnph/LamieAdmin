@@ -16,18 +16,26 @@ import type { ParsedOrderText } from './orderTextParser';
 export const quickOrderReviewFieldIds: Record<QuickOrderReviewField, string> = {
   channelId: 'quick-review-channel',
   ordererName: 'quick-review-orderer-name',
+  ordererPhone: 'quick-review-orderer-phone',
   recipientName: 'quick-review-recipient-name',
   deliveryDate: 'quick-review-delivery-date',
   deliveryStartTime: 'quick-review-delivery-start-time',
   deliveryEndTime: 'quick-review-delivery-end-time',
+  deliveryTimeMode: 'quick-review-delivery-time-mode',
+  deliveryMethod: 'quick-review-delivery-method',
   recipientPhone: 'quick-review-recipient-phone',
   address: 'quick-review-address-detail',
   productHint: 'quick-review-product-hint',
   price: 'quick-review-price',
+  quantity: 'quick-review-quantity',
+  productNote: 'quick-review-product-note',
   shippingFee: 'quick-review-shipping-fee',
   deposit: 'quick-review-deposit',
+  hasCard: 'quick-review-has-card',
   cardMessage: 'quick-review-card-message',
+  hasBanner: 'quick-review-has-banner',
   bannerMessage: 'quick-review-banner-message',
+  contentNote: 'quick-review-content-note',
 };
 
 const moneySuggestion = (value: number | undefined, fallback = '') =>
@@ -48,21 +56,31 @@ export const createQuickOrderReview = (
   channelId: string,
   recipientName = '',
   ordererName = '',
+  recipientPhone = '',
+  ordererPhone = '',
 ): QuickOrderReviewState => ({
   channelId,
   ordererName,
+  ordererPhone,
   recipientName,
   deliveryDate: '',
   deliveryStartTime: '',
   deliveryEndTime: '',
-  recipientPhone: '',
+  deliveryTimeMode: 'exact',
+  deliveryMethod: 'local',
+  recipientPhone,
   address: '',
   productHint: '',
   price: '',
-  shippingFee: '0',
+  quantity: '1',
+  productNote: '',
+  shippingFee: '',
   deposit: '',
+  hasCard: 'false',
   cardMessage: '',
+  hasBanner: 'false',
   bannerMessage: '',
+  contentNote: '',
 });
 
 export const reviewSuggestionsFromParsed = (parsed: ParsedOrderText): Partial<QuickOrderReviewState> => ({
@@ -71,13 +89,16 @@ export const reviewSuggestionsFromParsed = (parsed: ParsedOrderText): Partial<Qu
   deliveryDate: parsed.deliveryDate ?? '',
   deliveryStartTime: parsed.deliveryStartTime ?? '',
   deliveryEndTime: parsed.deliveryEndTime ?? '',
+  deliveryTimeMode: parsed.deliveryEndTime ? 'range' : 'exact',
   recipientPhone: parsed.phone ?? '',
   address: parsed.address ?? '',
   productHint: parsed.productHint ?? '',
   price: moneySuggestion(parsed.price),
   shippingFee: moneySuggestion(parsed.shippingFee, '0'),
   deposit: moneySuggestion(parsed.deposit),
+  hasCard: parsed.cardMessage ? 'true' : 'false',
   cardMessage: parsed.cardMessage ?? '',
+  hasBanner: parsed.bannerMessage ? 'true' : 'false',
   bannerMessage: parsed.bannerMessage ?? '',
 });
 
@@ -135,12 +156,16 @@ export const validateQuickOrderReview = (
 ): QuickOrderReviewValidation => {
   const errors: QuickOrderReviewErrors = {};
   const ordererName = review.ordererName.trim();
+  const ordererPhone = normalizePhone(review.ordererPhone);
   const recipientName = review.recipientName.trim();
   const recipientPhone = normalizePhone(review.recipientPhone);
   const productHint = review.productHint.trim();
   const price = parseMoney(review.price);
   const shippingFee = review.shippingFee.trim() ? parseMoney(review.shippingFee) : 0;
   const deposit = review.deposit.trim() ? parseMoney(review.deposit) : undefined;
+  const quantity = Number(review.quantity);
+  const pickupAtShop = review.deliveryMethod === 'pickup';
+  const provinceShipping = review.deliveryMethod === 'province';
   const startMinutes = timeToMinutes(review.deliveryStartTime);
   const endMinutes = review.deliveryEndTime ? timeToMinutes(review.deliveryEndTime) : null;
   let administrativeAddressInvalidField: AdministrativeAddressField | undefined;
@@ -158,14 +183,16 @@ export const validateQuickOrderReview = (
   if (!recipientName) errors.recipientName = 'Vui lòng nhập tên người nhận.';
   if (!validDate(review.deliveryDate)) errors.deliveryDate = 'Ngày nhận không hợp lệ.';
   if (startMinutes == null) errors.deliveryStartTime = 'Giờ bắt đầu không hợp lệ.';
-  if (review.deliveryEndTime && endMinutes == null) errors.deliveryEndTime = 'Giờ kết thúc không hợp lệ.';
+  if (review.deliveryTimeMode === 'range' && !review.deliveryEndTime) {
+    errors.deliveryEndTime = 'Vui lòng chọn thời gian kết thúc.';
+  } else if (review.deliveryEndTime && endMinutes == null) errors.deliveryEndTime = 'Giờ kết thúc không hợp lệ.';
   else if (startMinutes != null && endMinutes != null && endMinutes < startMinutes) {
     errors.deliveryEndTime = 'Giờ kết thúc phải sau hoặc bằng giờ bắt đầu.';
   }
   if (!/^(?:0)(?:3|5|7|8|9)\d{8}$/.test(recipientPhone)) {
     errors.recipientPhone = 'Số điện thoại người nhận không hợp lệ.';
   }
-  if (hasStructuredAddress) {
+  if (!pickupAtShop && hasStructuredAddress) {
     if (!administrativeAddress.provinceCode) {
       errors.address = 'Vui lòng chọn tỉnh hoặc thành phố.';
       administrativeAddressInvalidField = 'province';
@@ -179,9 +206,12 @@ export const validateQuickOrderReview = (
   }
   if (!productHint) errors.productHint = 'Vui lòng nhập sản phẩm.';
   if (price == null || price <= 0) errors.price = 'Giá sản phẩm phải lớn hơn 0.';
-  if (shippingFee == null || shippingFee < 0) errors.shippingFee = 'Phí giao hàng không hợp lệ.';
+  if (!Number.isInteger(quantity) || quantity < 1) errors.quantity = 'Số lượng phải là số nguyên từ 1 trở lên.';
+  if (!pickupAtShop && (shippingFee == null || shippingFee < 0)) errors.shippingFee = 'Phí giao hàng không hợp lệ.';
   if (deposit == null && review.deposit.trim()) errors.deposit = 'Tiền cọc không hợp lệ.';
   else if (deposit != null && deposit < 0) errors.deposit = 'Tiền cọc không được âm.';
+  if (review.hasCard === 'true' && !review.cardMessage.trim()) errors.cardMessage = 'Vui lòng nhập nội dung thiệp hoặc tắt Ghi thiệp.';
+  if (review.hasBanner === 'true' && !review.bannerMessage.trim()) errors.bannerMessage = 'Vui lòng nhập nội dung banner hoặc tắt In banner.';
 
   if (Object.keys(errors).length > 0 || price == null || shippingFee == null) {
     return { errors, administrativeAddressInvalidField };
@@ -192,11 +222,14 @@ export const validateQuickOrderReview = (
     confirmed: {
       channelId: review.channelId,
       ordererName,
+      ordererPhone,
       recipientName,
       deliveryDate: review.deliveryDate,
       deliveryStartTime: review.deliveryStartTime,
-      deliveryEndTime: review.deliveryEndTime || undefined,
+      deliveryEndTime: review.deliveryTimeMode === 'range' ? review.deliveryEndTime || undefined : undefined,
       recipientPhone,
+      pickupAtShop,
+      provinceShipping,
       address: administrativeAddress.detail.trim() || undefined,
       administrativeAddress: {
         ...administrativeAddress,
@@ -204,10 +237,15 @@ export const validateQuickOrderReview = (
       },
       productHint,
       price,
-      shippingFee,
+      quantity,
+      productNote: review.productNote.trim() || undefined,
+      shippingFee: pickupAtShop ? 0 : shippingFee,
       deposit,
-      cardMessage: review.cardMessage.trim() || undefined,
-      bannerMessage: review.bannerMessage.trim() || undefined,
+      hasCard: review.hasCard === 'true',
+      cardMessage: review.hasCard === 'true' ? review.cardMessage.trim() || undefined : undefined,
+      hasBanner: review.hasBanner === 'true',
+      bannerMessage: review.hasBanner === 'true' ? review.bannerMessage.trim() || undefined : undefined,
+      contentNote: review.contentNote.trim() || undefined,
     },
   };
 };

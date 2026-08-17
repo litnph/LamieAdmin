@@ -36,6 +36,7 @@ import type { OrderChangeLogDto, OrderDetailDto, OrderImageDto, OrderItemDto } f
 import { OrderStatus, PaymentStatus } from '../types/order.types';
 import {
   formatOrderCurrency,
+  formatOrderDateTime,
   formatDeliveryWindow,
   getDeliveryUrgency,
 } from '../utils/orderListFormatters';
@@ -45,15 +46,6 @@ const PRIMARY_STATUS_ACTION: Partial<Record<OrderStatus, string>> = {
   [OrderStatus.Shipping]: 'Bắt đầu giao',
   [OrderStatus.Completed]: 'Hoàn tất đơn',
 };
-
-const formatDateTime = (value: string) =>
-  new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
 
 const navigationSuccessMessage = (state: unknown): string | null => {
   if (typeof state !== 'object' || state === null || !('successMessage' in state)) return null;
@@ -96,9 +88,20 @@ const formatLogValue = (fieldName: string, value?: string | null) => {
   if (field === 'paymentstatus' && Number.isFinite(numericValue) && isPaymentStatus(numericValue)) {
     return paymentStatusLabel[numericValue];
   }
+  if ([
+    'depositamount',
+    'shippingfee',
+    'shippingfeeactual',
+    'subtotal',
+    'totalamount',
+    'unitprice',
+    'linetotal',
+  ].includes(field) && Number.isFinite(numericValue)) {
+    return formatOrderCurrency(numericValue);
+  }
   if (field === 'deliveryat' || field === 'deliveryto') {
     const date = new Date(value);
-    if (Number.isFinite(date.getTime())) return formatDateTime(value);
+    if (Number.isFinite(date.getTime())) return formatOrderDateTime(value);
   }
   return value;
 };
@@ -169,7 +172,7 @@ const OrderTimeline: React.FC<{ logs: OrderChangeLogDto[] }> = ({ logs }) => (
             <article className="min-w-0">
               <div className="flex flex-col gap-1">
                 <h3 className="break-words text-sm font-semibold text-admin-text-primary">{formatLogField(log)}</h3>
-                <time dateTime={log.changedAt} className="text-xs tabular-nums text-admin-text-muted">{formatDateTime(log.changedAt)}</time>
+                <time dateTime={log.changedAt} className="text-xs tabular-nums text-admin-text-muted">{formatOrderDateTime(log.changedAt)}</time>
               </div>
               <p className="mt-1 break-words text-sm leading-6 text-admin-text-secondary">
                 <span>{formatLogValue(log.fieldName, log.oldValue)}</span>
@@ -420,7 +423,7 @@ export const OrderDetailPage: React.FC = () => {
               <PaymentStatusBadge status={order.paymentStatus} />
             </div>
             <p className="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-admin-text-secondary">
-              <span>Tạo lúc {formatDateTime(order.createdAt)}</span>
+              <span>Tạo lúc {formatOrderDateTime(order.createdAt)}</span>
               {channelName ? <span className="text-admin-text-muted">Kênh {channelName}</span> : null}
             </p>
           </div>

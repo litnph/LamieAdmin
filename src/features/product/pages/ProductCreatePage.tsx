@@ -26,6 +26,7 @@ import { SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
 import { AttributeMultiSelect } from '@/shared/components/AttributeMultiSelect';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
+import { formatVndInput, parseVndInput } from '@/shared/utils/displayFormatters';
 import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 
 type ProductImageItem = ProductImagePayload & {
@@ -1052,18 +1053,19 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
                   Giá bán <span className="text-admin-status-error" aria-hidden="true">*</span>
                 </label>
                 <p id="product-price-help" className="mt-1 text-xs leading-5 text-admin-text-secondary">Đơn vị: VNĐ.</p>
-                <input
-                  id="product-price"
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  inputMode="decimal"
-                  className={`mt-2 font-mono tabular-nums ${formInputClass('price')}`}
-                  value={form.price}
-                  onChange={(event) => updateForm('price', Number(event.target.value))}
-                  aria-invalid={Boolean(fieldErrors.price)}
-                  aria-describedby={fieldErrors.price ? 'product-price-help product-price-error' : 'product-price-help'}
-                />
+                <div className="relative mt-2">
+                  <input
+                    id="product-price"
+                    type="text"
+                    inputMode="numeric"
+                    className={`pr-8 text-right font-mono tabular-nums ${formInputClass('price')}`}
+                    value={formatVndInput(form.price)}
+                    onChange={(event) => updateForm('price', parseVndInput(event.target.value))}
+                    aria-invalid={Boolean(fieldErrors.price)}
+                    aria-describedby={fieldErrors.price ? 'product-price-help product-price-error' : 'product-price-help'}
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-admin-text-muted">₫</span>
+                </div>
                 <FieldMessage id="product-price-error" message={fieldErrors.price} />
               </div>
               <div>
@@ -1073,18 +1075,20 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
                 <p id="product-sale-price-help" className="mt-1 text-xs leading-5 text-admin-text-secondary">
                   Nhập 0 khi không áp dụng.
                 </p>
-                <input
-                  id="product-sale-price"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  inputMode="decimal"
-                  className={`mt-2 font-mono tabular-nums ${formInputClass('salePrice')}`}
-                  value={form.salePrice}
-                  onChange={(event) => updateForm('salePrice', Number(event.target.value))}
-                  aria-invalid={Boolean(fieldErrors.salePrice)}
-                  aria-describedby={fieldErrors.salePrice ? 'product-sale-price-help product-sale-price-error' : 'product-sale-price-help'}
-                />
+                <div className="relative mt-2">
+                  <input
+                    id="product-sale-price"
+                    type="text"
+                    inputMode="numeric"
+                    className={`pr-8 text-right font-mono tabular-nums ${formInputClass('salePrice')}`}
+                    value={formatVndInput(form.salePrice)}
+                    onChange={(event) => updateForm('salePrice', parseVndInput(event.target.value))}
+                    placeholder="0"
+                    aria-invalid={Boolean(fieldErrors.salePrice)}
+                    aria-describedby={fieldErrors.salePrice ? 'product-sale-price-help product-sale-price-error' : 'product-sale-price-help'}
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-admin-text-muted">₫</span>
+                </div>
                 <FieldMessage id="product-sale-price-error" message={fieldErrors.salePrice} />
               </div>
               <div>

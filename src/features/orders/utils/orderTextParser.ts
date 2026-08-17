@@ -1,3 +1,5 @@
+import { formatVndCurrency } from '@/shared/utils/displayFormatters';
+
 export type ParsedOrderText = {
   recipientName?: string;
   ordererName?: string;
@@ -94,7 +96,7 @@ export const parseOrderText = (input: string, currentYear = new Date().getFullYe
   const addressLines = lines.filter((line, index) => !consumed.has(index) && /\p{L}/u.test(line));
   if (addressLines.length) result.address = addressLines.join(', ');
   if (!result.productHint) result.warnings.push('Không xác định được sản phẩm cụ thể.');
-  else if (result.price != null) result.warnings.push(`Tìm thấy giá ${result.price.toLocaleString('vi-VN')}đ nhưng chưa chọn sản phẩm.`);
+  else if (result.price != null) result.warnings.push(`Tìm thấy giá ${formatVndCurrency(result.price)} nhưng chưa chọn sản phẩm.`);
   if (!result.ordererName) result.warnings.push('Không tìm thấy thông tin người đặt.');
   return result;
 };

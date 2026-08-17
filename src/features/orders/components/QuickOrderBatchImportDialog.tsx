@@ -28,7 +28,7 @@ import type {
   QuickOrderReviewState,
 } from '../types/quickOrder.types';
 import { quickOrderReviewFields } from '../types/quickOrder.types';
-import { formatOrderCurrency } from '../utils/orderListFormatters';
+import { formatDeliveryWindow, formatOrderCurrency } from '../utils/orderListFormatters';
 import { parseOrderText, type ParsedOrderText } from '../utils/orderTextParser';
 import { buildQuickOrderDraft, toBatchCreatePayload } from '../utils/quickOrderDraft';
 import {
@@ -70,11 +70,6 @@ const getBatchFailure = (error: unknown): BatchFailure => {
     index: typeof batchError.index === 'number' ? batchError.index : undefined,
     message: typeof batchError.message === 'string' ? batchError.message : fallback,
   };
-};
-
-const formatDeliveryDate = (date: string) => {
-  const [year, month, day] = date.split('-');
-  return year && month && day ? `${day}/${month}/${year}` : date;
 };
 
 const normalizeChannel = (value: string) => value
@@ -134,7 +129,9 @@ type QuickOrderBatchImportDialogProps = {
   channels: ChannelDto[];
   products: ProductDto[];
   initialRecipientName?: string;
+  initialRecipientPhone?: string;
   initialOrdererName?: string;
+  initialOrdererPhone?: string;
   onClose: () => void;
   onSaved: (createdCount: number) => void;
 };
@@ -144,15 +141,25 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
   channels,
   products,
   initialRecipientName = '',
+  initialRecipientPhone = '',
   initialOrdererName = '',
+  initialOrdererPhone = '',
   onClose,
   onSaved,
 }) => {
-  const initialReview = createQuickOrderReview(channelId, initialRecipientName, initialOrdererName);
+  const initialReview = createQuickOrderReview(
+    channelId,
+    initialRecipientName,
+    initialOrdererName,
+    initialRecipientPhone,
+    initialOrdererPhone,
+  );
   const initialAdministrativeAddress = createQuickOrderAddress();
   const initialDirtyFields: QuickOrderReviewField[] = [];
   if (initialRecipientName.trim()) initialDirtyFields.push('recipientName');
+  if (initialRecipientPhone.trim()) initialDirtyFields.push('recipientPhone');
   if (initialOrdererName.trim()) initialDirtyFields.push('ordererName');
+  if (initialOrdererPhone.trim()) initialDirtyFields.push('ordererPhone');
   const [sourceText, setSourceText] = useState('');
   const [parsed, setParsed] = useState<ParsedOrderText | null>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -523,7 +530,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
       aria-labelledby="quick-import-title"
       onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}
     >
-      <div className="flex max-h-[96dvh] min-h-0 w-full max-w-6xl flex-col overflow-hidden rounded-t-admin-panel border border-admin-border bg-admin-card shadow-xl sm:max-h-[92dvh] sm:rounded-admin-panel">
+      <div className="flex max-h-[96dvh] min-h-0 w-full max-w-[94rem] flex-col overflow-hidden rounded-t-admin-panel border border-admin-border bg-admin-card shadow-xl sm:max-h-[92dvh] sm:rounded-admin-panel">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5">
           <div>
             <h2 id="quick-import-title" className="text-base font-semibold text-admin-text-primary">Nhập nhiều đơn hàng</h2>
@@ -534,7 +541,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:overflow-hidden">
+        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1.55fr)_minmax(22rem,0.95fr)] lg:overflow-hidden">
           <section className="min-w-0 border-b border-admin-border p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-5" aria-labelledby="quick-input-title">
             <h3 id="quick-input-title" className="text-sm font-semibold text-admin-text-primary">Nhập và phân tích</h3>
             <div className="mt-3">
@@ -543,7 +550,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
                 ref={textareaRef}
                 id="quick-import-text"
                 autoFocus
-                className={`${inputClass} min-h-44 resize-y`}
+                className={`${inputClass} ${parsed ? 'min-h-24' : 'min-h-40'} resize-y`}
                 value={sourceText}
                 onChange={(event) => {
                   invalidatePendingAnalysis();
@@ -561,7 +568,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
               />
             </div>
 
-            <div className="mt-3 rounded-admin-control border border-dashed border-admin-border p-3">
+            <div className={`mt-3 rounded-admin-control border border-dashed border-admin-border ${parsed ? 'p-2.5' : 'p-3'}`}>
               <label htmlFor="quick-import-images" className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-admin-control border border-admin-border px-3 text-xs font-semibold text-admin-primary hover:bg-admin-muted focus-within:ring-2 focus-within:ring-admin-primary/20">
                 <ImagePlus size={15} aria-hidden="true" /> Thêm ảnh chụp chat
               </label>
@@ -624,27 +631,30 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
             </button>
 
             {parsed ? (
-              <div className="mt-4 rounded-admin-control bg-admin-muted p-3 text-sm" aria-label="Kết quả phân tích">
-                <h4 className="text-sm font-semibold text-admin-text-primary">Kết quả phân tích</h4>
-                <p className="mt-1 text-xs leading-5 text-admin-text-muted">
+              <div className="mt-3 rounded-admin-control bg-admin-muted/75 p-2.5 text-sm" aria-label="Kết quả phân tích">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <h4 className="text-[13px] font-semibold text-admin-text-primary">Kết quả phân tích</h4>
+                  <p className="text-[11px] leading-4 text-admin-text-muted">
                   Đây là dữ liệu gợi ý. Hãy kiểm tra và chỉnh trực tiếp trước khi áp dụng.
-                </p>
+                  </p>
+                </div>
                 <QuickOrderReviewForm
                   review={review}
                   errors={reviewErrors}
                   channels={channels}
+                  products={products}
                   administrativeAddress={administrativeAddress}
                   administrativeAddressInvalidField={administrativeAddressInvalidField}
                   onChange={updateReview}
                   onAdministrativeAddressChange={updateAdministrativeAddress}
                 />
                 {screenshotError ? (
-                  <p className="mt-3 rounded-admin-control border border-admin-status-warning/30 bg-amber-50 px-3 py-2 text-xs leading-5 text-admin-status-warning" role="alert">
+                  <p className="mt-2 rounded-admin-control border border-admin-status-warning/30 bg-amber-50 px-2.5 py-1.5 text-[11px] leading-4 text-admin-status-warning" role="alert">
                     {screenshotError}
                   </p>
                 ) : null}
                 {parsed.warnings.length > 0 ? (
-                  <ul className="mt-3 space-y-1 text-xs leading-5 text-admin-status-warning">
+                  <ul className="mt-2 grid gap-x-3 gap-y-0.5 text-[11px] leading-4 text-admin-status-warning sm:grid-cols-2">
                     {parsed.warnings
                       .filter((warning) => !(review.ordererName && warning.includes('người đặt')))
                       .filter((warning) => !(review.productHint && warning.includes('sản phẩm')))
@@ -652,13 +662,13 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
                   </ul>
                 ) : null}
                 {addressAnalysis ? (
-                  <div className="mt-3 border-t border-admin-border pt-3 text-xs leading-5">
+                  <div className="mt-2 border-t border-admin-border pt-2 text-[11px] leading-4">
                     <p className="font-semibold text-admin-text-primary">Địa chỉ hành chính</p>
                     {addressAnalysis.selectedCandidate ? (
                       <div className={addressAnalysis.isConfident ? 'text-admin-status-success' : 'text-admin-status-warning'}>
                         <p>Đã tự chọn: {addressAnalysis.selectedCandidate.fullAddress} ({confidencePercent(addressAnalysis.confidence)}%)</p>
                         {addressAnalysis.candidates.length > 1 ? (
-                          <details className="text-admin-text-secondary">
+                      <details className="mt-0.5 text-admin-text-secondary">
                             <summary className="cursor-pointer text-admin-primary">Xem {addressAnalysis.candidates.length} kết quả đã xếp hạng</summary>
                             {addressAnalysis.candidates.slice(0, 3).map((candidate, index) => (
                               <p key={[candidate.scheme, candidate.districtCode ?? 'none', candidate.communeCode ?? 'none'].join('-')}>
@@ -673,7 +683,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
                   </div>
                 ) : null}
                 {screenshotAnalysis ? (
-                  <div className="mt-3 border-t border-admin-border pt-3 text-xs leading-5">
+                  <div className="mt-2 border-t border-admin-border pt-2 text-[11px] leading-4">
                     <p className="font-semibold text-admin-text-primary">Gợi ý từ ảnh</p>
                     <p>
                       Nguồn: <span className="font-medium">{platformLabel(screenshotAnalysis.detectedPlatform)}</span>
@@ -697,7 +707,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
                         <p className="text-admin-text-muted">Tên đang nhập đã được giữ nguyên thay vì ghi đè bằng OCR.</p>
                       ) : null}
                     {screenshotAnalysis.screenshots.length > 0 ? (
-                      <details className="mt-2 rounded-admin-control border border-admin-border bg-admin-card px-3 py-2">
+                      <details className="mt-1.5 rounded-admin-control border border-admin-border bg-admin-card px-2.5 py-1.5">
                         <summary className="cursor-pointer font-semibold text-admin-primary">
                           Chi tiết {screenshotAnalysis.screenshots.length} ảnh
                         </summary>
@@ -723,9 +733,9 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
               </div>
             ) : null}
 
-            {inputError ? <p className="mt-3 rounded-admin-control border border-admin-status-error/30 bg-red-50 px-3 py-2 text-xs leading-5 text-admin-status-error" role="alert">{inputError}</p> : null}
-            <div className="mt-4 flex justify-end">
-              <button type="button" onClick={apply} disabled={!parsed || applying || analysisStatus === 'running'} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
+            {inputError ? <p className="mt-2 rounded-admin-control border border-admin-status-error/30 bg-red-50 px-2.5 py-1.5 text-[11px] leading-4 text-admin-status-error" role="alert">{inputError}</p> : null}
+            <div className="sticky bottom-0 z-10 -mx-4 mt-3 flex justify-end border-t border-admin-border bg-admin-card/95 px-4 py-2 backdrop-blur sm:-mx-5 sm:px-5">
+              <button type="button" onClick={apply} disabled={!parsed || applying || analysisStatus === 'running'} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50">
                 {applying ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : null}
                 Áp dụng
               </button>
@@ -767,10 +777,15 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
                               {draft.ordererName} · {selectedChannelName}
                             </p>
                             <p className="mt-1 text-xs font-medium tabular-nums text-admin-text-secondary">
-                              {formatDeliveryDate(draft.deliveryDate)} • {draft.deliveryStartTime}{draft.deliveryEndTime ? `-${draft.deliveryEndTime}` : ''}
+                              {formatDeliveryWindow(
+                                `${draft.deliveryDate}T${draft.deliveryStartTime}`,
+                                draft.deliveryEndTime ? `${draft.deliveryDate}T${draft.deliveryEndTime}` : undefined,
+                              )}
                             </p>
                             <p className="mt-1 truncate text-sm font-medium text-admin-text-primary" title={`${draft.recipientName} - ${draft.recipientPhone}`}>{draft.recipientName} - {draft.recipientPhone}</p>
-                            {draft.addressDetail || draft.deliveryAddress ? (
+                            {draft.pickupAtShop ? (
+                              <p className="mt-1 text-xs leading-5 text-admin-text-secondary">Lấy tại shop</p>
+                            ) : draft.addressDetail || draft.deliveryAddress ? (
                               <p className="mt-1 line-clamp-2 text-xs leading-5 text-admin-text-secondary">{draft.addressDetail || draft.deliveryAddress}</p>
                             ) : null}
                             {draft.provinceName || draft.districtName || draft.communeName ? (
@@ -789,7 +804,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
                               </p>
                             ) : null}
                             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-admin-text-secondary">
-                              <span className="font-medium text-admin-text-primary">{item?.productName || item?.productHint} • {formatOrderCurrency(item?.unitPrice ?? 0)}</span>
+                              <span className="font-medium text-admin-text-primary">{item?.productName || item?.productHint} × {item?.quantity ?? 1} • {formatOrderCurrency(item?.unitPrice ?? 0)}</span>
                               <span>Ship {formatOrderCurrency(draft.shippingFee)}</span>
                               <span>Cọc {draft.deposit != null ? formatOrderCurrency(draft.deposit) : 'mặc định'}</span>
                               {draft.attachments.length > 0 ? <span>{draft.attachments.length} ảnh</span> : null}

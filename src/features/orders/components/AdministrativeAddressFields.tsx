@@ -22,6 +22,7 @@ type Props = {
   idPrefix?: string;
   invalidField?: AdministrativeAddressField;
   errorId?: string;
+  compact?: boolean;
 };
 
 const inputClass =
@@ -70,6 +71,7 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
   idPrefix = 'address',
   invalidField,
   errorId,
+  compact = false,
 }) => {
   const [provinces, setProvinces] = useState<AdministrativeUnitDto[]>([]);
   const [districts, setDistricts] = useState<AdministrativeUnitDto[]>([]);
@@ -129,6 +131,12 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
   const provinceOptions = useMemo(() => provinces.map(option), [provinces]);
   const districtOptions = useMemo(() => districts.map(option), [districts]);
   const communeOptions = useMemo(() => communes.map(option), [communes]);
+  const resolvedInputClass = compact
+    ? 'min-h-9 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-2.5 py-1.5 text-[13px] text-admin-text-primary placeholder:text-admin-text-muted transition-colors focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15 disabled:cursor-not-allowed disabled:bg-admin-disabled-bg disabled:text-admin-disabled-text'
+    : inputClass;
+  const resolvedLabelClass = compact
+    ? 'mb-0.5 block min-h-3 text-[11px] font-medium leading-4 text-admin-text-secondary'
+    : labelClass;
 
   const searchChildren = (
     kind: 'district' | 'commune',
@@ -153,9 +161,9 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? 'space-y-2' : 'space-y-3'}>
       <fieldset>
-        <legend className={labelClass}>Loại địa chỉ</legend>
+        <legend className={resolvedLabelClass}>Loại địa chỉ</legend>
         <div className="grid grid-cols-2 gap-1 rounded-admin-control border border-admin-border bg-admin-muted p-1">
           {([
             [AdministrativeScheme.Current, 'Địa chỉ mới'],
@@ -173,7 +181,7 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
                 provinceCode: '',
                 provinceName: '',
               })}
-              className={`min-h-10 rounded-admin-control px-3 text-xs font-semibold transition-colors ${value.scheme === scheme ? 'bg-admin-card text-admin-primary shadow-sm' : 'text-admin-text-secondary hover:text-admin-text-primary'}`}
+              className={`${compact ? 'min-h-8 px-2.5' : 'min-h-10 px-3'} rounded-admin-control text-xs font-semibold transition-colors ${value.scheme === scheme ? 'bg-admin-card text-admin-primary shadow-sm' : 'text-admin-text-secondary hover:text-admin-text-primary'}`}
             >
               {label}
             </button>
@@ -182,10 +190,10 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
       </fieldset>
 
       <div>
-        <label htmlFor={`${idPrefix}-detail`} className={labelClass}>Địa chỉ chi tiết</label>
+        <label htmlFor={`${idPrefix}-detail`} className={resolvedLabelClass}>Địa chỉ chi tiết</label>
         <input
           id={`${idPrefix}-detail`}
-          className={`${inputClass} ${invalidField === 'detail' ? 'border-admin-status-error ring-2 ring-admin-status-error/10' : ''}`}
+          className={`${resolvedInputClass} ${invalidField === 'detail' ? 'border-admin-status-error ring-2 ring-admin-status-error/10' : ''}`}
           disabled={disabled}
           aria-invalid={invalidField === 'detail'}
           aria-describedby={invalidField === 'detail' ? errorId : undefined}
@@ -197,8 +205,9 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
       </div>
 
       <div>
-        <label htmlFor={`${idPrefix}-province`} className={labelClass}>Tỉnh / Thành phố</label>
+        <label htmlFor={`${idPrefix}-province`} className={resolvedLabelClass}>Tỉnh / Thành phố</label>
         <AdminSelect<string, UnitOption>
+          density={compact ? 'compact' : 'default'}
           inputId={`${idPrefix}-province`}
           aria-invalid={invalidField === 'province'}
           aria-describedby={invalidField === 'province' ? errorId : undefined}
@@ -218,8 +227,9 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
 
       {value.scheme === AdministrativeScheme.Legacy ? (
         <div>
-          <label htmlFor={`${idPrefix}-district`} className={labelClass}>Quận / Huyện / Thị xã / Thành phố</label>
+          <label htmlFor={`${idPrefix}-district`} className={resolvedLabelClass}>Quận / Huyện / Thị xã / Thành phố</label>
           <AdminSelect<string, UnitOption>
+            density={compact ? 'compact' : 'default'}
             inputId={`${idPrefix}-district`}
             aria-invalid={invalidField === 'district'}
             aria-describedby={invalidField === 'district' ? errorId : undefined}
@@ -241,10 +251,11 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
       ) : null}
 
       <div>
-        <label htmlFor={`${idPrefix}-commune`} className={labelClass}>
+        <label htmlFor={`${idPrefix}-commune`} className={resolvedLabelClass}>
           {value.scheme === AdministrativeScheme.Current ? 'Xã / Phường / Đặc khu' : 'Xã / Phường / Thị trấn'}
         </label>
         <AdminSelect<string, UnitOption>
+          density={compact ? 'compact' : 'default'}
           inputId={`${idPrefix}-commune`}
           aria-invalid={invalidField === 'commune'}
           aria-describedby={invalidField === 'commune' ? errorId : undefined}
@@ -260,7 +271,7 @@ export const AdministrativeAddressFields: React.FC<Props> = ({
           })}
           placeholder="Nhập ít nhất 2 ký tự để tìm nhanh"
         />
-        <p className="mt-1 text-[11px] leading-4 text-admin-text-muted">Có thể tìm không dấu, ví dụ “an nhon”.</p>
+        <p className={`${compact ? 'mt-0.5' : 'mt-1'} text-[11px] leading-4 text-admin-text-muted`}>Có thể tìm không dấu, ví dụ “an nhon”.</p>
       </div>
 
       {transitions.length > 0 ? (

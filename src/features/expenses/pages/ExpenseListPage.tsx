@@ -15,6 +15,7 @@ import { Permission } from '@/features/auth/permissions';
 import { ConfirmationPanel, SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
+import { formatVndInput, parseVndInput } from '@/shared/utils/displayFormatters';
 import { expenseCategoriesApi, expensesApi } from '../api/expensesApi';
 import { ExpensePagination } from '../components/ExpensePagination';
 import type {
@@ -620,17 +621,18 @@ export const ExpenseListPage: React.FC = () => {
           </div>
           <div>
             <label htmlFor="expense-form-amount" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Số tiền</label>
-            <input
-              id="expense-form-amount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={draft.amount}
-              onChange={(event) => setDraft((current) => ({ ...current, amount: event.target.value }))}
-              className={fieldClass}
-              inputMode="decimal"
-              placeholder="0"
-            />
+            <div className="relative">
+              <input
+                id="expense-form-amount"
+                type="text"
+                value={formatVndInput(draft.amount)}
+                onChange={(event) => setDraft((current) => ({ ...current, amount: String(parseVndInput(event.target.value) || '') }))}
+                className={`${fieldClass} pr-8 text-right tabular-nums`}
+                inputMode="numeric"
+                placeholder="0"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-admin-text-muted">₫</span>
+            </div>
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="expense-form-description" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Nội dung chi</label>

@@ -23,6 +23,7 @@ import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
 import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
+import { formatVndInput, parseVndInput } from '@/shared/utils/displayFormatters';
 import { ordersApi } from '../api/ordersApi';
 import { orderStatusLabel } from '../constants/orderLabels';
 import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
@@ -40,12 +41,6 @@ const inputClass =
 const labelClass = 'mb-1 block min-h-4 text-xs font-medium leading-4 text-admin-text-secondary';
 const panelClass = 'rounded-admin-panel border border-admin-border bg-admin-card p-4 shadow-admin-panel';
 const ORDER_DELIVERY_LOCATION_UI_ENABLED = false;
-const formatVndInput = (value: number | string) => {
-  const numericValue = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numericValue) && numericValue > 0 ? Math.round(numericValue).toLocaleString('vi-VN') : '';
-};
-const parseVndInput = (value: string) => Number(value.replace(/\D/g, '')) || 0;
-
 type LineDraft = UpdateOrderLine & {
   key: string;
   imageFiles: File[];
@@ -1444,7 +1439,9 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
           channels={channels}
           products={products}
           initialRecipientName={recipientName}
+          initialRecipientPhone={recipientPhone}
           initialOrdererName={ordererName}
+          initialOrdererPhone={ordererPhone}
           onClose={() => setQuickImportOpen(false)}
           onSaved={(createdCount) => {
             setQuickImportOpen(false);

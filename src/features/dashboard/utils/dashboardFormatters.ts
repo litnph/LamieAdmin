@@ -3,29 +3,17 @@ import {
   type DashboardPeriodKey,
   type DashboardPeriodRange,
 } from '../types/dashboard.types';
-
-const currencyFormatter = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
+import { formatDisplayDateTime, formatVndCurrency } from '@/shared/utils/displayFormatters';
 
 const integerFormatter = new Intl.NumberFormat('vi-VN', {
   maximumFractionDigits: 0,
 });
 
-const dateTimeFormatter = new Intl.DateTimeFormat('vi-VN', {
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-export const formatCurrency = (value: number) => currencyFormatter.format(value);
+export const formatCurrency = formatVndCurrency;
 
 export const formatInteger = (value: number) => integerFormatter.format(value);
 
-export const formatDateTime = (value: string | Date) => dateTimeFormatter.format(new Date(value));
+export const formatDateTime = formatDisplayDateTime;
 
 export const createDashboardPeriodRange = (
   key: DashboardPeriodKey,

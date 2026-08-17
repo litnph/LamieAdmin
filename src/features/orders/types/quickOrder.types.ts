@@ -5,18 +5,26 @@ import type { AdministrativeAddressSnapshot, CreateOrderLine } from './order.typ
 export const quickOrderReviewFields = [
   'channelId',
   'ordererName',
+  'ordererPhone',
   'recipientName',
   'deliveryDate',
   'deliveryStartTime',
   'deliveryEndTime',
+  'deliveryTimeMode',
+  'deliveryMethod',
   'recipientPhone',
   'address',
   'productHint',
   'price',
+  'quantity',
+  'productNote',
   'shippingFee',
   'deposit',
+  'hasCard',
   'cardMessage',
+  'hasBanner',
   'bannerMessage',
+  'contentNote',
 ] as const;
 
 export type QuickOrderReviewField = typeof quickOrderReviewFields[number];
@@ -28,19 +36,27 @@ export type QuickOrderReviewErrors = Partial<Record<QuickOrderReviewField, strin
 export type ConfirmedQuickOrderReview = {
   channelId: string;
   ordererName: string;
+  ordererPhone: string;
   recipientName: string;
   deliveryDate: string;
   deliveryStartTime: string;
   deliveryEndTime?: string;
   recipientPhone: string;
+  pickupAtShop: boolean;
+  provinceShipping: boolean;
   address?: string;
   administrativeAddress: AdministrativeAddressValue;
   productHint: string;
   price: number;
+  quantity: number;
+  productNote?: string;
   shippingFee: number;
   deposit?: number;
+  hasCard: boolean;
   cardMessage?: string;
+  hasBanner: boolean;
   bannerMessage?: string;
+  contentNote?: string;
 };
 
 export type QuickOrderAttachment = {
@@ -62,6 +78,8 @@ export type QuickOrderDraft = AdministrativeAddressSnapshot & {
   ordererName: string;
   ordererPhone: string;
   channelId: string;
+  pickupAtShop: boolean;
+  provinceShipping: boolean;
   deliveryDate: string;
   deliveryStartTime: string;
   deliveryEndTime?: string;
@@ -69,6 +87,7 @@ export type QuickOrderDraft = AdministrativeAddressSnapshot & {
   items: QuickOrderItemDraft[];
   shippingFee: number;
   deposit?: number;
+  contentNote?: string;
   sourceText: string;
   attachments: QuickOrderAttachment[];
   addressRawText?: string;

@@ -574,6 +574,34 @@ test('Save All sends one multipart batch with three orders and isolated attachme
   expect(body).toContain('Happy Birthday');
 });
 
+test('quick import keeps create-order contact, delivery, quantity and note fields in the batch payload', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Nhập nhanh' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập nhiều đơn hàng' });
+
+  await dialog.getByLabel('Đoạn chat').fill(`11/08 17h15\n${product.translations[0].name} 500, 50 ship cọc 200\n0352752593`);
+  await dialog.getByRole('button', { name: 'Phân tích' }).click();
+  await dialog.getByLabel('Người nhận', { exact: true }).fill('Người nhận đủ trường');
+  await dialog.getByLabel('Người đặt', { exact: true }).fill('Người đặt đủ trường');
+  await dialog.getByLabel('SĐT người đặt').fill('0909000222');
+  await dialog.getByLabel('SL', { exact: true }).fill('2');
+  await dialog.getByLabel('Ghi chú riêng', { exact: true }).fill('Tông trắng, size lớn');
+  await dialog.getByLabel('Ghi chú đơn hàng').fill('Gọi trước khi giao');
+  await dialog.getByRole('radio', { name: 'Ship tỉnh' }).click();
+  await dialog.getByRole('button', { name: 'Áp dụng', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Lưu 1 đơn' }).click();
+
+  expect(mocks.batchBodies).toHaveLength(1);
+  const body = mocks.batchBodies[0];
+  expect(body).toContain('name="orders[0].ordererPhone"');
+  expect(body).toContain('0909000222');
+  expect(body).toContain('name="orders[0].provinceShipping"');
+  expect(body).toContain('name="orders[0].items[0].quantity"');
+  expect(body).toContain('Tông trắng, size lớn');
+  expect(body).toContain('Gọi trước khi giao');
+});
+
 test('batch failure keeps the queue and highlights the row mapped by clientDraftId', async ({ page }) => {
   const mocks = await installMocks(page, { rejectBatch: true });
   await page.goto('/admin/orders/new');
@@ -618,6 +646,7 @@ test('quick import uses two panels on desktop and stacks without overflow on mob
   const desktop = await Promise.all([inputPanel.boundingBox(), queuePanel.boundingBox()]);
   expect(desktop[0]?.y).toBe(desktop[1]?.y);
   expect((desktop[0]?.x ?? 0)).toBeLessThan(desktop[1]?.x ?? 0);
+  expect(desktop[0]?.width ?? 0).toBeGreaterThan((desktop[1]?.width ?? 0) * 1.35);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobile = await Promise.all([inputPanel.boundingBox(), queuePanel.boundingBox()]);

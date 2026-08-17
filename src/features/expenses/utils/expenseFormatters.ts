@@ -1,23 +1,8 @@
-const currencyFormatter = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
+import { formatDisplayDate, formatVndCurrency } from '@/shared/utils/displayFormatters';
 
-const dateFormatter = new Intl.DateTimeFormat('vi-VN', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  timeZone: 'Asia/Ho_Chi_Minh',
-});
+export const formatExpenseCurrency = formatVndCurrency;
 
-export const formatExpenseCurrency = (value: number): string => currencyFormatter.format(value);
-
-export const formatExpenseDate = (value: string): string => {
-  const [year, month, day] = value.split('-').map(Number);
-  if (!year || !month || !day) return value;
-  return dateFormatter.format(new Date(Date.UTC(year, month - 1, day, 12)));
-};
+export const formatExpenseDate = formatDisplayDate;
 
 export const localDateInputValue = (date = new Date()): string => {
   const parts = new Intl.DateTimeFormat('en-CA', {

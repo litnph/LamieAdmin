@@ -194,7 +194,7 @@ test('expense can be created with required validation fields', async ({ page }) 
     await page.keyboard.type(digit);
     await expect(amountInput).toBeFocused();
   }
-  await expect(amountInput).toHaveValue('1000000');
+  await expect(amountInput).toHaveValue('1.000.000');
   await dialog.getByLabel('Nội dung chi').fill('Mua giấy gói hoa');
   await dialog.getByLabel('Ghi chú').fill('Bổ sung kho đầu tuần');
   await dialog.getByRole('button', { name: 'Thêm khoản chi' }).click();
