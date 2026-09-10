@@ -22,6 +22,8 @@ import {
 } from '../api/productApi';
 import { AttributesApi } from '@/features/settings/attributes/api/attributesApi';
 import type { AttributeItem, LanguageAttributeItem } from '@/features/settings/attributes/types/attributes.types';
+import { ingredientsApi } from '@/features/ingredients/api/ingredientsApi';
+import type { IngredientDto } from '@/features/ingredients/types/ingredient.types';
 import { SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
 import { AttributeMultiSelect } from '@/shared/components/AttributeMultiSelect';
@@ -40,6 +42,22 @@ type ProductFormState = Omit<CreateProductRequest, 'translations' | 'images' | '
 };
 type FieldErrors = Record<string, string>;
 
+type ProductIngredientDraft = {
+  clientKey: string;
+  id?: number;
+  ingredientId: number;
+  baseQuantity: string;
+  note: string;
+};
+
+let recipeKey = 0;
+const newRecipeRow = (): ProductIngredientDraft => ({
+  clientKey: `recipe-${++recipeKey}`,
+  ingredientId: 0,
+  baseQuantity: '',
+  note: '',
+});
+
 const EMPTY_FORM: ProductFormState = {
   sku: '',
   price: 0,
@@ -54,6 +72,7 @@ const EMPTY_FORM: ProductFormState = {
   collectionIds: [],
   styleIds: [],
   occasionIds: [],
+  similarProductIds: [],
 };
 
 const EMPTY_TRANSLATION: ProductTranslation = {
@@ -131,6 +150,7 @@ function mapDtoToFormState(product: ProductDto): ProductFormState {
     collectionIds: [...(product.collectionIds ?? [])],
     styleIds: [...(product.styleIds ?? [])],
     occasionIds: [...(product.occasionIds ?? [])],
+    similarProductIds: [...(product.similarProductIds ?? [])],
   };
 }
 
@@ -168,6 +188,7 @@ function serializeDraft(
   translations: ProductTranslation[],
   images: ProductImageItem[],
   thumbnailFile: File | null,
+  recipe: ProductIngredientDraft[],
 ) {
   return JSON.stringify({
     form,
@@ -179,12 +200,15 @@ function serializeDraft(
       file: image.file ? fileSignature(image.file) : null,
     })),
     thumbnailFile: thumbnailFile ? fileSignature(thumbnailFile) : null,
+    recipe,
   });
 }
 
 function validateProduct(
   form: ProductFormState,
   translations: ProductTranslation[],
+  recipe: ProductIngredientDraft[],
+  ingredientCatalog: IngredientDto[],
   mode: ProductFormMode,
   originalSku?: string,
 ): FieldErrors {
@@ -221,6 +245,21 @@ function validateProduct(
     }
     if (!translation.name.trim()) errors[`${prefix}-name`] = 'Nhập tên sản phẩm.';
     if (!translation.slug.trim()) errors[`${prefix}-slug`] = 'Nhập đường dẫn slug.';
+  });
+
+  const ingredientIds = new Set<number>();
+  recipe.forEach((row, index) => {
+    const prefix = `ingredient-${index}`;
+    const quantity = row.baseQuantity.trim();
+    const ingredient = ingredientCatalog.find((item) => item.id === row.ingredientId);
+    if (!row.ingredientId) errors[`${prefix}-ingredientId`] = 'Chọn nguyên liệu.';
+    else if (ingredientIds.has(row.ingredientId)) errors[`${prefix}-ingredientId`] = 'Nguyên liệu này đã có trong định mức.';
+    else ingredientIds.add(row.ingredientId);
+    if (!/^\d+(?:\.\d{1,6})?$/.test(quantity) || Number(quantity) <= 0) {
+      errors[`${prefix}-baseQuantity`] = 'Số lượng phải lớn hơn 0 và có tối đa 6 chữ số thập phân.';
+    } else if (ingredient && !ingredient.baseUnit.allowsFractional && !/^\d+$/.test(quantity)) {
+      errors[`${prefix}-baseQuantity`] = `Đơn vị ${ingredient.baseUnit.symbol || ingredient.baseUnit.name} chỉ cho phép số nguyên.`;
+    }
   });
 
   return errors;
@@ -280,6 +319,9 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
   const [imagesError, setImagesError] = useState<string | null>(null);
+  const [ingredientCatalog, setIngredientCatalog] = useState<IngredientDto[]>([]);
+  const [productCatalog, setProductCatalog] = useState<ProductDto[]>([]);
+  const [recipe, setRecipe] = useState<ProductIngredientDraft[]>([]);
   const [draftReady, setDraftReady] = useState(false);
 
   const initialDraftRef = useRef('');
@@ -325,9 +367,23 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
     [languages],
   );
 
+  const similarProductOptions: AdminSelectOption<number>[] = useMemo(
+    () => productCatalog
+      .filter((product) => product.id !== productId)
+      .filter((product) => product.isActive || form.similarProductIds.includes(product.id))
+      .map((product) => ({
+        value: product.id,
+        label: `${product.translations.find((item) => item.languageCode.toLowerCase().startsWith('vi'))?.name
+          ?? product.translations[0]?.name
+          ?? product.sku} · ${product.sku}`,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'vi')),
+    [form.similarProductIds, productCatalog, productId],
+  );
+
   const currentDraft = useMemo(
-    () => serializeDraft(form, translations, images, thumbnailFile),
-    [form, images, thumbnailFile, translations],
+    () => serializeDraft(form, translations, images, thumbnailFile, recipe),
+    [form, images, recipe, thumbnailFile, translations],
   );
   const isDirty = draftReady && currentDraft !== initialDraftRef.current;
   const hasPendingFiles = Boolean(thumbnailFile || images.some((image) => image.file));
@@ -346,7 +402,7 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
       setLoadingMaster(true);
       setMasterError(null);
       try {
-        const [categoryItems, productTypeItems, tagItems, colorItems, collectionItems, styleItems, occasionItems, languageItems] =
+        const [categoryItems, productTypeItems, tagItems, colorItems, collectionItems, styleItems, occasionItems, languageItems, ingredientItems, catalogItems] =
           await Promise.all([
             AttributesApi.getAll<AttributeItem>('categories'),
             AttributesApi.getAll<AttributeItem>('product-types'),
@@ -356,6 +412,8 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
             AttributesApi.getAll<AttributeItem>('styles'),
             AttributesApi.getAll<AttributeItem>('occasions'),
             AttributesApi.getAllLanguages(),
+            ingredientsApi.listAll({ includeInactive: true }),
+            ProductApi.getAll(),
           ]);
         setCategories(categoryItems);
         setProductTypes(productTypeItems);
@@ -365,6 +423,8 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
         setStyles(styleItems);
         setOccasions(occasionItems);
         setLanguages(languageItems);
+        setIngredientCatalog(ingredientItems);
+        setProductCatalog(catalogItems);
       } catch (requestError) {
         setMasterError(getApiErrorMessage(requestError));
       } finally {
@@ -384,13 +444,21 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
       const nextForm = mapDtoToFormState(initialProduct);
       const nextTranslations = mapDtoTranslations(initialProduct);
       const nextImages = mapDtoImagesToItems(initialProduct);
+      const nextRecipe = [...(initialProduct.ingredients ?? [])].sort((left, right) => left.sortOrder - right.sortOrder).map((item) => ({
+        clientKey: `saved-recipe-${item.id}`,
+        id: item.id,
+        ingredientId: item.ingredientId,
+        baseQuantity: String(item.baseQuantity),
+        note: item.note ?? '',
+      }));
       setForm(nextForm);
       setTranslations(nextTranslations);
       setImages(nextImages);
+      setRecipe(nextRecipe);
       setThumbnailFile(null);
       setThumbnailMeta(null);
       setThumbnailPreviewUrl(null);
-      initialDraftRef.current = serializeDraft(nextForm, nextTranslations, nextImages, null);
+      initialDraftRef.current = serializeDraft(nextForm, nextTranslations, nextImages, null, nextRecipe);
       setDraftReady(true);
       return;
     }
@@ -401,10 +469,11 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
       setForm(nextForm);
       setTranslations(nextTranslations);
       setImages([]);
+      setRecipe([]);
       setThumbnailFile(null);
       setThumbnailMeta(null);
       setThumbnailPreviewUrl(null);
-      initialDraftRef.current = serializeDraft(nextForm, nextTranslations, [], null);
+      initialDraftRef.current = serializeDraft(nextForm, nextTranslations, [], null, []);
       setDraftReady(true);
     }
   }, [initialProduct, mode]);
@@ -448,8 +517,8 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
     defaultsAppliedRef.current = true;
     setForm(nextForm);
     setTranslations(nextTranslations);
-    initialDraftRef.current = serializeDraft(nextForm, nextTranslations, images, thumbnailFile);
-  }, [categories, draftReady, form, images, languages, loadingMaster, mode, productTypes, thumbnailFile, translations]);
+    initialDraftRef.current = serializeDraft(nextForm, nextTranslations, images, thumbnailFile, recipe);
+  }, [categories, draftReady, form, images, languages, loadingMaster, mode, productTypes, recipe, thumbnailFile, translations]);
 
   useEffect(() => {
     if (!isDirty || savedRef.current) return;
@@ -527,6 +596,26 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
   const removeTranslation = (index: number) => {
     setTranslations((current) => current.filter((_, currentIndex) => currentIndex !== index));
     setFieldErrors({});
+  };
+
+  const updateRecipeRow = (clientKey: string, patch: Partial<ProductIngredientDraft>) => {
+    setRecipe((current) => current.map((row) => row.clientKey === clientKey ? { ...row, ...patch } : row));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      recipe.forEach((row, index) => {
+        if (row.clientKey === clientKey) {
+          Object.keys(patch).forEach((key) => delete next[`ingredient-${index}-${key}`]);
+        }
+      });
+      return next;
+    });
+  };
+
+  const removeRecipeRow = (clientKey: string) => {
+    setRecipe((current) => current.filter((row) => row.clientKey !== clientKey));
+    setFieldErrors((current) => Object.fromEntries(
+      Object.entries(current).filter(([key]) => !key.startsWith('ingredient-')),
+    ));
   };
 
   const isImageFile = (file: File) => file.type.startsWith('image/');
@@ -647,7 +736,7 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
     event.preventDefault();
     if (saving || deleting) return;
 
-    const nextErrors = validateProduct(form, translations, mode, initialProduct?.sku);
+    const nextErrors = validateProduct(form, translations, recipe, ingredientCatalog, mode, initialProduct?.sku);
     setFieldErrors(nextErrors);
     setSubmitError(null);
     if (Object.keys(nextErrors).length > 0) {
@@ -686,6 +775,7 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
       form.collectionIds.forEach((id, index) => formData.append(`CollectionIds[${index}]`, String(id)));
       form.styleIds.forEach((id, index) => formData.append(`StyleIds[${index}]`, String(id)));
       form.occasionIds.forEach((id, index) => formData.append(`OccasionIds[${index}]`, String(id)));
+      form.similarProductIds.forEach((id, index) => formData.append(`SimilarProductIds[${index}]`, String(id)));
 
       translations.forEach((translation, index) => {
         formData.append(`Translations[${index}].LanguageCode`, translation.languageCode);
@@ -706,6 +796,13 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
         } else if (image.imageUrl) {
           formData.append(`Images[${index}].ImageUrl`, image.imageUrl);
         }
+      });
+
+      recipe.forEach((row, index) => {
+        formData.append(`Ingredients[${index}].IngredientId`, String(row.ingredientId));
+        formData.append(`Ingredients[${index}].BaseQuantity`, row.baseQuantity.trim());
+        if (row.note.trim()) formData.append(`Ingredients[${index}].Note`, row.note.trim());
+        formData.append(`Ingredients[${index}].SortOrder`, String(index));
       });
 
       if (mode === 'edit' && productId) {
@@ -1115,6 +1212,115 @@ export const ProductCreatePage: React.FC<ProductCreatePageProps> = ({
                 <FieldMessage id="product-stock-error" message={fieldErrors.stock} />
               </div>
             </div>
+          </section>
+
+          <section className="border-t border-admin-border p-4 sm:p-6" aria-labelledby="product-similar-heading">
+            <SectionHeading
+              id="product-similar-heading"
+              title="Sản phẩm tương tự"
+              description="Chọn các sản phẩm sẽ xuất hiện trong gợi ý tương tự trên cửa hàng. Sản phẩm đang chỉnh sửa luôn được loại khỏi danh sách."
+            />
+            <AdminSelect<number>
+              inputId="product-similar-products"
+              isMulti
+              options={similarProductOptions}
+              value={similarProductOptions.filter((option) => form.similarProductIds.includes(option.value))}
+              onChange={(next) => updateForm('similarProductIds', next.map((option) => option.value))}
+              isDisabled={loadingMaster}
+              isLoading={loadingMaster}
+              isClearable
+              closeMenuOnSelect={false}
+              placeholder={loadingMaster ? 'Đang tải catalog...' : 'Tìm theo tên hoặc SKU'}
+              aria-label="Chọn sản phẩm tương tự"
+            />
+            <p className="mt-2 text-xs leading-5 text-admin-text-muted">
+              Có thể chọn nhiều sản phẩm. Các sản phẩm đã tắt được giữ lại khi tải bản ghi cũ nhưng không thể chọn mới.
+            </p>
+          </section>
+
+          <section className="border-t border-admin-border p-4 sm:p-6" aria-labelledby="product-ingredients-heading">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <SectionHeading
+                id="product-ingredients-heading"
+                title="Định mức nguyên liệu"
+                description="Không bắt buộc. Nhập lượng theo đơn vị cơ sở cho một sản phẩm; dữ liệu được lưu cùng giao dịch sản phẩm."
+              />
+              <button
+                type="button"
+                onClick={() => setRecipe((current) => [...current, newRecipeRow()])}
+                disabled={loadingMaster || !ingredientCatalog.some((ingredient) => ingredient.isActive)}
+                className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-primary transition-colors hover:bg-admin-muted disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Plus size={16} aria-hidden="true" /> Thêm nguyên liệu
+              </button>
+            </div>
+
+            {recipe.length === 0 ? (
+              <div className="rounded-admin-control border border-dashed border-admin-border bg-admin-muted/25 px-4 py-8 text-center">
+                <p className="text-sm font-medium text-admin-text-primary">Sản phẩm chưa có định mức nguyên liệu</p>
+                <p className="mt-1 text-xs leading-5 text-admin-text-muted">Sản phẩm vẫn có thể tạo và bán bình thường.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recipe.map((row, index) => {
+                  const selected = ingredientCatalog.find((ingredient) => ingredient.id === row.ingredientId);
+                  const ingredientError = fieldErrors[`ingredient-${index}-ingredientId`];
+                  const quantityError = fieldErrors[`ingredient-${index}-baseQuantity`];
+                  return (
+                    <fieldset key={row.clientKey} className="rounded-admin-control border border-admin-border bg-admin-muted/20 p-4">
+                      <legend className="px-1 text-sm font-semibold text-admin-text-primary">Nguyên liệu {index + 1}</legend>
+                      <div className="grid gap-4 md:grid-cols-[minmax(13rem,1.3fr)_minmax(10rem,.7fr)_minmax(12rem,1fr)_auto] md:items-end">
+                        <div>
+                          <label htmlFor={`product-ingredient-${row.clientKey}`} className="mb-1.5 block text-sm font-medium text-admin-text-primary">Nguyên liệu *</label>
+                          <select
+                            id={`product-ingredient-${row.clientKey}`}
+                            value={row.ingredientId}
+                            onChange={(event) => updateRecipeRow(row.clientKey, { ingredientId: Number(event.target.value) })}
+                            className={`${inputBaseClass} ${ingredientError ? 'border-admin-status-error' : 'border-admin-input-border'}`}
+                            aria-invalid={Boolean(ingredientError)}
+                            aria-describedby={ingredientError ? `product-ingredient-${row.clientKey}-error` : undefined}
+                          >
+                            <option value={0}>Chọn nguyên liệu</option>
+                            {ingredientCatalog.map((ingredient) => (
+                              <option key={ingredient.id} value={ingredient.id} disabled={!ingredient.isActive && ingredient.id !== row.ingredientId}>
+                                {ingredient.name} · {ingredient.baseUnit.symbol || ingredient.baseUnit.name}{ingredient.isActive ? '' : ' · đã tắt'}
+                              </option>
+                            ))}
+                          </select>
+                          <FieldMessage id={`product-ingredient-${row.clientKey}-error`} message={ingredientError} />
+                          {selected && (!selected.isActive || !selected.baseUnit.isActive) ? <p className="mt-1.5 text-xs leading-5 text-amber-700">Nguyên liệu hoặc đơn vị cơ sở hiện đã tắt. Tham chiếu cũ được giữ lại, nhưng không thể chọn cho dòng mới.</p> : null}
+                        </div>
+                        <div>
+                          <label htmlFor={`product-ingredient-quantity-${row.clientKey}`} className="mb-1.5 block text-sm font-medium text-admin-text-primary">Số lượng cơ sở *</label>
+                          <div className="relative">
+                            <input
+                              id={`product-ingredient-quantity-${row.clientKey}`}
+                              type="number"
+                              value={row.baseQuantity}
+                              onChange={(event) => updateRecipeRow(row.clientKey, { baseQuantity: event.target.value })}
+                              inputMode="decimal"
+                              min={selected?.baseUnit.allowsFractional ? 0.000001 : 1}
+                              step={selected?.baseUnit.allowsFractional ? 0.000001 : 1}
+                              className={`${inputBaseClass} pr-16 ${quantityError ? 'border-admin-status-error' : 'border-admin-input-border'}`}
+                              placeholder="0"
+                              aria-invalid={Boolean(quantityError)}
+                              aria-describedby={quantityError ? `product-ingredient-quantity-${row.clientKey}-error` : undefined}
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium text-admin-text-muted">{selected?.baseUnit.symbol || selected?.baseUnit.name || 'đơn vị'}</span>
+                          </div>
+                          <FieldMessage id={`product-ingredient-quantity-${row.clientKey}-error`} message={quantityError} />
+                        </div>
+                        <div>
+                          <label htmlFor={`product-ingredient-note-${row.clientKey}`} className="mb-1.5 block text-sm font-medium text-admin-text-primary">Ghi chú</label>
+                          <input id={`product-ingredient-note-${row.clientKey}`} value={row.note} onChange={(event) => updateRecipeRow(row.clientKey, { note: event.target.value })} className={`${inputBaseClass} border-admin-input-border`} maxLength={500} placeholder="Không bắt buộc" />
+                        </div>
+                        <button type="button" onClick={() => removeRecipeRow(row.clientKey)} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-status-error transition-colors hover:bg-red-50" aria-label={`Xóa nguyên liệu ${index + 1} khỏi định mức`}><Trash2 size={17} aria-hidden="true" /></button>
+                      </div>
+                    </fieldset>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           <section className="border-t border-admin-border p-4 sm:p-6" aria-labelledby="product-images-heading">

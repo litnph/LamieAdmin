@@ -45,12 +45,14 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
   fd.append(field('deliveryAt'), payload.deliveryAt);
   if (payload.deliveryTo) fd.append(field('deliveryTo'), payload.deliveryTo);
   if (payload.depositAmount != null) fd.append(field('depositAmount'), String(payload.depositAmount));
+  fd.append(field('isPaid'), String(payload.isPaid));
   fd.append(field('shippingFee'), String(payload.shippingFee));
   if (payload.description) fd.append(field('description'), payload.description);
   if (payload.contentNote) fd.append(field('contentNote'), payload.contentNote);
 
   payload.items.forEach((item, index) => {
     if (item.productId) fd.append(itemField(index, 'productId'), item.productId);
+    if (item.productTypeId) fd.append(itemField(index, 'productTypeId'), String(item.productTypeId));
     if (item.productSku) fd.append(itemField(index, 'productSku'), item.productSku);
     fd.append(itemField(index, 'productName'), item.productName);
     fd.append(itemField(index, 'unitPrice'), String(item.unitPrice));
@@ -60,6 +62,16 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
     if (item.cardMessage) fd.append(itemField(index, 'cardMessage'), item.cardMessage);
     fd.append(itemField(index, 'hasBanner'), String(item.hasBanner));
     if (item.bannerMessage) fd.append(itemField(index, 'bannerMessage'), item.bannerMessage);
+    if (item.ingredients !== undefined) {
+      fd.append(itemField(index, 'ingredientsSpecified'), 'true');
+      item.ingredients.forEach((ingredient, ingredientIndex) => {
+        const ingredientField = (name: string) => itemField(index, `ingredients[${ingredientIndex}].${name}`);
+        fd.append(ingredientField('ingredientId'), String(ingredient.ingredientId));
+        fd.append(ingredientField('baseQuantity'), String(ingredient.baseQuantity));
+        if (ingredient.note) fd.append(ingredientField('note'), ingredient.note);
+        fd.append(ingredientField('sortOrder'), String(ingredient.sortOrder));
+      });
+    }
   });
 
   payload.imageFiles.forEach((image, index) => {
@@ -124,6 +136,7 @@ export const ordersApi = {
       deliveryAt: string;
       deliveryTo?: string;
       depositAmount: number;
+      isPaid: boolean;
       shippingFee: number;
       shippingFeeActual?: number | null;
       rowVersion?: string;
@@ -159,6 +172,7 @@ export const ordersApi = {
     fd.append('deliveryAt', body.deliveryAt);
     if (body.deliveryTo) fd.append('deliveryTo', body.deliveryTo);
     fd.append('depositAmount', String(body.depositAmount));
+    fd.append('isPaid', String(body.isPaid));
     fd.append('shippingFee', String(body.shippingFee));
     if (body.shippingFeeActual != null) fd.append('shippingFeeActual', String(body.shippingFeeActual));
     if (body.description) fd.append('description', body.description);
@@ -167,6 +181,7 @@ export const ordersApi = {
     body.items.forEach((item, index) => {
       if (item.id) fd.append(`items[${index}].id`, item.id);
       if (item.productId) fd.append(`items[${index}].productId`, item.productId);
+      if (item.productTypeId) fd.append(`items[${index}].productTypeId`, String(item.productTypeId));
       if (item.productSku) fd.append(`items[${index}].productSku`, item.productSku);
       fd.append(`items[${index}].productName`, item.productName);
       fd.append(`items[${index}].unitPrice`, String(item.unitPrice));
@@ -176,6 +191,16 @@ export const ordersApi = {
       if (item.cardMessage) fd.append(`items[${index}].cardMessage`, item.cardMessage);
       fd.append(`items[${index}].hasBanner`, String(item.hasBanner));
       if (item.bannerMessage) fd.append(`items[${index}].bannerMessage`, item.bannerMessage);
+      if (item.ingredients !== undefined) {
+        fd.append(`items[${index}].ingredientsSpecified`, 'true');
+        item.ingredients.forEach((ingredient, ingredientIndex) => {
+          const prefix = `items[${index}].ingredients[${ingredientIndex}]`;
+          fd.append(`${prefix}.ingredientId`, String(ingredient.ingredientId));
+          fd.append(`${prefix}.baseQuantity`, String(ingredient.baseQuantity));
+          if (ingredient.note) fd.append(`${prefix}.note`, ingredient.note);
+          fd.append(`${prefix}.sortOrder`, String(ingredient.sortOrder));
+        });
+      }
     });
     body.imageFiles.forEach((image, index) => {
       fd.append(`images[${index}].imageFile`, image.file);
@@ -197,6 +222,18 @@ export const ordersApi = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/orders/${id}`);
+  },
+
+  saveMaterials: async (
+    id: string,
+    items: import('../types/order.types').SaveOrderMaterialItem[],
+    orderRowVersion?: string | null,
+  ): Promise<import('../types/order.types').OrderMaterialDto[]> => {
+    const { data } = await apiClient.put<import('../types/order.types').OrderMaterialDto[]>(
+      `/api/inventory/orders/${id}/inventory-usages`,
+      { items, orderRowVersion },
+    );
+    return data;
   },
 
   calendar: async (date: string): Promise<OrderCalendarItemDto[]> => {

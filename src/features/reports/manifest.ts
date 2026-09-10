@@ -22,6 +22,7 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'reports.financial',
+      parentKey: 'group.finance',
       moduleKey: 'reports',
       pageKey: 'reports.financial',
       label: 'Báo cáo',

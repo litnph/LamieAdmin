@@ -8,6 +8,7 @@ import {
   Clock3,
   Eye,
   EyeOff,
+  Globe2,
   ImageOff,
   PackageOpen,
   Pencil,
@@ -32,6 +33,7 @@ export type ProductListItem = {
   tracksInventory: boolean;
   stockStatus: ProductStockStatus;
   isActive: boolean;
+  isVisibleOnFE: boolean;
   imageUrl: string | null;
 };
 
@@ -43,12 +45,14 @@ type ProductTableProps = {
   canEdit: boolean;
   canDelete: boolean;
   deletingId: number | null;
+  feVisibilityUpdatingId: number | null;
   page: number;
   pageSize: number;
   totalItems: number;
   totalPages: number;
   onEdit: (product: ProductListItem) => void;
   onDelete: (product: ProductListItem) => void;
+  onToggleFeVisibility: (product: ProductListItem, nextValue: boolean) => void;
   onPageChange: (page: number) => void;
   onClearFilters: () => void;
   onRetry: () => void;
@@ -99,6 +103,27 @@ const BusinessStatus: React.FC<{ isActive: boolean }> = ({ isActive }) => (
     {isActive ? <Eye size={14} strokeWidth={1.8} aria-hidden="true" /> : <EyeOff size={14} strokeWidth={1.8} aria-hidden="true" />}
     {isActive ? 'Đang bán' : 'Đang ẩn'}
   </span>
+);
+
+const FeVisibilityToggle: React.FC<{
+  product: ProductListItem;
+  disabled: boolean;
+  onChange: (nextValue: boolean) => void;
+}> = ({ product, disabled, onChange }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={product.isVisibleOnFE}
+    aria-label={`${product.isVisibleOnFE ? 'Ẩn' : 'Hiện'} ${product.name} trên FE`}
+    disabled={disabled}
+    onClick={() => onChange(!product.isVisibleOnFE)}
+    className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-admin-control text-xs font-semibold text-admin-text-secondary transition-colors hover:text-admin-primary disabled:cursor-wait disabled:opacity-55"
+  >
+    <span className={`relative h-5 w-9 rounded-full transition-colors ${product.isVisibleOnFE ? 'bg-admin-primary' : 'bg-admin-border'}`} aria-hidden="true">
+      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${product.isVisibleOnFE ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
+    </span>
+    <Globe2 size={14} aria-hidden="true" /> {product.isVisibleOnFE ? 'Có trên FE' : 'Ẩn khỏi FE'}
+  </button>
 );
 
 const ProductImage: React.FC<{ src: string | null; name: string }> = ({ src, name }) => {
@@ -278,12 +303,14 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   canEdit,
   canDelete,
   deletingId,
+  feVisibilityUpdatingId,
   page,
   pageSize,
   totalItems,
   totalPages,
   onEdit,
   onDelete,
+  onToggleFeVisibility,
   onPageChange,
   onClearFilters,
   onRetry,
@@ -322,6 +349,10 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                   <div>
                     <dt className="text-[11px] font-medium text-admin-text-muted">Kinh doanh</dt>
                     <dd className="mt-1"><BusinessStatus isActive={product.isActive} /></dd>
+                  </div>
+                  <div className="col-span-2 border-t border-admin-border pt-2">
+                    <dt className="text-[11px] font-medium text-admin-text-muted">Website tĩnh</dt>
+                    <dd>{canEdit ? <FeVisibilityToggle product={product} disabled={feVisibilityUpdatingId !== null} onChange={(nextValue) => onToggleFeVisibility(product, nextValue)} /> : <span className="mt-1 block text-xs text-admin-text-muted">{product.isVisibleOnFE ? 'Có trên FE' : 'Ẩn khỏi FE'}</span>}</dd>
                   </div>
                 </dl>
                 <div className="mt-3 flex items-center justify-end gap-2">
@@ -389,7 +420,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                     <td className="px-4 py-3">
                       <StockBadge status={product.stockStatus} />
                     </td>
-                    <td className="px-4 py-3"><BusinessStatus isActive={product.isActive} /></td>
+                    <td className="px-4 py-3"><BusinessStatus isActive={product.isActive} />{canEdit ? <FeVisibilityToggle product={product} disabled={feVisibilityUpdatingId !== null} onChange={(nextValue) => onToggleFeVisibility(product, nextValue)} /> : <p className="mt-2 text-xs text-admin-text-muted">{product.isVisibleOnFE ? 'Có trên FE' : 'Ẩn khỏi FE'}</p>}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         {canEdit ? (

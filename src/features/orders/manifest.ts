@@ -59,7 +59,17 @@ export const manifest = defineAdminModuleManifest({
   ],
   defaultNavigation: [
     {
+      key: 'group.sales',
+      label: 'BÁN HÀNG',
+      iconKey: 'folder',
+      sortOrder: 20,
+      isVisible: true,
+      isEnabled: true,
+      isSystem: true,
+    },
+    {
       key: 'orders.list',
+      parentKey: 'group.sales',
       moduleKey: 'orders',
       pageKey: 'orders.list',
       label: 'Đơn hàng',
@@ -73,6 +83,7 @@ export const manifest = defineAdminModuleManifest({
     },
     {
       key: 'orders.calendar',
+      parentKey: 'group.sales',
       moduleKey: 'orders',
       pageKey: 'orders.calendar',
       label: 'Lịch giao',

@@ -58,7 +58,16 @@ const product = {
   collectionIds: [],
   styleIds: [],
   occasionIds: [],
+  ingredients: [
+    { id: 1, ingredientId: 10, baseQuantity: 10, note: 'Hoa chính', sortOrder: 0 },
+    { id: 2, ingredientId: 11, baseQuantity: 3, note: null, sortOrder: 1 },
+  ],
 };
+
+const ingredientCatalog = [
+  { id: 10, code: 'ROSE_RED', name: 'Hoa hồng đỏ', baseUnit: { id: 1, code: 'BONG', name: 'Bông', symbol: 'bông', allowsFractional: false, isActive: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }, note: null, isActive: true, conversions: [], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+  { id: 11, code: 'LEAF', name: 'Lá phụ', baseUnit: { id: 1, code: 'BONG', name: 'Bông', symbol: 'lá', allowsFractional: false, isActive: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }, note: null, isActive: true, conversions: [], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+];
 
 const createOrder = (orderStatus: number) => ({
   id: ORDER_ID,
@@ -102,6 +111,8 @@ const createOrder = (orderStatus: number) => ({
     cardMessage: null,
     hasBanner: false,
     bannerMessage: null,
+    ingredientSnapshotCapturedAt: '2026-07-31T18:30:00.000Z',
+    ingredientSnapshots: [{ id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', ingredientId: 10, ingredientCode: 'ROSE_RED', ingredientName: 'Hoa hồng đỏ', baseUnitCode: 'BONG', baseUnitName: 'Bông', baseUnitSymbol: 'bông', perProductBaseQuantity: 8, productQuantity: 1, totalBaseQuantity: 8, note: 'Theo yêu cầu đơn', sortOrder: 0, capturedAt: '2026-07-31T18:30:00.000Z' }],
   }],
   images: [{
     id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
@@ -171,6 +182,9 @@ const installMocks = async (page: Page, options: MockOptions = {}) => {
         { id: META_CHANNEL_ID, code: 'messenger', name: 'Meta / Messenger', isActive: true, sortOrder: 20 },
         { id: ZALO_CHANNEL_ID, code: 'zalo', name: 'Zalo', isActive: true, sortOrder: 30 },
       ]);
+    }
+    if (url.pathname === '/api/settings/attributes/product-types') {
+      return json(route, [{ id: 1, code: 'FRESH_FLOWERS', isActive: true, sortOrder: 10, translations: [{ languageCode: 'vi', name: 'Hoa tươi' }] }]);
     }
     if (url.pathname === '/api/admin/administrative-units/provinces') {
       const legacy = url.searchParams.get('scheme') === 'legacy';
@@ -262,6 +276,9 @@ const installMocks = async (page: Page, options: MockOptions = {}) => {
     if (url.pathname === '/api/settings/products') {
       return json(route, options.includeProduct === false ? [] : [loadedProduct]);
     }
+    if (url.pathname === '/api/settings/ingredients') {
+      return json(route, { items: ingredientCatalog, totalCount: ingredientCatalog.length, page: 1, pageSize: 100, totalPages: 1, hasNext: false, hasPrevious: false });
+    }
     if (url.pathname === `/api/orders/${ORDER_ID}` && request.method() === 'PUT') {
       updateBodies.push(request.postData() ?? '');
       if (options.rejectUpdate) {
@@ -350,6 +367,8 @@ test('new and loaded order items start collapsed and expose only the primary row
   const expandButton = page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' });
   await expect(expandButton).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('#order-line-product-0')).toBeVisible();
+  await expect(page.locator('#order-line-product-type-0')).toBeVisible();
+  await expect(page.locator('#order-line-product-type-0')).toBeDisabled();
   await expect(page.locator('#order-line-price-0')).toBeVisible();
   await expect(page.locator('#order-line-quantity-0')).toBeVisible();
   await expect(page.locator('#order-line-note-0')).toHaveCount(0);
@@ -365,6 +384,40 @@ test('new and loaded order items start collapsed and expose only the primary row
 
   await page.getByRole('button', { name: 'Thêm', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mở chi tiết sản phẩm 2' })).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('outside-catalog product keeps the fixed name, product type and optional image', async ({ page }) => {
+  const mocks = await installMocks(page);
+  await page.goto('/admin/orders/new');
+
+  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('SĐT người nhận').fill('0909000111');
+  await page.getByLabel('Người nhận là người đặt').check();
+  await page.locator('#delivery-at').fill('2026-08-25T10:30');
+  await page.locator('#order-line-price-0').fill('350000');
+  await page.locator('#deposit-amount').fill('0');
+  await expect(page.getByTestId('payment-status-preview')).toHaveText('Chưa cọc');
+  await page.getByLabel('Đã thanh toán', { exact: true }).check();
+  await expect(page.getByTestId('payment-status-preview')).toHaveText('Đã thanh toán');
+  await expect(page.locator('#deposit-amount')).toHaveCount(0);
+  await expect(page.getByTestId('paid-deposit-note')).toContainText('không cần nhập tiền cọc');
+  await expect(page.locator('#order-line-product-type-0')).toBeVisible();
+  await expect(page.locator('#order-line-product-type-0')).toBeEnabled();
+  await page.locator('#order-line-product-type-0').selectOption('1');
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
+
+  await expect(page.getByLabel('Tên sản phẩm ngoài danh mục')).toHaveCount(0);
+  await expect(page.getByText('Ảnh minh họa (không bắt buộc)')).toBeVisible();
+  await page.getByRole('button', { name: 'Tạo đơn' }).click();
+
+  await expect(page).toHaveURL(`/admin/orders/${ORDER_ID}`);
+  expect(mocks.createBodies).toHaveLength(1);
+  expect(mocks.createBodies[0]).toContain('name="items[0].productName"');
+  expect(mocks.createBodies[0]).toContain('Sản phẩm ngoài danh mục');
+  expect(mocks.createBodies[0]).toContain('name="items[0].productTypeId"');
+  expect(mocks.createBodies[0]).toContain('name="isPaid"');
+  expect(mocks.createBodies[0]).toMatch(/name="isPaid"\r?\n\r?\ntrue/);
+  expect(mocks.createBodies[0]).not.toContain('name="images[0].imageFile"');
 });
 
 test('each order item expands independently and keeps detail state while collapsed', async ({ page }) => {
@@ -462,6 +515,8 @@ test('create submits an address description without map coordinates', async ({ p
   const productSearch = page.locator('#order-line-product-0');
   await productSearch.fill(product.sku);
   await page.getByRole('option', { name: PRODUCT_OPTION_NAME }).click();
+  await expect(page.locator('#order-line-ingredient-quantity-0-0')).toHaveValue('10');
+  await expect(page.locator('#order-line-ingredient-quantity-0-1')).toHaveValue('3');
 
   await page.getByRole('button', { name: 'Tạo đơn' }).click();
 
@@ -471,6 +526,43 @@ test('create submits an address description without map coordinates', async ({ p
   expect(mocks.createBodies[0]).toContain('461 Phan Văn Trị');
   expect(mocks.createBodies[0]).not.toContain('deliveryLatitude');
   expect(mocks.createBodies[0]).not.toContain('deliveryLongitude');
+  expect(mocks.createBodies[0]).toContain('name="items[0].ingredientsSpecified"');
+  expect(mocks.createBodies[0]).toContain('name="items[0].ingredients[0].ingredientId"');
+  expect(mocks.createBodies[0]).toContain('name="items[0].ingredients[1].baseQuantity"');
+});
+
+test('duplicate product lines receive independent editable material snapshots', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/admin/orders/new');
+  const firstProductSearch = page.locator('#order-line-product-0');
+  await firstProductSearch.fill(product.sku);
+  await page.getByRole('option', { name: PRODUCT_OPTION_NAME }).click();
+  await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+  const secondProductSearch = page.locator('#order-line-product-1');
+  await secondProductSearch.fill(product.sku);
+  await page.getByRole('option', { name: PRODUCT_OPTION_NAME }).click();
+
+  await page.locator('#order-line-ingredient-quantity-0-0').fill('7');
+  await page.getByRole('button', { name: 'Xóa nguyên liệu 2' }).first().click();
+
+  await expect(page.locator('#order-line-ingredient-quantity-0-0')).toHaveValue('7');
+  await expect(page.locator('#order-line-ingredient-quantity-0-1')).toHaveCount(0);
+  await expect(page.locator('#order-line-ingredient-quantity-1-0')).toHaveValue('10');
+  await expect(page.locator('#order-line-ingredient-quantity-1-1')).toHaveValue('3');
+});
+
+test('a line without defaults can add, edit and delete a manual material', async ({ page }) => {
+  await installMocks(page);
+  await page.goto('/admin/orders/new');
+  await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
+  await page.getByRole('button', { name: 'Thêm nguyên liệu' }).click();
+
+  await expect(page.locator('#order-line-ingredient-0-0')).toHaveValue('10');
+  await page.locator('#order-line-ingredient-quantity-0-0').fill('4.5');
+  await expect(page.locator('#order-line-ingredient-quantity-0-0')).toHaveValue('4.5');
+  await page.getByRole('button', { name: 'Xóa nguyên liệu 1' }).click();
+  await expect(page.locator('#order-line-ingredient-0-0')).toHaveCount(0);
+  await expect(page.getByText('Chưa có nguyên liệu cho dòng sản phẩm này.')).toBeVisible();
 });
 
 test('shop pickup still submits without address or location fields', async ({ page }) => {
@@ -1262,4 +1354,76 @@ test('order item controls align on desktop and wrap without horizontal overflow 
   expect(mobileLayout.noOverflow).toBe(true);
   expect(mobileLayout.productBottom).toBeLessThan(mobileLayout.priceTop);
   expect(Math.max(...mobileLayout.rowY) - Math.min(...mobileLayout.rowY)).toBeLessThanOrEqual(2);
+});
+
+test('wide layout keeps costs above delivery and all completion actions in the responsive header', async ({ page }) => {
+  await installMocks(page);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto('/admin/orders/new');
+
+  const customerSection = page.getByRole('heading', { name: 'Khách hàng' }).locator('xpath=ancestor::section');
+  const productSection = page.getByRole('heading', { name: 'Sản phẩm' }).locator('xpath=ancestor::section');
+  const deliverySection = page.getByRole('heading', { name: 'Giao nhận' }).locator('xpath=ancestor::section');
+  const noteSection = page.getByRole('heading', { name: 'Ghi chú đơn hàng' }).locator('xpath=ancestor::section');
+  const summarySection = page.getByRole('heading', { name: 'Tóm tắt & chi phí' }).locator('xpath=ancestor::section');
+  const pageHeader = page.getByRole('heading', { name: 'Tạo đơn hàng', level: 1 }).locator('xpath=ancestor::header');
+
+  const [customerBox, productBox, deliveryBox, noteBox, summaryBox] = await Promise.all([
+    customerSection.boundingBox(),
+    productSection.boundingBox(),
+    deliverySection.boundingBox(),
+    noteSection.boundingBox(),
+    summarySection.boundingBox(),
+  ]);
+  expect(customerBox && productBox && deliveryBox && noteBox && summaryBox).toBeTruthy();
+  expect(productBox!.y).toBeGreaterThan(customerBox!.y);
+  expect(noteBox!.y).toBeGreaterThan(productBox!.y);
+  expect(summaryBox!.x).toBeGreaterThan(customerBox!.x + customerBox!.width);
+  expect(Math.abs(deliveryBox!.x - summaryBox!.x)).toBeLessThanOrEqual(2);
+  expect(deliveryBox!.y).toBeGreaterThan(summaryBox!.y + summaryBox!.height);
+  expect(customerBox!.width / summaryBox!.width).toBeGreaterThan(1.8);
+  expect(customerBox!.width / summaryBox!.width).toBeLessThan(2.2);
+  await expect(pageHeader.getByRole('button', { name: 'Nhập nhanh' })).toBeVisible();
+  await expect(pageHeader.getByRole('button', { name: 'Quay lại' })).toBeVisible();
+  await expect(pageHeader.getByRole('link', { name: 'Hủy' })).toBeVisible();
+  await expect(pageHeader.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
+  await expect(page.getByTestId('order-completion-actions')).toHaveCount(0);
+
+  for (let index = 0; index < 5; index += 1) {
+    await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.locator('#admin-main-content').evaluate((element) => { element.scrollTop = 0; });
+  const tabletLayout = await page.evaluate(() => {
+    const sectionBox = (heading: string) => Array.from(document.querySelectorAll('h2'))
+      .find((element) => element.textContent?.trim() === heading)
+      ?.closest('section')
+      ?.getBoundingClientRect();
+    const note = sectionBox('Ghi chú đơn hàng');
+    const summary = sectionBox('Tóm tắt & chi phí');
+    const delivery = sectionBox('Giao nhận');
+    return {
+      summaryAfterNote: (summary?.top ?? 0) > (note?.bottom ?? 0),
+      deliveryAfterSummary: (delivery?.top ?? 0) > (summary?.bottom ?? 0),
+      noOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+  expect(tabletLayout.summaryAfterNote).toBe(true);
+  expect(tabletLayout.deliveryAfterSummary).toBe(true);
+  expect(tabletLayout.noOverflow).toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(pageHeader.getByRole('button', { name: 'Nhập nhanh' })).toBeAttached();
+  const headerActions = pageHeader.getByRole('button', { name: 'Nhập nhanh' }).locator('xpath=parent::div');
+  await headerActions.evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+  await expect(pageHeader.getByRole('button', { name: 'Tạo đơn' })).toBeInViewport();
+  const mobileLayout = await page.evaluate(() => {
+    return {
+      noOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+  expect(mobileLayout.noOverflow).toBe(true);
 });

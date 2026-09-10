@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Lamie Admin
 
-# Run and deploy your AI Studio app
+React/Vite administration client for the Lamie API.
 
-This contains everything you need to run your app locally.
+## Local development
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Wy4Np8Jg_OASp-iryvzaqd5zpHG_GohP
+Prerequisites:
 
-## Run Locally
+- Node.js and npm
+- `API_Lamie` running with its database configured
 
-**Prerequisites:**  Node.js
+Install and start the Admin client:
 
+```sh
+npm install
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+The browser client never receives an AI provider key. Content generation calls the authenticated Lamie API, and OpenAI configuration belongs only in the server-side `API_Lamie` environment/configuration. If the server has no OpenAI key, the Content screen reports that generation is unavailable while the rest of Admin continues to work.
+
+Migration, OpenAI, FE Data, shared-filesystem, and storefront build instructions are documented in the sibling runbook `API_Lamie/docs/INGREDIENTS_FE_DATA_CONTENT_RUNBOOK.md`.
+
+Useful checks:
+
+```sh
+npm run typecheck
+npm run test:e2e
+npm run build
+```

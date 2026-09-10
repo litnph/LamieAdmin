@@ -32,6 +32,7 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'customers.list',
+      parentKey: 'group.sales',
       moduleKey: 'customers',
       pageKey: 'customers.list',
       label: 'Khách hàng',

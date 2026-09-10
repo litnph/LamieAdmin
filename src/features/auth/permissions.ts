@@ -22,6 +22,13 @@ export const Permission = {
   RolesManage: 'roles.manage',
   NavigationView: 'navigation.view',
   NavigationManage: 'navigation.manage',
+  IngredientsView: 'ingredients.view',
+  IngredientsManage: 'ingredients.manage',
+  IngredientReportsView: 'ingredient-reports.view',
+  InventoryView: 'inventory.view',
+  InventoryManage: 'inventory.manage',
+  TasksView: 'tasks.view',
+  CatalogSettingsView: 'catalog-settings.view',
 } as const;
 
 export type PermissionName = (typeof Permission)[keyof typeof Permission];
@@ -46,6 +53,13 @@ const legacyRolePermissionFallback: Record<UserRole, ReadonlySet<string>> = {
     Permission.ExpensesView,
     Permission.ExpensesManage,
     Permission.ReportsView,
+    Permission.IngredientsView,
+    Permission.IngredientsManage,
+    Permission.IngredientReportsView,
+    Permission.InventoryView,
+    Permission.InventoryManage,
+    Permission.TasksView,
+    Permission.CatalogSettingsView,
   ]),
   [UserRole.Staff]: new Set([
     Permission.ProductsView,
@@ -58,6 +72,11 @@ const legacyRolePermissionFallback: Record<UserRole, ReadonlySet<string>> = {
     Permission.SettingsView,
     Permission.ExpensesView,
     Permission.ReportsView,
+    Permission.IngredientsView,
+    Permission.IngredientReportsView,
+    Permission.InventoryView,
+    Permission.TasksView,
+    Permission.CatalogSettingsView,
   ]),
 };
 

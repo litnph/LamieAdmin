@@ -21,6 +21,10 @@ import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSe
 import { ImagePreview, type ImagePreviewItem } from '@/shared/components/ImagePreview';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
+import { AttributesApi } from '@/features/settings/attributes/api/attributesApi';
+import type { AttributeItem } from '@/features/settings/attributes/types/attributes.types';
+import { ingredientsApi } from '@/features/ingredients/api/ingredientsApi';
+import type { IngredientDto } from '@/features/ingredients/types/ingredient.types';
 import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { formatVndInput, parseVndInput } from '@/shared/utils/displayFormatters';
@@ -30,8 +34,13 @@ import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
 import { QuickOrderBatchImportDialog } from '../components/QuickOrderBatchImportDialog';
 import { AdministrativeAddressFields, type AdministrativeAddressValue } from '../components/AdministrativeAddressFields';
 import { AddressAutoImport } from '../components/AddressAutoImport';
+import {
+  OrderLineIngredientsEditor,
+  type OrderLineIngredientDraft,
+  type OrderLineIngredientOrigin,
+} from '../components/OrderLineIngredientsEditor';
 import type { AddressResolutionDto } from '../types/administrativeAddress.types';
-import { AdministrativeScheme, OrderStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
+import { AdministrativeScheme, OrderStatus, PaymentStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
 import { formatOrderCurrency } from '../utils/orderListFormatters';
 import { nominatimReverse, nominatimSearch } from '../utils/geocode';
 import { calculateDefaultDeposit } from '../utils/deposit';
@@ -41,11 +50,14 @@ const inputClass =
 const labelClass = 'mb-1 block min-h-4 text-xs font-medium leading-4 text-admin-text-secondary';
 const panelClass = 'rounded-admin-panel border border-admin-border bg-admin-card p-4 shadow-admin-panel';
 const ORDER_DELIVERY_LOCATION_UI_ENABLED = false;
+const OUTSIDE_CATALOG_PRODUCT_NAME = 'Sản phẩm ngoài danh mục';
 type LineDraft = UpdateOrderLine & {
   key: string;
   imageFiles: File[];
   existingImages: OrderImageDto[];
   snapshotThumbnailUrl?: string | null;
+  ingredientDrafts: OrderLineIngredientDraft[];
+  ingredientOrigin: OrderLineIngredientOrigin;
 };
 
 type ProductSelectOption = AdminSelectOption<string> & {
@@ -72,7 +84,7 @@ const createLineKey = () =>
 
 const emptyLine = (): LineDraft => ({
   key: createLineKey(),
-  productName: '',
+  productName: OUTSIDE_CATALOG_PRODUCT_NAME,
   unitPrice: 0,
   quantity: 1,
   imageFiles: [],
@@ -81,12 +93,20 @@ const emptyLine = (): LineDraft => ({
   cardMessage: null,
   hasBanner: false,
   bannerMessage: null,
+  ingredientDrafts: [],
+  ingredientOrigin: 'empty',
 });
 
 const productName = (product: ProductDto) =>
   product.translations.find((translation) => translation.languageCode.toLowerCase().startsWith('vi'))?.name?.trim()
   || product.translations[0]?.name?.trim()
   || product.sku;
+
+const attributeName = (attribute: AttributeItem) =>
+  attribute.translations.find((translation) => translation.languageCode.toLowerCase().startsWith('vi'))?.name?.trim()
+  || attribute.translations[0]?.name?.trim()
+  || attribute.code
+  || `Dòng sản phẩm #${attribute.id}`;
 
 const productCode = (value?: string | null) => value?.trim() || 'Chưa có mã';
 
@@ -268,12 +288,12 @@ const OrderItemImagePreviews: React.FC<{
           title={`Ảnh minh họa của ${itemProductName}`}
           caption={image.description || undefined}
           gallery={gallery}
-          buttonClassName="h-14 w-14 rounded-admin-control"
-          thumbnailClassName="h-14 w-14 rounded-admin-control border border-admin-border object-cover"
+          buttonClassName="h-9 w-9 rounded-admin-control"
+          thumbnailClassName="h-9 w-9 rounded-admin-control border border-admin-border object-cover"
         />
       ))}
       {previews.map((preview, index) => (
-        <div key={`${preview.file.name}-${preview.file.lastModified}`} className="group relative h-14 w-14 shrink-0">
+        <div key={`${preview.file.name}-${preview.file.lastModified}`} className="group relative h-9 w-9 shrink-0">
           <ImagePreview
             src={preview.url}
             alt={`Ảnh minh họa mới ${index + 1} của ${itemProductName}`}
@@ -287,10 +307,10 @@ const OrderItemImagePreviews: React.FC<{
           <button
             type="button"
             onClick={() => onRemove(index)}
-            className="absolute right-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded bg-admin-card/90 text-admin-status-error opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+            className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded bg-admin-card text-admin-status-error opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
             aria-label={`Bỏ ảnh ${preview.file.name}`}
           >
-            <X size={13} aria-hidden="true" />
+            <X size={11} aria-hidden="true" />
           </button>
         </div>
       ))}
@@ -303,6 +323,8 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const isEdit = Boolean(orderId);
   const [channels, setChannels] = useState<ChannelDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
+  const [productTypes, setProductTypes] = useState<AttributeItem[]>([]);
+  const [ingredientCatalog, setIngredientCatalog] = useState<IngredientDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addressImporting, setAddressImporting] = useState(false);
@@ -318,6 +340,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [channelId, setChannelId] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientIsOrderer, setRecipientIsOrderer] = useState(false);
   const [pickupAtShop, setPickupAtShop] = useState(false);
   const [provinceShipping, setProvinceShipping] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
@@ -339,6 +362,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [deliveryTo, setDeliveryTo] = useState('');
   const [deliveryMode, setDeliveryMode] = useState<'exact' | 'range'>('exact');
   const [depositAmount, setDepositAmount] = useState(100_000);
+  const [isPaid, setIsPaid] = useState(false);
   const [depositWasManuallyEdited, setDepositWasManuallyEdited] = useState(isEdit);
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingFeeActual, setShippingFeeActual] = useState('');
@@ -380,27 +404,42 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     setLoadError(null);
     try {
       if (!orderId) {
-        const [loadedChannels, loadedProducts] = await Promise.all([channelsApi.list(), ProductApi.getAll()]);
+        const [loadedChannels, loadedProducts, loadedProductTypes, loadedIngredients] = await Promise.all([
+          channelsApi.list(),
+          ProductApi.getAll(),
+          AttributesApi.getAll<AttributeItem>('product-types'),
+          ingredientsApi.listAll({ includeInactive: true }),
+        ]);
         setChannels(loadedChannels);
         setProducts(loadedProducts);
+        setProductTypes(loadedProductTypes);
+        setIngredientCatalog(loadedIngredients);
         const defaultChannel = loadedChannels.find((channel) => channel.code === 'admin' && channel.isActive)
           ?? loadedChannels.find((channel) => channel.isActive);
         setChannelId(defaultChannel?.id ?? '');
         return;
       }
 
-      const [loadedChannels, loadedProducts, order] = await Promise.all([
+      const [loadedChannels, loadedProducts, loadedProductTypes, loadedIngredients, order] = await Promise.all([
         channelsApi.list(),
         ProductApi.getAll(),
+        AttributesApi.getAll<AttributeItem>('product-types'),
+        ingredientsApi.listAll({ includeInactive: true }),
         ordersApi.getById(orderId),
       ]);
       setChannels(loadedChannels);
       setProducts(loadedProducts);
+      setProductTypes(loadedProductTypes);
+      setIngredientCatalog(loadedIngredients);
       setOrdererName(order.ordererName);
       setOrdererPhone(order.ordererPhone);
       setChannelId(order.channelId);
       setRecipientName(order.recipientName);
       setRecipientPhone(order.recipientPhone);
+      setRecipientIsOrderer(
+        order.ordererName.trim() === order.recipientName.trim()
+        && order.ordererPhone.trim() === order.recipientPhone.trim(),
+      );
       setPickupAtShop(order.pickupAtShop);
       setProvinceShipping(order.provinceShipping);
       const primaryDeliveryAddress = order.deliveryAddress?.trim() ?? '';
@@ -424,6 +463,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       setDeliveryTo(order.deliveryTo ? toLocalInput(order.deliveryTo) : '');
       setDeliveryMode(order.deliveryTo ? 'range' : 'exact');
       setDepositAmount(order.depositAmount);
+      setIsPaid(order.paymentStatus === PaymentStatus.Paid);
       setShippingFee(order.shippingFee);
       setShippingFeeActual(order.shippingFeeActual == null ? '' : String(order.shippingFeeActual));
       setDescription(order.description ?? '');
@@ -436,6 +476,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             key: item.id,
             id: item.id,
             productId: item.productId ?? undefined,
+            productTypeId: item.productTypeId ?? undefined,
             productSku: item.productSku ?? undefined,
             productName: item.productName,
             unitPrice: item.unitPrice,
@@ -448,6 +489,16 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             cardMessage: item.cardMessage,
             hasBanner: item.hasBanner,
             bannerMessage: item.bannerMessage,
+            ingredientDrafts: (item.ingredientSnapshots ?? [])
+              .sort((left, right) => left.sortOrder - right.sortOrder)
+              .map((ingredient) => ({
+                key: ingredient.id,
+                ingredientId: ingredient.ingredientId ?? 0,
+                baseQuantity: ingredient.perProductBaseQuantity,
+                note: ingredient.note ?? '',
+                sortOrder: ingredient.sortOrder,
+              })),
+            ingredientOrigin: item.ingredientSnapshotCapturedAt ? 'order' : 'empty',
           }))
         : [emptyLine()]);
     } catch (requestError) {
@@ -511,22 +562,38 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     if (value === 'manual') {
       updateLine(index, {
         productId: undefined,
+        productTypeId: undefined,
         productSku: undefined,
-        productName: '',
+        productName: OUTSIDE_CATALOG_PRODUCT_NAME,
         unitPrice: 0,
         snapshotThumbnailUrl: undefined,
+        ingredientDrafts: [],
+        ingredientOrigin: 'empty',
       });
       return;
     }
     const selected = products.find((product) => String(product.id) === value);
     if (!selected) return;
+    const defaultIngredients = selected.ingredients ?? [];
     updateLine(index, {
       productId: String(selected.id),
+      productTypeId: selected.productTypeId ?? undefined,
       productSku: selected.sku,
       productName: productName(selected),
       unitPrice: selected.salePrice ?? selected.price,
       snapshotThumbnailUrl: productImageSource(selected),
+      ingredientDrafts: [...defaultIngredients]
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((ingredient) => ({
+          key: createLineKey(),
+          ingredientId: ingredient.ingredientId,
+          baseQuantity: ingredient.baseQuantity,
+          note: ingredient.note ?? '',
+          sortOrder: ingredient.sortOrder,
+        })),
+      ingredientOrigin: defaultIngredients.length > 0 ? 'default' : 'empty',
     });
+    setExpandedLineKeys((current) => new Set(current).add(items[index].key));
   };
 
   const removeLine = (index: number) => {
@@ -683,23 +750,17 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
           fieldId: `order-line-quantity-${index}`,
           inDetails: false,
         };
-      } else if (!item.productId && !item.productName.trim()) {
+      } else if (!item.productId && !item.productTypeId) {
         nextLineErrors[index] = {
-          message: 'Nhập tên sản phẩm ngoài danh mục.',
-          fieldId: `order-line-name-${index}`,
-          inDetails: true,
+          message: 'Chọn dòng sản phẩm cho sản phẩm ngoài danh mục.',
+          fieldId: `order-line-product-type-${index}`,
+          inDetails: false,
         };
       } else if (item.unitPrice <= 0) {
         nextLineErrors[index] = {
           message: 'Đơn giá sản phẩm phải lớn hơn 0.',
           fieldId: `order-line-price-${index}`,
           inDetails: false,
-        };
-      } else if (!item.productId && item.existingImages.length + item.imageFiles.length === 0) {
-        nextLineErrors[index] = {
-          message: 'Sản phẩm ngoài danh mục cần ít nhất 1 ảnh minh họa.',
-          fieldId: `order-line-images-${index}`,
-          inDetails: true,
         };
       } else if (item.hasCard && !item.cardMessage?.trim()) {
         nextLineErrors[index] = {
@@ -713,6 +774,26 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
           fieldId: `order-line-banner-message-${index}`,
           inDetails: true,
         };
+      } else {
+        const invalidIngredientIndex = item.ingredientDrafts.findIndex((ingredient) => (
+          ingredient.ingredientId <= 0
+          || !Number.isFinite(ingredient.baseQuantity)
+          || ingredient.baseQuantity <= 0
+        ));
+        const uniqueIngredientIds = new Set(item.ingredientDrafts.map((ingredient) => ingredient.ingredientId));
+        if (invalidIngredientIndex >= 0) {
+          nextLineErrors[index] = {
+            message: 'Chọn nguyên liệu và nhập số lượng lớn hơn 0.',
+            fieldId: `order-line-ingredient-quantity-${index}-${invalidIngredientIndex}`,
+            inDetails: true,
+          };
+        } else if (uniqueIngredientIds.size !== item.ingredientDrafts.length) {
+          nextLineErrors[index] = {
+            message: 'Một nguyên liệu chỉ được xuất hiện một lần trong cùng dòng sản phẩm.',
+            fieldId: `order-line-ingredient-${index}-0`,
+            inDetails: true,
+          };
+        }
       }
       const lineError = nextLineErrors[index];
       if (lineError) {
@@ -756,9 +837,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     submitLockRef.current = true;
     setSaving(true);
     setError(null);
-    const orderItems = items.map(({ id, productId, productSku, productName: name, unitPrice, quantity, note, hasCard, cardMessage, hasBanner, bannerMessage }) => ({
+    const orderItems = items.map(({ id, productId, productTypeId, productSku, productName: name, unitPrice, quantity, note, hasCard, cardMessage, hasBanner, bannerMessage, ingredientDrafts }) => ({
       id,
       productId,
+      productTypeId,
       productSku,
       productName: name.trim(),
       unitPrice,
@@ -768,6 +850,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       cardMessage: hasCard ? cardMessage?.trim() || null : null,
       hasBanner,
       bannerMessage: hasBanner ? bannerMessage?.trim() || null : null,
+      ingredients: ingredientDrafts.map((ingredient, sortOrder) => ({
+        ingredientId: ingredient.ingredientId,
+        baseQuantity: ingredient.baseQuantity,
+        note: ingredient.note.trim() || null,
+        sortOrder,
+      })),
     }));
 
     try {
@@ -811,6 +899,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         deliveryAt: deliveryIso,
         deliveryTo: deliveryToIso,
         depositAmount,
+        isPaid,
         shippingFee: pickupAtShop ? 0 : shippingFee,
         description: description || undefined,
         contentNote: contentNote.trim() || undefined,
@@ -906,7 +995,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             </button>
             <Link
               to={orderId ? `/admin/orders/${orderId}` : '/admin/orders'}
-              className="btn-press inline-flex min-h-10 shrink-0 items-center justify-center rounded-admin-control px-3 text-sm font-semibold text-admin-text-secondary transition-colors hover:bg-admin-muted"
+              className="btn-press inline-flex min-h-10 shrink-0 items-center justify-center rounded-admin-control px-3 text-sm font-semibold text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-text-primary"
             >
               Hủy
             </Link>
@@ -935,79 +1024,72 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         </div>
       ) : null}
 
-      <form id="order-editor-form" noValidate onSubmit={(event) => void submit(event)} className="space-y-4">
-        <div className="grid min-w-0 gap-4 min-[1400px]:grid-cols-[minmax(0,1.1fr)_minmax(28rem,1fr)] min-[1400px]:items-start">
+      <form id="order-editor-form" noValidate onSubmit={(event) => void submit(event)}>
+        <div className="grid min-w-0 gap-4 wide:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
           <div className="min-w-0 space-y-4">
             <section className={panelClass} aria-labelledby="customer-section-title">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 id="customer-section-title" className="text-sm font-semibold text-admin-text-primary">Khách hàng & lịch nhận</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecipientName(ordererName);
-                    setRecipientPhone(ordererPhone);
-                  }}
-                  className="text-xs font-semibold text-admin-primary hover:underline"
-                >
-                  Người nhận giống người đặt
-                </button>
-              </div>
-              <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                <div>
+              <h2 id="customer-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Khách hàng</h2>
+              <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-12">
+                <div className="sm:col-span-5">
                   <label htmlFor="recipient-name" className={labelClass}>Người nhận</label>
-                  <input id="recipient-name" className={inputClass} value={recipientName} onChange={(event) => setRecipientName(event.target.value)} autoComplete="shipping name" />
+                  <input
+                    id="recipient-name"
+                    className={inputClass}
+                    value={recipientName}
+                    onChange={(event) => {
+                      setRecipientName(event.target.value);
+                      if (recipientIsOrderer) setOrdererName(event.target.value);
+                    }}
+                    autoComplete="shipping name"
+                  />
                 </div>
-                <div>
+                <div className="sm:col-span-4">
                   <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận</label>
-                  <input id="recipient-phone" type="tel" className={inputClass} value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} autoComplete="shipping tel" />
+                  <input
+                    id="recipient-phone"
+                    type="tel"
+                    className={inputClass}
+                    value={recipientPhone}
+                    onChange={(event) => {
+                      setRecipientPhone(event.target.value);
+                      if (recipientIsOrderer) setOrdererPhone(event.target.value);
+                    }}
+                    autoComplete="shipping tel"
+                  />
                 </div>
-                <div>
+                <div className="flex items-end sm:col-span-3">
+                  <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-admin-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={recipientIsOrderer}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+                        setRecipientIsOrderer(checked);
+                        if (checked) {
+                          setOrdererName(recipientName);
+                          setOrdererPhone(recipientPhone);
+                        }
+                      }}
+                      className="h-4 w-4 accent-admin-primary"
+                    />
+                    Người nhận là người đặt
+                  </label>
+                </div>
+                <div className="sm:col-span-4">
                   <label htmlFor="orderer-name" className={labelClass}>Người đặt</label>
-                  <input id="orderer-name" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" />
+                  <input id="orderer-name" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" disabled={recipientIsOrderer} />
                 </div>
-                <div>
+                <div className="sm:col-span-4">
                   <label htmlFor="orderer-phone" className={labelClass}>SĐT người đặt <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
-                  <input id="orderer-phone" type="tel" className={inputClass} value={ordererPhone} onChange={(event) => setOrdererPhone(event.target.value)} autoComplete="tel" />
+                  <input id="orderer-phone" type="tel" className={inputClass} value={ordererPhone} onChange={(event) => setOrdererPhone(event.target.value)} autoComplete="tel" disabled={recipientIsOrderer} />
                 </div>
-                <div>
+                <div className="sm:col-span-4">
                   <label htmlFor="order-channel" className={labelClass}>Kênh bán</label>
                   <select id="order-channel" className={inputClass} value={channelId} onChange={(event) => setChannelId(event.target.value)}>
                     <option value="">Chọn kênh</option>
                     {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
                   </select>
                 </div>
-                <fieldset className="sm:col-span-2 lg:col-span-3">
-                  <legend className={labelClass}>{provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận'}</legend>
-                  <div className="mb-2 inline-flex rounded-admin-control border border-admin-border bg-admin-muted p-0.5" aria-label={provinceShipping ? 'Kiểu thời gian gửi đơn vị vận chuyển' : 'Kiểu thời gian nhận'}>
-                    {(['exact', 'range'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => {
-                          setDeliveryMode(mode);
-                          if (mode === 'exact') setDeliveryTo('');
-                        }}
-                        className={`min-h-9 rounded-admin-control px-3 text-xs font-semibold transition-colors ${deliveryMode === mode ? 'bg-admin-card text-admin-primary shadow-sm' : 'text-admin-text-secondary hover:text-admin-text-primary'}`}
-                        aria-pressed={deliveryMode === mode}
-                      >
-                        {mode === 'exact' ? 'Giờ cụ thể' : 'Khoảng thời gian'}
-                      </button>
-                    ))}
-                  </div>
-                  <div className={`grid gap-2.5 ${deliveryMode === 'range' ? 'sm:grid-cols-2' : ''}`}>
-                    <div>
-                      <label htmlFor="delivery-at" className="sr-only">{deliveryMode === 'range' ? (provinceShipping ? 'Gửi từ' : 'Nhận từ') : (provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận')}</label>
-                      {deliveryMode === 'range' ? <p className="mb-1 text-[11px] text-admin-text-muted">Từ</p> : null}
-                      <input id="delivery-at" type="datetime-local" className={inputClass} value={deliveryAt} onChange={(event) => setDeliveryAt(event.target.value)} />
-                    </div>
-                    {deliveryMode === 'range' ? (
-                      <div>
-                        <label htmlFor="delivery-to" className="mb-1 block text-[11px] text-admin-text-muted">Đến</label>
-                        <input id="delivery-to" type="datetime-local" min={deliveryAt || undefined} className={inputClass} value={deliveryTo} onChange={(event) => setDeliveryTo(event.target.value)} />
-                      </div>
-                    ) : null}
-                  </div>
-                </fieldset>
               </div>
             </section>
 
@@ -1015,7 +1097,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <h2 id="order-lines-title" className="text-sm font-semibold text-admin-text-primary">Sản phẩm</h2>
-                  <p className="mt-0.5 text-xs text-admin-text-muted">Chọn từ danh mục; sản phẩm ngoài danh mục cần ảnh.</p>
+                  <p className="mt-0.5 text-xs text-admin-text-muted">Chọn từ danh mục hoặc tạo một sản phẩm ngoài danh mục.</p>
                 </div>
                 <button type="button" onClick={() => setItems((current) => [...current, emptyLine()])} className="inline-flex min-h-9 items-center gap-1.5 rounded-admin-control px-2.5 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/10">
                   <Plus size={15} aria-hidden="true" /> Thêm
@@ -1065,7 +1147,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                   return (
                     <fieldset key={item.key} className={`min-w-0 rounded-admin-control border p-3 ${lineError ? 'border-admin-status-error/45 bg-red-50/50' : 'border-admin-border bg-admin-muted/25'}`}>
                       <legend className="px-1 text-[11px] font-semibold text-admin-text-muted">#{index + 1}</legend>
-                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(5rem,6rem)_2.75rem_2.75rem] items-start gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(9.5rem,11rem)_minmax(5rem,6rem)_2.75rem_2.75rem] min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(8.5rem,9.5rem)_minmax(4.5rem,5rem)_2.75rem_2.75rem]">
+                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(5rem,6rem)_2.75rem_2.75rem] items-start gap-2 lg:grid-cols-[minmax(0,1.25fr)_minmax(9rem,0.75fr)_minmax(9.5rem,11rem)_minmax(5rem,6rem)_2.75rem_2.75rem] min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(7rem,8rem)_minmax(8.5rem,9.5rem)_minmax(4.5rem,5rem)_2.75rem_2.75rem]">
                         <div className="col-span-4 min-w-0 lg:col-span-1">
                           <label htmlFor={`order-line-product-${index}`} className={labelClass}>Sản phẩm</label>
                           <AdminSelect<string, ProductSelectOption>
@@ -1084,6 +1166,24 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                             isSearchable
                             openMenuOnFocus
                           />
+                        </div>
+                        <div className="col-span-4 min-w-0 lg:col-span-1">
+                          <label htmlFor={`order-line-product-type-${index}`} className={labelClass}>Dòng sản phẩm</label>
+                          <select
+                            id={`order-line-product-type-${index}`}
+                            className={`${inputClass} disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text-muted`}
+                            value={item.productTypeId ?? selectedProduct?.productTypeId ?? ''}
+                            onChange={(event) => updateLine(index, { productTypeId: event.target.value ? Number(event.target.value) : undefined })}
+                            disabled={!isManual}
+                            aria-invalid={lineError?.fieldId === `order-line-product-type-${index}` || undefined}
+                            aria-describedby={lineError?.fieldId === `order-line-product-type-${index}` ? errorId : undefined}
+                          >
+                            <option value="">Chọn dòng sản phẩm</option>
+                            {productTypes
+                              .filter((type) => type.isActive || type.id === item.productTypeId || type.id === selectedProduct?.productTypeId)
+                              .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0))
+                              .map((type) => <option key={type.id} value={type.id}>{attributeName(type)}</option>)}
+                          </select>
                         </div>
                         <div className="min-w-0">
                           <label htmlFor={`order-line-price-${index}`} className={labelClass}>Đơn giá</label>
@@ -1143,20 +1243,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
 
                       {isExpanded ? (
                         <div id={detailsId} className="mt-3 border-t border-admin-border pt-3">
-                          {isManual ? (
-                            <div>
-                              <label htmlFor={`order-line-name-${index}`} className={labelClass}>Tên sản phẩm ngoài danh mục</label>
-                              <input
-                                id={`order-line-name-${index}`}
-                                className={inputClass}
-                                value={item.productName}
-                                onChange={(event) => updateLine(index, { productName: event.target.value })}
-                                placeholder="Ví dụ: Bó hoa thiết kế riêng"
-                                aria-invalid={lineError?.fieldId === `order-line-name-${index}` || undefined}
-                                aria-describedby={lineError?.fieldId === `order-line-name-${index}` ? errorId : undefined}
-                              />
-                            </div>
-                          ) : (
+                          {!isManual ? (
                             <div className="flex min-w-0 items-center gap-2.5 text-xs text-admin-text-secondary">
                               <ImagePreview
                                 src={selectedProductImage}
@@ -1183,23 +1270,23 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                                 ) : null}
                               </div>
                             </div>
-                          )}
+                          ) : null}
 
-                          <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2 min-[1400px]:grid-cols-1 2xl:grid-cols-2">
+                          <div className={`${isManual ? '' : 'mt-3'} grid min-w-0 gap-3 lg:grid-cols-2 min-[1400px]:grid-cols-1 2xl:grid-cols-2`}>
                             <div className="min-w-0">
                               <label htmlFor={`order-line-note-${index}`} className={labelClass}>Ghi chú riêng cho sản phẩm</label>
-                              <textarea id={`order-line-note-${index}`} className={`${inputClass} min-h-24 resize-y break-words`} value={item.note ?? ''} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Màu hoa, kích thước và yêu cầu riêng" />
+                              <input id={`order-line-note-${index}`} className={inputClass} value={item.note ?? ''} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Màu hoa, kích thước và yêu cầu riêng" />
                             </div>
                             <div className="min-w-0">
-                              <span className={labelClass}>Ảnh minh họa {isManual ? <span className="text-admin-status-error">*</span> : <span className="text-admin-text-muted">(không bắt buộc)</span>}</span>
-                              <div className={`flex min-h-24 min-w-0 flex-wrap content-start items-center gap-2 rounded-admin-control border border-dashed p-2 ${lineError?.fieldId === `order-line-images-${index}` ? 'border-admin-status-error' : 'border-admin-border'}`}>
+                              <span className={labelClass}>Ảnh minh họa <span className="text-admin-text-muted">(không bắt buộc)</span></span>
+                              <div className="flex min-h-11 min-w-0 flex-wrap items-center gap-1.5 rounded-admin-control border border-dashed border-admin-border px-1.5 py-1">
                                 <OrderItemImagePreviews
                                   existingImages={item.existingImages}
                                   files={item.imageFiles}
                                   productName={item.productName || `sản phẩm ${index + 1}`}
                                   onRemove={(fileIndex) => updateLine(index, { imageFiles: item.imageFiles.filter((_, currentIndex) => currentIndex !== fileIndex) })}
                                 />
-                                <label htmlFor={`order-line-images-${index}`} className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-admin-control border border-admin-primary/35 px-3 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/8">
+                                <label htmlFor={`order-line-images-${index}`} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-admin-control border border-admin-primary/35 px-2.5 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/8">
                                   <ImagePlus size={15} aria-hidden="true" /> Thêm ảnh
                                 </label>
                                 <input
@@ -1208,8 +1295,6 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                                   accept="image/jpeg,image/png,image/webp,image/gif"
                                   multiple
                                   className="sr-only"
-                                  aria-invalid={lineError?.fieldId === `order-line-images-${index}` || undefined}
-                                  aria-describedby={lineError?.fieldId === `order-line-images-${index}` ? errorId : undefined}
                                   onChange={(event) => {
                                     const nextFiles = Array.from(event.target.files ?? []);
                                     updateLine(index, { imageFiles: [...item.imageFiles, ...nextFiles] });
@@ -1219,6 +1304,18 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                               </div>
                             </div>
                           </div>
+
+                          <OrderLineIngredientsEditor
+                            lineIndex={index}
+                            productQuantity={item.quantity}
+                            ingredients={item.ingredientDrafts}
+                            catalog={ingredientCatalog}
+                            origin={item.ingredientOrigin}
+                            onChange={(ingredientDrafts) => updateLine(index, {
+                              ingredientDrafts,
+                              ingredientOrigin: ingredientDrafts.length > 0 ? 'custom' : 'empty',
+                            })}
+                          />
 
                           <div className="mt-3 border-t border-admin-border pt-3">
                             <p className="mb-2 text-xs font-semibold text-admin-text-secondary">Thiệp & banner</p>
@@ -1256,13 +1353,75 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                 })}
               </div>
             </section>
+
+            <section className={panelClass} aria-labelledby="order-note-section-title">
+              <h2 id="order-note-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Ghi chú đơn hàng</h2>
+              <label htmlFor="order-content-note" className={labelClass}>Nội dung ghi chú <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
+              <textarea id="order-content-note" className={`${inputClass} min-h-20 resize-y`} value={contentNote} onChange={(event) => setContentNote(event.target.value)} placeholder="Nội dung cần lưu ý (không bắt buộc)" />
+            </section>
           </div>
 
-          <div className="min-w-0 space-y-4 min-[1400px]:sticky min-[1400px]:top-4">
+          <aside className="min-w-0" aria-label="Chi phí và giao nhận">
+            <div className="space-y-4">
+              <section className={panelClass} aria-labelledby="cost-section-title">
+                <div className="mb-4 border-b border-admin-border pb-3">
+                  <h2 id="cost-section-title" className="text-sm font-semibold text-admin-text-primary">Tóm tắt & chi phí</h2>
+                  <p className="mt-1 text-xs leading-5 text-admin-text-muted">Kiểm tra các khoản thanh toán trước khi hoàn tất đơn.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 wide:grid-cols-1">
+                  <div className="flex min-h-11 items-center justify-between gap-3 rounded-admin-control border border-admin-border bg-admin-muted/55 px-3 sm:col-span-2 wide:col-span-1">
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-admin-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={isPaid}
+                        onChange={(event) => setIsPaid(event.target.checked)}
+                        className="h-4 w-4 accent-admin-primary"
+                      />
+                      Đã thanh toán
+                    </label>
+                    <span data-testid="payment-status-preview" className={isPaid ? 'text-xs font-semibold text-admin-status-success' : 'text-xs text-admin-text-muted'} aria-live="polite">
+                      {isPaid ? 'Đã thanh toán' : depositAmount > 0 ? 'Đã cọc' : 'Chưa cọc'}
+                    </span>
+                  </div>
+                  {!isPaid ? (
+                    <div data-testid="deposit-fields">
+                      <label htmlFor="deposit-amount" className={labelClass}>Tiền cọc</label>
+                      <div className="relative">
+                        <input id="deposit-amount" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(depositAmount)} onChange={(event) => { setDepositAmount(parseVndInput(event.target.value)); setDepositWasManuallyEdited(true); }} />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                      </div>
+                      <button type="button" onClick={() => { setDepositAmount(calculateDefaultDeposit(orderValue)); setDepositWasManuallyEdited(false); }} className="mt-1 text-[11px] font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
+                    </div>
+                  ) : (
+                    <p className="rounded-admin-control bg-admin-primary/6 px-3 py-2 text-xs leading-5 text-admin-text-secondary sm:col-span-2 wide:col-span-1" data-testid="paid-deposit-note">
+                      Đơn hàng đã thanh toán, không cần nhập tiền cọc.
+                    </p>
+                  )}
+                  <div>
+                    <label htmlFor="shipping-fee" className={labelClass}>Phí giao dự kiến</label>
+                    <div className="relative">
+                      <input id="shipping-fee" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFee)} onChange={(event) => setShippingFee(parseVndInput(event.target.value))} />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                    </div>
+                  </div>
+                  {isEdit ? (
+                    <div>
+                      <label htmlFor="shipping-fee-actual" className={labelClass}>Phí giao thực tế</label>
+                      <div className="relative">
+                        <input id="shipping-fee-actual" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFeeActual)} onChange={(event) => setShippingFeeActual(event.target.value.replace(/\D/g, ''))} placeholder="Chưa có" />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+
             <section className={panelClass} aria-labelledby="delivery-section-title">
-              <div className="mb-3">
-                <h2 id="delivery-section-title" className="text-sm font-semibold text-admin-text-primary">Giao nhận</h2>
-                <div className="mt-2 grid grid-cols-3 gap-1 rounded-admin-control border border-admin-border bg-admin-muted p-1" role="radiogroup" aria-label="Hình thức giao nhận">
+              <h2 id="delivery-section-title" className="text-sm font-semibold text-admin-text-primary">Giao nhận</h2>
+
+              <fieldset className="mt-4">
+                <legend className="mb-2 block text-xs font-semibold text-admin-text-secondary">Phương thức giao nhận</legend>
+                <div className="grid grid-cols-3 gap-1 rounded-admin-control border border-admin-border bg-admin-muted p-1" role="radiogroup" aria-label="Hình thức giao nhận">
                   {([
                     ['local', 'Giao nội thành'],
                     ['province', 'Ship tỉnh'],
@@ -1291,9 +1450,48 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                     Thời gian đơn hàng là lúc bàn giao cho đơn vị vận chuyển, không phải thời gian người nhận nhận hàng.
                   </p>
                 ) : null}
-              </div>
+              </fieldset>
 
-              {!pickupAtShop ? (
+              <fieldset className="mt-4 border-t border-admin-border pt-4">
+                <legend className="sr-only">{provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận'}</legend>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold text-admin-text-secondary">{provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận'}</h3>
+                  <div className="inline-flex rounded-admin-control border border-admin-border bg-admin-muted p-0.5" aria-label={provinceShipping ? 'Kiểu thời gian gửi đơn vị vận chuyển' : 'Kiểu thời gian nhận'}>
+                  {(['exact', 'range'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        setDeliveryMode(mode);
+                        if (mode === 'exact') setDeliveryTo('');
+                      }}
+                      className={`min-h-9 rounded-admin-control px-3 text-xs font-semibold transition-colors ${deliveryMode === mode ? 'bg-admin-card text-admin-primary shadow-sm' : 'text-admin-text-secondary hover:text-admin-text-primary'}`}
+                      aria-pressed={deliveryMode === mode}
+                    >
+                      {mode === 'exact' ? 'Giờ cụ thể' : 'Khoảng thời gian'}
+                    </button>
+                  ))}
+                  </div>
+                </div>
+                <div className={`grid gap-2.5 ${deliveryMode === 'range' ? 'sm:grid-cols-2' : ''}`}>
+                  <div>
+                    <label htmlFor="delivery-at" className="sr-only">{deliveryMode === 'range' ? (provinceShipping ? 'Gửi từ' : 'Nhận từ') : (provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận')}</label>
+                    {deliveryMode === 'range' ? <p className="mb-1 text-[11px] text-admin-text-muted">Từ</p> : null}
+                    <input id="delivery-at" type="datetime-local" className={inputClass} value={deliveryAt} onChange={(event) => setDeliveryAt(event.target.value)} />
+                  </div>
+                  {deliveryMode === 'range' ? (
+                    <div>
+                      <label htmlFor="delivery-to" className="mb-1 block text-[11px] text-admin-text-muted">Đến</label>
+                      <input id="delivery-to" type="datetime-local" min={deliveryAt || undefined} className={inputClass} value={deliveryTo} onChange={(event) => setDeliveryTo(event.target.value)} />
+                    </div>
+                  ) : null}
+                </div>
+              </fieldset>
+
+              <div className="mt-4 border-t border-admin-border pt-4">
+                <h3 className="text-xs font-semibold text-admin-text-secondary">Thông tin địa chỉ</h3>
+                <div className="mt-3">
+                {!pickupAtShop ? (
                 ORDER_DELIVERY_LOCATION_UI_ENABLED ? (
                   <div className="space-y-2.5">
                     <div>
@@ -1393,42 +1591,11 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
               ) : (
                 <p className="rounded-admin-control bg-admin-muted px-3 py-2.5 text-xs leading-5 text-admin-text-secondary">Không cần địa chỉ và phí giao hàng.</p>
               )}
-            </section>
-
-            <section className={panelClass} aria-labelledby="cost-section-title">
-              <h2 id="cost-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Chi phí & ghi chú</h2>
-              <div className={`grid gap-2.5 ${isEdit ? 'sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3' : 'grid-cols-2'}`}>
-                <div>
-                  <label htmlFor="deposit-amount" className={labelClass}>Tiền cọc</label>
-                  <div className="relative">
-                    <input id="deposit-amount" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(depositAmount)} onChange={(event) => { setDepositAmount(parseVndInput(event.target.value)); setDepositWasManuallyEdited(true); }} />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
-                  </div>
-                  <button type="button" onClick={() => { setDepositAmount(calculateDefaultDeposit(orderValue)); setDepositWasManuallyEdited(false); }} className="mt-1 text-[11px] font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
                 </div>
-                <div>
-                  <label htmlFor="shipping-fee" className={labelClass}>Phí giao dự kiến</label>
-                  <div className="relative">
-                    <input id="shipping-fee" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFee)} onChange={(event) => setShippingFee(parseVndInput(event.target.value))} />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
-                  </div>
-                </div>
-                {isEdit ? (
-                  <div>
-                    <label htmlFor="shipping-fee-actual" className={labelClass}>Phí giao thực tế</label>
-                    <div className="relative">
-                      <input id="shipping-fee-actual" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFeeActual)} onChange={(event) => setShippingFeeActual(event.target.value.replace(/\D/g, ''))} placeholder="Chưa có" />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <div className="mt-2.5">
-                <label htmlFor="order-content-note" className={labelClass}>Ghi chú đơn hàng</label>
-                <textarea id="order-content-note" className={`${inputClass} min-h-16 resize-y`} value={contentNote} onChange={(event) => setContentNote(event.target.value)} placeholder="Nội dung cần lưu ý (không bắt buộc)" />
               </div>
             </section>
-          </div>
+            </div>
+          </aside>
         </div>
 
       </form>

@@ -148,6 +148,9 @@ const installApiMocks = async (page: Page) => {
     if (url.pathname === '/api/settings/attributes/channels') {
       return json(route, [{ id: CHANNEL_ID, code: 'admin', name: 'Admin', isActive: true, sortOrder: 10 }]);
     }
+    if (url.pathname === '/api/settings/attributes/product-types') {
+      return json(route, [{ id: 1, code: 'FRESH_FLOWERS', isActive: true, sortOrder: 10, translations: [{ languageCode: 'vi', name: 'Hoa tươi' }] }]);
+    }
     if (url.pathname === '/api/admin/administrative-units/provinces') return json(route, []);
     if (url.pathname === '/api/settings/products') {
       return json(route, [{
@@ -168,7 +171,11 @@ const installApiMocks = async (page: Page) => {
         collectionIds: [],
         styleIds: [],
         occasionIds: [],
+        ingredients: [],
       }]);
+    }
+    if (url.pathname === '/api/settings/ingredients') {
+      return json(route, { items: [], totalCount: 0, page: 1, pageSize: 100, totalPages: 0, hasNext: false, hasPrevious: false });
     }
     if (url.pathname === `/api/orders/${ORDER_ID}` && request.method() === 'DELETE') {
       deleted = true;
@@ -223,6 +230,13 @@ test('order list uses the requested columns, range and advanced filter dialog', 
   await expect(page.getByRole('table').getByText('Gói giấy màu kem')).toBeVisible();
   await expect(page.getByRole('table').getByText('450.000 ₫')).toBeVisible();
   await expect(page.getByRole('table').getByAltText(`Ảnh đơn ${order.orderCode}`)).toBeVisible();
+  const today = await page.evaluate(() => {
+    const date = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  });
+  await expect(page.getByLabel('Giao từ ngày')).toHaveValue(today);
+  await expect(page.getByLabel('Giao đến ngày')).toHaveValue(today);
 
   await page.getByRole('button', { name: 'Lọc nâng cao' }).click();
   await expect(page.getByRole('dialog', { name: 'Lọc đơn hàng nâng cao' })).toBeVisible();
@@ -246,8 +260,22 @@ test('create order exposes optional contact fields and an exact-or-range deliver
   await expect(page.getByRole('button', { name: 'Quay lại' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Hủy' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
+  const pageHeader = page.getByRole('heading', { name: 'Tạo đơn hàng', level: 1 }).locator('xpath=ancestor::header');
+  await expect(pageHeader.getByRole('link', { name: 'Hủy' })).toBeVisible();
+  await expect(pageHeader.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
   await expect(page.getByText('SĐT người đặt (không bắt buộc)')).toBeVisible();
+  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('SĐT người nhận').fill('0909000111');
+  await page.getByLabel('Người nhận là người đặt').check();
+  await expect(page.getByLabel('Người đặt', { exact: true })).toHaveValue('Nguyễn An');
+  await expect(page.getByLabel('SĐT người đặt')).toHaveValue('0909000111');
+  await expect(page.getByLabel('Người đặt', { exact: true })).toBeDisabled();
   await expect(page.getByLabel('Địa chỉ chi tiết')).toBeVisible();
+  const noteBox = await page.getByRole('heading', { name: 'Ghi chú đơn hàng' }).boundingBox();
+  const summaryBox = await page.getByRole('heading', { name: 'Tóm tắt & chi phí' }).boundingBox();
+  const deliveryBox = await page.getByRole('heading', { name: 'Giao nhận' }).boundingBox();
+  expect(noteBox?.y).toBeLessThan(summaryBox?.y ?? 0);
+  expect(summaryBox?.y).toBeLessThan(deliveryBox?.y ?? 0);
   await page.getByRole('radio', { name: 'Ship tỉnh' }).click();
   await expect(page.getByRole('group', { name: 'Thời gian gửi đơn vị vận chuyển' })).toBeVisible();
   await expect(page.getByText('lúc bàn giao cho đơn vị vận chuyển')).toBeVisible();

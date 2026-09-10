@@ -36,9 +36,11 @@ const failedDashboard = (periodKey: DashboardPeriodKey, error: unknown): Dashboa
 };
 
 export const dashboardApi = {
-  load: async (period: DashboardPeriodKey): Promise<DashboardData> => {
+  load: async (period: DashboardPeriodKey, includeShippingFeeInRevenue: boolean): Promise<DashboardData> => {
     try {
-      const { data } = await apiClient.get<DashboardData>('/api/dashboard', { params: { period } });
+      const { data } = await apiClient.get<DashboardData>('/api/dashboard', {
+        params: { period, includeShippingFeeInRevenue },
+      });
       return data;
     } catch (error) {
       return failedDashboard(period, error);

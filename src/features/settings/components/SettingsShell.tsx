@@ -1,18 +1,21 @@
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  Boxes,
   ChevronRight,
+  Flower2,
   FolderTree,
   Gift,
   Languages,
   Layers3,
   Palette,
   Radio,
-  ReceiptText,
+  Ruler,
   Tags,
   WandSparkles,
   type LucideIcon,
 } from 'lucide-react';
+import { useAuth } from '@/features/auth/context/AuthContext';
 import { PageHeader } from '@/shared/components/PageHeader';
 
 type SettingsNavigationItem = {
@@ -20,6 +23,7 @@ type SettingsNavigationItem = {
   description: string;
   to: string;
   icon?: LucideIcon;
+  permission: string;
 };
 
 type SettingsNavigationGroup = {
@@ -29,13 +33,28 @@ type SettingsNavigationGroup = {
 
 const SETTINGS_NAVIGATION: SettingsNavigationGroup[] = [
   {
-    label: 'Tài chính',
+    label: 'Danh mục vận hành',
     items: [
       {
-        label: 'Danh mục chi phí',
-        description: 'Nhóm các khoản chi vận hành',
-        to: '/admin/settings/expense-categories',
-        icon: ReceiptText,
+        label: 'Danh mục nguyên liệu',
+        description: 'Nguyên liệu dùng trong công thức chuẩn bị',
+        to: '/admin/ingredients',
+        icon: Flower2,
+        permission: 'ingredients.view',
+      },
+      {
+        label: 'Danh mục hàng tồn kho',
+        description: 'Hàng và vật tư có theo dõi tồn kho',
+        to: '/admin/settings/catalog/inventory',
+        icon: Boxes,
+        permission: 'inventory.view',
+      },
+      {
+        label: 'Đơn vị tính',
+        description: 'Đơn vị gốc và quy cách đo lường',
+        to: '/admin/ingredients/units',
+        icon: Ruler,
+        permission: 'ingredients.view',
       },
     ],
   },
@@ -47,20 +66,21 @@ const SETTINGS_NAVIGATION: SettingsNavigationGroup[] = [
         description: 'Nguồn tiếp nhận đơn hàng',
         to: '/admin/settings/channels',
         icon: Radio,
+        permission: 'channels.view',
       },
     ],
   },
   {
     label: 'Thuộc tính sản phẩm',
     items: [
-      { label: 'Danh mục', description: 'Nhóm sản phẩm chính', to: '/admin/settings/attributes/categories', icon: FolderTree },
-      { label: 'Dòng sản phẩm', description: 'Hoa tươi, hoa sáp', to: '/admin/settings/attributes/product-types', icon: Layers3 },
-      { label: 'Bộ sưu tập', description: 'Nhóm theo chiến dịch', to: '/admin/settings/attributes/collections', icon: Layers3 },
-      { label: 'Màu sắc', description: 'Màu dùng cho sản phẩm', to: '/admin/settings/attributes/colors', icon: Palette },
-      { label: 'Ngôn ngữ', description: 'Ngôn ngữ của nội dung', to: '/admin/settings/attributes/languages', icon: Languages },
-      { label: 'Dịp', description: 'Dịp tặng hoa', to: '/admin/settings/attributes/occasions', icon: Gift },
-      { label: 'Phong cách', description: 'Phong cách thiết kế', to: '/admin/settings/attributes/styles', icon: WandSparkles },
-      { label: 'Thẻ', description: 'Nhãn hỗ trợ tìm kiếm', to: '/admin/settings/attributes/tags', icon: Tags },
+      { label: 'Danh mục', description: 'Nhóm sản phẩm chính', to: '/admin/settings/attributes/categories', icon: FolderTree, permission: 'settings.view' },
+      { label: 'Dòng sản phẩm', description: 'Hoa tươi, hoa sáp', to: '/admin/settings/attributes/product-types', icon: Layers3, permission: 'settings.view' },
+      { label: 'Bộ sưu tập', description: 'Nhóm theo chiến dịch', to: '/admin/settings/attributes/collections', icon: Layers3, permission: 'settings.view' },
+      { label: 'Màu sắc', description: 'Màu dùng cho sản phẩm', to: '/admin/settings/attributes/colors', icon: Palette, permission: 'settings.view' },
+      { label: 'Ngôn ngữ', description: 'Ngôn ngữ của nội dung', to: '/admin/settings/attributes/languages', icon: Languages, permission: 'settings.view' },
+      { label: 'Dịp', description: 'Dịp tặng hoa', to: '/admin/settings/attributes/occasions', icon: Gift, permission: 'settings.view' },
+      { label: 'Phong cách', description: 'Phong cách thiết kế', to: '/admin/settings/attributes/styles', icon: WandSparkles, permission: 'settings.view' },
+      { label: 'Thẻ', description: 'Nhãn hỗ trợ tìm kiếm', to: '/admin/settings/attributes/tags', icon: Tags, permission: 'settings.view' },
     ],
   },
 ];
@@ -75,16 +95,20 @@ type SettingsShellProps = {
 const isNavigationItemActive = (pathname: string, to: string) => pathname === to;
 
 export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description, actions, children }) => {
+  const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const allItems = SETTINGS_NAVIGATION.flatMap((group) => group.items);
+  const visibleNavigation = SETTINGS_NAVIGATION
+    .map((group) => ({ ...group, items: group.items.filter((item) => hasPermission(item.permission)) }))
+    .filter((group) => group.items.length > 0);
+  const allItems = visibleNavigation.flatMap((group) => group.items);
   const selectedPath = allItems.find((item) => isNavigationItemActive(location.pathname, item.to))?.to ?? '';
 
   return (
     <div className="min-w-0">
       <PageHeader
-        title="Cài đặt"
-        description="Quản lý các cấu hình đang được dùng trong quy trình bán hàng và dữ liệu sản phẩm."
+        title="Cài đặt danh mục"
+        description="Quản lý nguyên liệu, hàng tồn kho, thuộc tính, đơn vị tính và kênh bán trong một không gian thống nhất."
       />
 
       <div className="mb-5 lg:hidden">
@@ -97,7 +121,7 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
           onChange={(event) => navigate(event.target.value)}
           className="h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 text-sm text-admin-text-primary focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/15"
         >
-          {SETTINGS_NAVIGATION.map((group) => (
+          {visibleNavigation.map((group) => (
             <optgroup key={group.label} label={group.label}>
               {group.items.map((item) => (
                 <option key={item.to} value={item.to}>
@@ -115,7 +139,7 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
       <div className="grid min-w-0 gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:gap-8">
         <aside className="hidden lg:block" aria-label="Các nhóm cài đặt">
           <nav className="sticky top-0 space-y-5 rounded-admin-panel border border-admin-border bg-admin-card p-3 shadow-admin-panel">
-            {SETTINGS_NAVIGATION.map((group) => (
+            {visibleNavigation.map((group) => (
               <section key={group.label} aria-labelledby={`settings-group-${group.label.replace(/\s+/g, '-').toLowerCase()}`}>
                 <h2
                   id={`settings-group-${group.label.replace(/\s+/g, '-').toLowerCase()}`}

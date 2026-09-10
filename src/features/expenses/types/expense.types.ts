@@ -18,6 +18,7 @@ export type Expense = {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  stockReceiptId?: string | null;
 };
 
 export type ExpensePayload = {

@@ -54,9 +54,12 @@ test('all existing business pages and routes are covered by feature-owned manife
 
   expect(inventory.modules).toEqual([
     'access-control',
+    'catalog-settings',
+    'content',
     'customers',
     'dashboard',
     'expenses',
+    'ingredients',
     'orders',
     'products',
     'reports',
@@ -65,14 +68,26 @@ test('all existing business pages and routes are covered by feature-owned manife
     'settings-channels',
     'users',
   ]);
-  expect(inventory.permissions).toHaveLength(21);
-  expect(inventory.pages).toHaveLength(22);
+  expect(inventory.permissions).toHaveLength(30);
+  expect(inventory.permissions).toEqual(expect.arrayContaining([
+    'inventory.view', 'inventory.manage', 'tasks.view', 'catalog-settings.view',
+  ]));
+  expect(inventory.pages).toHaveLength(36);
   expect(inventory.pages.every((item) => item.componentType === 'function')).toBe(true);
   expect(inventory.pages.map((item) => item.defaultPath).sort()).toEqual([
     '/admin/customers',
     '/admin/customers/:id',
+    '/admin/content',
+    '/admin/content/footer',
+    '/admin/content/history',
     '/admin/dashboard',
     '/admin/expenses',
+    '/admin/ingredients',
+    '/admin/ingredients/demand',
+    '/admin/ingredients/inventory',
+    '/admin/ingredients/units',
+    '/admin/inventory/receiving',
+    '/admin/inventory/transactions',
     '/admin/orders',
     '/admin/orders/:id',
     '/admin/orders/:id/edit',
@@ -82,22 +97,29 @@ test('all existing business pages and routes are covered by feature-owned manife
     '/admin/permissions',
     '/admin/products',
     '/admin/products/:id/edit',
+    '/admin/products/catalog-settings',
     '/admin/products/create',
+    '/admin/products/recognition',
     '/admin/reports',
     '/admin/roles',
     '/admin/settings/attributes/:attributeKey',
+    '/admin/settings/catalog',
+    '/admin/settings/catalog/inventory',
     '/admin/settings/channels',
     '/admin/settings/expense-categories',
     '/admin/users',
     '/admin/users/:id/edit',
     '/admin/users/new',
+    '/admin/tasks',
   ].sort());
-  expect(inventory.navigation).toHaveLength(25);
+  expect(inventory.navigation).toHaveLength(42);
   expect(inventory.navigation.filter((item) => item.isVisible && item.defaultPath)
     .map((item) => item.defaultPath).sort()).toEqual([
     '/admin/customers',
+    '/admin/content',
     '/admin/dashboard',
     '/admin/expenses',
+    '/admin/ingredients/inventory',
     '/admin/orders',
     '/admin/orders/calendar',
     '/admin/navigation',
@@ -105,11 +127,11 @@ test('all existing business pages and routes are covered by feature-owned manife
     '/admin/products',
     '/admin/reports',
     '/admin/roles',
-    '/admin/settings/attributes/categories',
-    '/admin/settings/channels',
+    '/admin/settings/catalog',
+    '/admin/tasks',
     '/admin/users',
   ].sort());
-  expect(inventory.navigation.filter((item) => !item.isVisible)).toHaveLength(10);
+  expect(inventory.navigation.filter((item) => !item.isVisible)).toHaveLength(22);
   expect(inventory.diagnostics).toEqual([]);
 });
 

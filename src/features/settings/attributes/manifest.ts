@@ -23,15 +23,15 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'settings.attributes',
-      parentKey: 'group.management',
+      parentKey: 'catalog-settings.home',
       moduleKey: 'settings-attributes',
       pageKey: 'settings.attributes',
       label: 'Thuộc tính',
       defaultPath: '/admin/settings/attributes/categories',
       iconKey: 'settings',
       permissionCode: Permission.SettingsView,
-      sortOrder: 30,
-      isVisible: true,
+      sortOrder: 130,
+      isVisible: false,
       isEnabled: true,
       isSystem: true,
     },

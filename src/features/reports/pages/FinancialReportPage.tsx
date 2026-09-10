@@ -3,9 +3,11 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   FileDown,
+  Package,
   Printer,
   RefreshCw,
   Scale,
+  Truck,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
@@ -68,6 +70,7 @@ export const FinancialReportPage: React.FC = () => {
     from: firstDayOfMonth(today),
     to: today,
     groupBy: 'auto',
+    includeShippingFeeInRevenue: false,
   }), [today]);
   const [draft, setDraft] = useState<FinancialReportParams>(initialParams);
   const [params, setParams] = useState<FinancialReportParams>(initialParams);
@@ -176,7 +179,7 @@ export const FinancialReportPage: React.FC = () => {
 
       <form
         onSubmit={applyFilters}
-        className="mb-6 grid gap-3 rounded-admin-panel border border-admin-border bg-admin-surface p-4 shadow-admin-panel sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(11rem,0.8fr)_auto]"
+        className="mb-6 grid gap-3 rounded-admin-panel border border-admin-border bg-admin-surface p-4 shadow-admin-panel sm:grid-cols-2 xl:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(10rem,0.8fr)_minmax(17rem,1.25fr)_auto]"
         aria-label="Bộ lọc báo cáo tài chính"
       >
         <div>
@@ -217,6 +220,21 @@ export const FinancialReportPage: React.FC = () => {
             <option value="month">Theo tháng</option>
           </select>
         </div>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-admin-control border border-admin-border bg-admin-card px-3 py-2 xl:self-end">
+          <input
+            type="checkbox"
+            checked={draft.includeShippingFeeInRevenue}
+            onChange={(event) => setDraft((current) => ({
+              ...current,
+              includeShippingFeeInRevenue: event.target.checked,
+            }))}
+            className="h-4 w-4 shrink-0 rounded border-admin-input-border text-admin-primary focus:ring-admin-primary/25"
+          />
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-admin-text-primary">Tính phí giao hàng vào doanh thu</span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-admin-text-muted">Chỉ đổi cách tính báo cáo, không sửa dữ liệu đơn.</span>
+          </span>
+        </label>
         <div className="flex items-end gap-2 sm:col-span-2 xl:col-span-1">
           <button
             type="submit"
@@ -253,12 +271,24 @@ export const FinancialReportPage: React.FC = () => {
           </div>
           {report ? <p className="text-xs text-admin-text-muted">{report.period.days} ngày · {report.period.groupBy === 'day' ? 'theo ngày' : 'theo tháng'}</p> : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Doanh thu"
             value={loading ? 'Đang tải' : formatExpenseCurrency(report?.revenue ?? 0)}
-            detail={`${report?.orderCount ?? 0} đơn đã thanh toán`}
+            detail={report?.includeShippingFeeInRevenue ? 'Tiền sản phẩm + phí giao hàng' : 'Chỉ tiền sản phẩm'}
             icon={ArrowUpRight}
+          />
+          <MetricCard
+            label="Tiền sản phẩm"
+            value={loading ? 'Đang tải' : formatExpenseCurrency(report?.productRevenue ?? 0)}
+            detail={`${report?.orderCount ?? 0} đơn đã thanh toán · sau giảm giá`}
+            icon={Package}
+          />
+          <MetricCard
+            label="Phí giao hàng"
+            value={loading ? 'Đang tải' : formatExpenseCurrency(report?.shippingFee ?? 0)}
+            detail={report?.includeShippingFeeInRevenue ? 'Đang được tính vào doanh thu' : 'Đang tách khỏi doanh thu'}
+            icon={Truck}
           />
           <MetricCard
             label="Chi phí"
@@ -286,7 +316,10 @@ export const FinancialReportPage: React.FC = () => {
       {report ? (
         <>
           <div className="mb-6">
-            <FinancialReportChart points={report.points} />
+            <FinancialReportChart
+              points={report.points}
+              includeShippingFeeInRevenue={report.includeShippingFeeInRevenue}
+            />
           </div>
 
           <div className="mb-6 grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,0.75fr)]">
@@ -296,11 +329,13 @@ export const FinancialReportPage: React.FC = () => {
                 <p className="mt-1 text-xs text-admin-text-muted">Số liệu dùng cùng quy tắc với phần tổng hợp.</p>
               </header>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[46rem] border-collapse text-left text-sm">
+                <table className="w-full min-w-[72rem] border-collapse text-left text-sm">
                   <thead className="bg-admin-muted text-xs font-semibold text-admin-text-secondary">
                     <tr>
                       <th scope="col" className="px-4 py-3 sm:px-5">Kỳ</th>
                       <th scope="col" className="px-4 py-3 text-right">Doanh thu</th>
+                      <th scope="col" className="px-4 py-3 text-right">Tiền sản phẩm</th>
+                      <th scope="col" className="px-4 py-3 text-right">Phí giao hàng</th>
                       <th scope="col" className="px-4 py-3 text-right">Chi phí</th>
                       <th scope="col" className="px-4 py-3 text-right">Lợi nhuận</th>
                       <th scope="col" className="px-4 py-3 text-right sm:px-5">Giao dịch</th>
@@ -311,6 +346,8 @@ export const FinancialReportPage: React.FC = () => {
                       <tr key={`row-${point.from}-${point.to}`} className="text-admin-text-secondary hover:bg-admin-muted/50">
                         <th scope="row" className="px-4 py-3 font-medium text-admin-text-primary sm:px-5">{point.label}</th>
                         <td className="px-4 py-3 text-right tabular-nums">{formatExpenseCurrency(point.revenue)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{formatExpenseCurrency(point.productRevenue)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums">{formatExpenseCurrency(point.shippingFee)}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{formatExpenseCurrency(point.expense)}</td>
                         <td className={`px-4 py-3 text-right font-semibold tabular-nums ${point.profit < 0 ? 'text-admin-status-error' : 'text-admin-status-success'}`}>
                           {formatExpenseCurrency(point.profit)}

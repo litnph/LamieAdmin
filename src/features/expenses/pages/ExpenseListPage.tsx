@@ -467,6 +467,7 @@ export const ExpenseListPage: React.FC = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-admin-text-primary">{expense.description}</p>
+                      {expense.stockReceiptId ? <span className="mt-1 inline-flex rounded-md bg-admin-primary/8 px-2 py-0.5 text-[11px] font-semibold text-admin-primary">Từ phiếu nhập kho</span> : null}
                       <p className="mt-1 text-xs text-admin-text-muted">
                         {expense.expenseCategoryName} · {formatExpenseDate(expense.expenseDate)}
                       </p>
@@ -489,7 +490,9 @@ export const ExpenseListPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setDeleting(expense)}
-                        className="btn-press inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-admin-control border border-admin-status-error/30 text-sm font-semibold text-admin-status-error"
+                        disabled={Boolean(expense.stockReceiptId)}
+                        title={expense.stockReceiptId ? 'Chi phí từ phiếu nhập kho được giữ để bảo toàn lịch sử đối soát.' : undefined}
+                        className="btn-press inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-admin-control border border-admin-status-error/30 text-sm font-semibold text-admin-status-error disabled:cursor-not-allowed disabled:opacity-35"
                       >
                         <Trash2 size={15} strokeWidth={1.8} aria-hidden="true" />
                         Xóa
@@ -517,7 +520,7 @@ export const ExpenseListPage: React.FC = () => {
                   {data.items.map((expense) => (
                     <tr key={expense.id} className="transition-colors hover:bg-admin-muted/45">
                       <td className="whitespace-nowrap px-4 py-3.5 text-admin-text-secondary">{formatExpenseDate(expense.expenseDate)}</td>
-                      <th scope="row" className="max-w-72 px-4 py-3.5 font-semibold text-admin-text-primary">{expense.description}</th>
+                      <th scope="row" className="max-w-72 px-4 py-3.5 font-semibold text-admin-text-primary">{expense.description}{expense.stockReceiptId ? <span className="mt-1 block text-[11px] font-semibold text-admin-primary">Từ phiếu nhập kho</span> : null}</th>
                       <td className="px-4 py-3.5 text-admin-text-secondary">{expense.expenseCategoryName}</td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums text-admin-text-primary">
                         {formatExpenseCurrency(expense.amount)}
@@ -539,6 +542,8 @@ export const ExpenseListPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setDeleting(expense)}
+                              disabled={Boolean(expense.stockReceiptId)}
+                              title={expense.stockReceiptId ? 'Chi phí từ phiếu nhập kho được giữ để bảo toàn lịch sử đối soát.' : undefined}
                               className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-status-error transition-colors hover:bg-admin-status-error/10"
                               aria-label={`Xóa khoản chi ${expense.description}`}
                             >

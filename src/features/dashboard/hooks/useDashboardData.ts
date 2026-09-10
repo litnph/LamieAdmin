@@ -8,7 +8,7 @@ type DashboardState = {
   refreshing: boolean;
 };
 
-export const useDashboardData = (period: DashboardPeriodKey) => {
+export const useDashboardData = (period: DashboardPeriodKey, includeShippingFeeInRevenue: boolean) => {
   const [state, setState] = useState<DashboardState>({
     data: null,
     loading: true,
@@ -26,12 +26,12 @@ export const useDashboardData = (period: DashboardPeriodKey) => {
         refreshing: keepCurrentData,
       }));
 
-      const data = await dashboardApi.load(period);
+      const data = await dashboardApi.load(period, includeShippingFeeInRevenue);
       if (requestId !== requestIdRef.current) return;
 
       setState({ data, loading: false, refreshing: false });
     },
-    [period],
+    [includeShippingFeeInRevenue, period],
   );
 
   useEffect(() => {

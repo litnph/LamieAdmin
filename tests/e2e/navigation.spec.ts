@@ -100,13 +100,29 @@ test('Sidebar renders the API tree recursively, resolves icons from source and s
   await page.goto('/admin/orders/calendar');
 
   await expect(page.getByRole('link', { name: 'Đơn hàng từ API' })).toBeVisible();
-  await expect(page.getByText('Quản lý động')).toBeVisible();
+  const managementDropdown = page.getByRole('button', { name: 'Quản lý động' });
+  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'false');
   const productLink = page.getByRole('link', { name: 'Sản phẩm động' });
+  await expect(productLink).toBeHidden();
+  await managementDropdown.click();
+  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'true');
   await expect(productLink).toBeVisible();
   await expect(productLink.locator('svg')).toHaveCount(1);
+  await managementDropdown.click();
+  await expect(productLink).toBeHidden();
   await expect(page.getByRole('link', { name: 'Lịch giao từ API' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Đơn hàng từ API' })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Vai trò & quyền' })).toHaveCount(0);
+});
+
+test('Sidebar automatically opens the dropdown that contains the active route', async ({ page }) => {
+  await installCommonApi(page, (route) => json(route, menu));
+
+  await page.goto('/admin/products');
+
+  const managementDropdown = page.getByRole('button', { name: 'Quản lý động' });
+  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('link', { name: 'Sản phẩm động' })).toHaveAttribute('aria-current', 'page');
 });
 
 test('Sidebar exposes loading and API-error states without a business-source fallback, then retries', async ({ page }) => {

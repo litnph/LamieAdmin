@@ -41,9 +41,9 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'group.system',
-      label: 'Hệ thống',
+      label: 'HỆ THỐNG',
       iconKey: 'folder',
-      sortOrder: 200,
+      sortOrder: 80,
       isVisible: true,
       isEnabled: true,
       isSystem: true,

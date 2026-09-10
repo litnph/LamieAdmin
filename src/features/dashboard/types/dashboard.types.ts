@@ -28,12 +28,19 @@ export type RevenuePoint = {
   label: string;
   shortLabel: string;
   revenue: number;
+  productRevenue: number;
+  shippingFee: number;
   orderCount: number;
 };
 
 export type DashboardRevenueData = {
   currentRevenue: number;
   previousRevenue: number;
+  currentProductRevenue: number;
+  currentShippingFee: number;
+  previousProductRevenue: number;
+  previousShippingFee: number;
+  includeShippingFeeInRevenue: boolean;
   paidOrderCount: number;
   points: RevenuePoint[];
 };

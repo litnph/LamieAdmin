@@ -20,7 +20,8 @@ import {
 
 export const DashboardPage: React.FC = () => {
   const [period, setPeriod] = useState<DashboardPeriodKey>('30d');
-  const { data, loading, refreshing, retry } = useDashboardData(period);
+  const [includeShippingFeeInRevenue, setIncludeShippingFeeInRevenue] = useState(false);
+  const { data, loading, refreshing, retry } = useDashboardData(period, includeShippingFeeInRevenue);
   const activeOrders = data?.activeOrders ?? null;
   const inventory = data?.inventory ?? null;
   const revenue = data?.revenue ?? null;
@@ -51,6 +52,16 @@ export const DashboardPage: React.FC = () => {
         description="Theo dõi đơn cần xử lý, lịch giao, tồn kho và doanh thu tại một nơi."
         actions={
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
+            <label className="flex h-11 cursor-pointer items-center gap-2 rounded-admin-control border border-admin-border bg-admin-card px-3 text-xs font-medium text-admin-text-secondary">
+              <input
+                type="checkbox"
+                checked={includeShippingFeeInRevenue}
+                onChange={(event) => setIncludeShippingFeeInRevenue(event.target.checked)}
+                disabled={loading || refreshing}
+                className="h-4 w-4 rounded border-admin-input-border text-admin-primary focus:ring-admin-primary/25"
+              />
+              <span>Tính phí giao hàng vào doanh thu</span>
+            </label>
             <DashboardTimeFilter
               value={period}
               onChange={setPeriod}
@@ -135,7 +146,9 @@ export const DashboardPage: React.FC = () => {
                 value={revenue ? formatCurrency(revenue.currentRevenue) : 'Chưa có'}
                 unit=""
                 period={data.period.label}
-                context={revenueChange?.label ?? 'Nguồn doanh thu chưa tải được'}
+                context={revenue
+                  ? `${revenueChange?.label ?? ''} · Sản phẩm ${formatCurrency(revenue.currentProductRevenue)} · Ship ${formatCurrency(revenue.currentShippingFee)}`
+                  : 'Nguồn doanh thu chưa tải được'}
                 unavailable={!revenue}
               />
             </div>

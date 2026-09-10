@@ -17,6 +17,13 @@ import { toLocalDateBoundaryIso } from '../utils/orderListFormatters';
 
 const PAGE_SIZE = 20;
 
+const currentLocalDate = () => {
+  const date = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+const TODAY = currentLocalDate();
+
 type OrderFilterDraft = {
   search: string;
   phone: string;
@@ -31,14 +38,14 @@ type OrderFilterDraft = {
   sortDirection: string;
 };
 
-const EMPTY_FILTERS: OrderFilterDraft = {
+const DEFAULT_FILTERS: OrderFilterDraft = {
   search: '',
   phone: '',
   orderStatus: '',
   paymentStatus: '',
   channelId: '',
-  deliveryFrom: '',
-  deliveryTo: '',
+  deliveryFrom: TODAY,
+  deliveryTo: TODAY,
   createdFrom: '',
   createdTo: '',
   sortBy: String(OrderSortBy.DeliveryAt),
@@ -91,8 +98,8 @@ const filtersFromParams = (params: URLSearchParams): OrderFilterDraft => ({
   orderStatus: params.get('status') ?? '',
   paymentStatus: params.get('payment') ?? '',
   channelId: params.get('channel') ?? '',
-  deliveryFrom: params.get('deliveryFrom') ?? '',
-  deliveryTo: params.get('deliveryTo') ?? '',
+  deliveryFrom: params.get('deliveryFrom') ?? DEFAULT_FILTERS.deliveryFrom,
+  deliveryTo: params.get('deliveryTo') ?? DEFAULT_FILTERS.deliveryTo,
   createdFrom: params.get('createdFrom') ?? '',
   createdTo: params.get('createdTo') ?? '',
   sortBy: params.get('sortBy') ?? String(OrderSortBy.DeliveryAt),
@@ -117,7 +124,7 @@ const filtersToParams = (filters: OrderFilterDraft, page: number): URLSearchPara
 };
 
 const sameFilters = (left: OrderFilterDraft, right: OrderFilterDraft) =>
-  (Object.keys(EMPTY_FILTERS) as Array<keyof OrderFilterDraft>).every((key) => left[key] === right[key]);
+  (Object.keys(DEFAULT_FILTERS) as Array<keyof OrderFilterDraft>).every((key) => left[key] === right[key]);
 
 const getSuccessMessage = (state: unknown) => {
   if (typeof state !== 'object' || state === null || !('successMessage' in state)) return null;
@@ -257,9 +264,9 @@ export const OrderListPage: React.FC = () => {
   };
 
   const clearFilters = () => {
-    setDraftFilters(EMPTY_FILTERS);
-    setAppliedDraft(EMPTY_FILTERS);
-    setAppliedFilters({});
+    setDraftFilters({ ...DEFAULT_FILTERS });
+    setAppliedDraft({ ...DEFAULT_FILTERS });
+    setAppliedFilters(buildQuery(DEFAULT_FILTERS));
     setFilterError(null);
     setPage(1);
   };

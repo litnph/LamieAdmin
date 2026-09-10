@@ -451,13 +451,6 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
       });
       if (!draft.isValid) {
         setInputError(draft.validationErrors.join(' '));
-        if (draft.validationErrors.some((error) => error.includes('Sản phẩm ngoài danh mục'))) {
-          setReviewErrors((current) => ({
-            ...current,
-            productHint: 'Sản phẩm ngoài danh mục cần ít nhất 1 ảnh minh họa.',
-          }));
-          requestAnimationFrame(() => document.getElementById(quickOrderReviewFieldIds.productHint)?.focus());
-        }
         return;
       }
       if (queuedFingerprintsRef.current.has(draft.fingerprint)) {

@@ -68,6 +68,9 @@ const isValidRoute = (route: unknown): route is CurrentNavigationRoute => {
   && Number.isInteger(candidate.sortOrder)
   && candidate.sortOrder >= 0
   && isSafeAdminRoutePath(candidate.path)
+  && (candidate.activeMenuKey == null
+    || (typeof candidate.activeMenuKey === 'string'
+      && Boolean(candidate.activeMenuKey.trim())))
   && (candidate.permissionCode == null
     || (typeof candidate.permissionCode === 'string'
       && permissionPattern.test(candidate.permissionCode)));

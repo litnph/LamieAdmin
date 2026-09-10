@@ -9,6 +9,8 @@ import type { AddressResolutionDto } from '../types/administrativeAddress.types'
 import type { ChatScreenshotAnalysis } from '../types/chatScreenshot.types';
 import { validateQuickOrderFiles } from './quickOrderFiles';
 
+const OUTSIDE_CATALOG_PRODUCT_NAME = 'Sản phẩm ngoài danh mục';
+
 const createClientId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -114,9 +116,6 @@ export const buildQuickOrderDraft = ({
   if (!resolvedChannelId) validationErrors.push('Chưa xác định được kênh bán.');
   if (!productHint) validationErrors.push('Chưa nhận diện được sản phẩm.');
   if (review.price <= 0) validationErrors.push('Đơn giá sản phẩm phải lớn hơn 0.');
-  if (!product && productHint && attachments.length === 0) {
-    validationErrors.push('Sản phẩm ngoài danh mục cần ít nhất 1 ảnh minh họa.');
-  }
   validationErrors.push(...validateQuickOrderFiles(files));
   if (review.shippingFee < 0) validationErrors.push('Phí giao hàng không được âm.');
   if (review.deposit != null && review.deposit < 0) validationErrors.push('Tiền cọc không được âm.');
@@ -133,8 +132,8 @@ export const buildQuickOrderDraft = ({
     warnings.push('Địa chỉ đã tự chọn kết quả có điểm cao nhất nhưng cần kiểm tra lại.');
   }
   if (applicableAddressAnalysis) warnings.push(...applicableAddressAnalysis.warnings);
-  if (!product && productHint && attachments.length > 0) {
-    warnings.push('Sản phẩm sẽ được lưu ngoài danh mục cùng ảnh minh họa.');
+  if (!product && productHint) {
+    warnings.push('Sản phẩm sẽ được lưu ngoài danh mục; mô tả nhận diện được giữ trong ghi chú sản phẩm.');
   }
 
   const fingerprint = [
@@ -160,6 +159,7 @@ export const buildQuickOrderDraft = ({
     normalize(review.productNote ?? ''),
     String(review.shippingFee),
     String(review.deposit ?? ''),
+    String(review.isPaid),
     normalize(review.cardMessage ?? ''),
     normalize(review.bannerMessage ?? ''),
     normalize(review.contentNote ?? ''),
@@ -204,12 +204,13 @@ export const buildQuickOrderDraft = ({
     analysisWarnings: screenshotAnalysis?.warnings ?? [],
     items: productHint ? [{
       productId: product ? String(product.id) : undefined,
+      productTypeId: product?.productTypeId ?? undefined,
       productSku: product?.sku,
-      productName: product ? getProductName(product) : productHint,
+      productName: product ? getProductName(product) : OUTSIDE_CATALOG_PRODUCT_NAME,
       productHint,
       unitPrice: review.price,
       quantity: review.quantity,
-      note: review.productNote,
+      note: [review.productNote?.trim(), !product ? productHint : ''].filter(Boolean).join(' · ') || undefined,
       hasCard: review.hasCard,
       cardMessage: review.cardMessage?.trim() || null,
       hasBanner: review.hasBanner,
@@ -217,6 +218,7 @@ export const buildQuickOrderDraft = ({
     }] : [],
     shippingFee: review.shippingFee,
     deposit: review.deposit,
+    isPaid: review.isPaid,
     contentNote: review.contentNote,
     sourceText: sourceText.trim(),
     attachments,
@@ -257,10 +259,12 @@ export const toBatchCreatePayload = (draft: QuickOrderDraft): BatchCreateOrderPa
     ? toIso(draft.deliveryDate, draft.deliveryEndTime)
     : undefined,
   depositAmount: draft.deposit,
+  isPaid: draft.isPaid,
   shippingFee: draft.shippingFee,
   contentNote: draft.contentNote,
   items: draft.items.map((item) => ({
     productId: item.productId,
+    productTypeId: item.productTypeId,
     productSku: item.productSku,
     productName: item.productName,
     unitPrice: item.unitPrice,

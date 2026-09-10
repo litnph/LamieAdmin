@@ -179,7 +179,7 @@ export const QuickOrderReviewForm: React.FC<QuickOrderReviewFormProps> = ({
       <section className={sectionClass}>
         <div className="mb-2">
           <h5 id="quick-product-title" className="text-[13px] font-semibold text-admin-text-primary">Sản phẩm</h5>
-          <p className="mt-0.5 text-[11px] leading-4 text-admin-text-muted">Chọn từ danh mục hoặc nhập sản phẩm ngoài danh mục; sản phẩm ngoài danh mục cần ảnh.</p>
+          <p className="mt-0.5 text-[11px] leading-4 text-admin-text-muted">Chọn từ danh mục hoặc nhập mô tả để lưu dưới dạng sản phẩm ngoài danh mục.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,10rem)_4.5rem]">
           <div>
@@ -297,12 +297,29 @@ export const QuickOrderReviewForm: React.FC<QuickOrderReviewFormProps> = ({
         <h5 id="quick-cost-title" className="mb-2 text-[13px] font-semibold text-admin-text-primary">Chi phí & ghi chú</h5>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label htmlFor={quickOrderReviewFieldIds.deposit} className={labelClass}>Tiền cọc <span className="sr-only">(Cọc)</span></label>
+            <div className="mb-0.5 flex min-h-3 items-center justify-between gap-2">
+              <label htmlFor={quickOrderReviewFieldIds.deposit} className="block text-[11px] font-medium leading-4 text-admin-text-secondary">Tiền cọc <span className="sr-only">(Cọc)</span></label>
+              <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-admin-text-primary">
+                <input
+                  id={quickOrderReviewFieldIds.isPaid}
+                  type="checkbox"
+                  checked={review.isPaid === 'true'}
+                  onChange={(event) => onChange('isPaid', String(event.target.checked))}
+                  className="h-3.5 w-3.5 accent-admin-primary"
+                />
+                Đã thanh toán
+              </label>
+            </div>
             <div className="relative">
               <input {...fieldProps('deposit', errors)} type="text" inputMode="numeric" className={`${fieldProps('deposit', errors).className} pr-8 text-right tabular-nums`} value={formatVndInput(parseVndInput(review.deposit))} onChange={(event) => updateMoney('deposit', event.target.value)} placeholder="Mặc định" />
               <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-admin-text-muted">₫</span>
             </div>
-            <button type="button" onClick={() => onChange('deposit', formatVndInput(calculateDefaultDeposit(orderValue)))} className="mt-0.5 text-[11px] font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
+            <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2 text-[11px]">
+              <button type="button" onClick={() => onChange('deposit', formatVndInput(calculateDefaultDeposit(orderValue)))} className="font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
+              <span data-testid="quick-payment-status-preview" className={review.isPaid === 'true' ? 'font-medium text-admin-status-success' : 'text-admin-text-muted'} aria-live="polite">
+                {review.isPaid === 'true' ? 'Đã thanh toán' : parseVndInput(review.deposit) > 0 ? 'Đã cọc' : 'Chưa cọc'}
+              </span>
+            </div>
             <FieldError field="deposit" errors={errors} />
           </div>
           <div>

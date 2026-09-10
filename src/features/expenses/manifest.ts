@@ -31,7 +31,17 @@ export const manifest = defineAdminModuleManifest({
   ],
   defaultNavigation: [
     {
+      key: 'group.finance',
+      label: 'TÀI CHÍNH & BÁO CÁO',
+      iconKey: 'folder',
+      sortOrder: 40,
+      isVisible: true,
+      isEnabled: true,
+      isSystem: true,
+    },
+    {
       key: 'expenses.list',
+      parentKey: 'group.finance',
       moduleKey: 'expenses',
       pageKey: 'expenses.list',
       label: 'Chi phí',

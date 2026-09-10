@@ -20,6 +20,7 @@ export const quickOrderReviewFields = [
   'productNote',
   'shippingFee',
   'deposit',
+  'isPaid',
   'hasCard',
   'cardMessage',
   'hasBanner',
@@ -52,6 +53,7 @@ export type ConfirmedQuickOrderReview = {
   productNote?: string;
   shippingFee: number;
   deposit?: number;
+  isPaid: boolean;
   hasCard: boolean;
   cardMessage?: string;
   hasBanner: boolean;
@@ -87,6 +89,7 @@ export type QuickOrderDraft = AdministrativeAddressSnapshot & {
   items: QuickOrderItemDraft[];
   shippingFee: number;
   deposit?: number;
+  isPaid: boolean;
   contentNote?: string;
   sourceText: string;
   attachments: QuickOrderAttachment[];

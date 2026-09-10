@@ -19,4 +19,5 @@ export type CurrentNavigationRoute = {
   path: string;
   permissionCode?: string | null;
   sortOrder: number;
+  activeMenuKey?: string | null;
 };

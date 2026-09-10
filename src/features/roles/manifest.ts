@@ -3,7 +3,7 @@ import { Permission } from '@/features/auth/permissions';
 
 export const manifest = defineAdminModuleManifest({
   moduleKey: 'roles',
-  displayName: 'Vai trò & quyền',
+  displayName: 'Vai trò',
   version: '1.0.0',
   permissions: [
     { code: Permission.RolesView, name: 'Xem vai trò', group: 'Phân quyền' },
@@ -26,7 +26,7 @@ export const manifest = defineAdminModuleManifest({
       parentKey: 'group.system',
       moduleKey: 'roles',
       pageKey: 'roles.list',
-      label: 'Vai trò & quyền',
+      label: 'Vai trò',
       defaultPath: '/admin/roles',
       iconKey: 'shield-check',
       permissionCode: Permission.RolesView,

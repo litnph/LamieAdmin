@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, RefreshCw, RotateCcw, Search } from 'lucide-react';
+import { Download, Loader2, Plus, RefreshCw, RotateCcw, ScanSearch, Search, SlidersHorizontal } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { ProductTable, type ProductListItem, type ProductStockStatus } from '@/features/product/components/ProductTable';
@@ -157,6 +157,7 @@ const mapDtoToProduct = (
     tracksInventory: dto.tracksInventory,
     stockStatus: getStockStatus(dto.stock, dto.tracksInventory),
     isActive: dto.isActive,
+    isVisibleOnFE: dto.isVisibleOnFE,
     imageUrl: resolveApiResourceUrl(dto.thumbnailUrl?.trim() || detailImage?.trim()) || null,
   };
 };
@@ -167,7 +168,8 @@ export const ProductListPage: React.FC = () => {
   const searchParamsKey = searchParams.toString();
   const syncSourceRef = useRef<'url' | null>(null);
   const firstUrlEffectRef = useRef(true);
-  const { isAdmin, isManagerOrAbove } = useAuth();
+  const { hasPermission } = useAuth();
+  const canManageProducts = hasPermission('products.manage');
   const [initialFilters] = useState(() => readUrlFilters(searchParams, readStoredFilters()));
   const [items, setItems] = useState<ProductDto[]>([]);
   const [categories, setCategories] = useState<AttributeItem[]>([]);
@@ -185,6 +187,10 @@ export const ProductListPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [exportWarnings, setExportWarnings] = useState<string[]>([]);
+  const [feVisibilityUpdatingId, setFeVisibilityUpdatingId] = useState<number | null>(null);
+  const [exportingFeData, setExportingFeData] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -337,13 +343,13 @@ export const ProductListPage: React.FC = () => {
   };
 
   const requestDelete = (product: ProductListItem) => {
-    if (!isAdmin) return;
+    if (!canManageProducts) return;
     setMutationError(null);
     setPendingDelete(product);
   };
 
   const deleteProduct = async () => {
-    if (!pendingDelete || !isAdmin) return;
+    if (!pendingDelete || !canManageProducts) return;
     setDeletingId(pendingDelete.id);
     setMutationError(null);
     try {
@@ -355,6 +361,40 @@ export const ProductListPage: React.FC = () => {
       setMutationError(getApiErrorMessage(requestError));
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const toggleFeVisibility = async (product: ProductListItem, nextValue: boolean) => {
+    if (!canManageProducts || feVisibilityUpdatingId !== null) return;
+    setPublishError(null);
+    setSuccessMessage(null);
+    setFeVisibilityUpdatingId(product.id);
+    setItems((current) => current.map((item) => item.id === product.id ? { ...item, isVisibleOnFE: nextValue } : item));
+    try {
+      await ProductApi.setFeVisibility(product.id, nextValue);
+      setSuccessMessage(`${nextValue ? 'Đã chọn' : 'Đã bỏ'} ${product.name} cho lần xuất FE Data tiếp theo.`);
+    } catch (requestError) {
+      setItems((current) => current.map((item) => item.id === product.id ? { ...item, isVisibleOnFE: product.isVisibleOnFE } : item));
+      setPublishError(`Không thể cập nhật hiển thị FE cho ${product.name}: ${getApiErrorMessage(requestError)}`);
+    } finally {
+      setFeVisibilityUpdatingId(null);
+    }
+  };
+
+  const exportFeData = async () => {
+    if (!canManageProducts || exportingFeData) return;
+    setExportingFeData(true);
+    setPublishError(null);
+    setExportWarnings([]);
+    setSuccessMessage(null);
+    try {
+      const result = await ProductApi.exportFeData();
+      setExportWarnings(result.warnings);
+      setSuccessMessage(`FE Data ${result.catalogVersion}: đã xuất ${result.productCount} sản phẩm và ${result.imageCount} ảnh.`);
+    } catch (requestError) {
+      setPublishError(`Không thể xuất FE Data: ${getApiErrorMessage(requestError)}`);
+    } finally {
+      setExportingFeData(false);
     }
   };
 
@@ -374,7 +414,38 @@ export const ProductListPage: React.FC = () => {
               <RefreshCw size={17} strokeWidth={1.8} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
               Tải lại
             </button>
-            {isManagerOrAbove ? (
+            {canManageProducts ? (
+              <button
+                type="button"
+                onClick={() => navigate('/admin/products/recognition')}
+                className="btn-press inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-surface px-4 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted sm:w-auto"
+              >
+                <ScanSearch size={17} aria-hidden="true" />
+                Nhận diện ảnh
+              </button>
+            ) : null}
+            {canManageProducts ? (
+              <button
+                type="button"
+                onClick={() => navigate('/admin/products/catalog-settings')}
+                className="btn-press inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-surface px-4 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted sm:w-auto"
+              >
+                <SlidersHorizontal size={17} aria-hidden="true" />
+                Tầm giá
+              </button>
+            ) : null}
+            {canManageProducts ? (
+              <button
+                type="button"
+                onClick={() => void exportFeData()}
+                disabled={exportingFeData}
+                className="btn-press inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-primary/35 bg-admin-surface px-4 text-sm font-semibold text-admin-primary transition-colors hover:bg-admin-primary/5 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {exportingFeData ? <Loader2 size={17} className="animate-spin" aria-hidden="true" /> : <Download size={17} aria-hidden="true" />}
+                {exportingFeData ? 'Đang xuất FE Data...' : 'FE Data'}
+              </button>
+            ) : null}
+            {canManageProducts ? (
               <button
                 type="button"
                 onClick={() => navigate('/admin/products/create')}
@@ -388,7 +459,7 @@ export const ProductListPage: React.FC = () => {
         }
       />
 
-      {!isManagerOrAbove ? (
+      {!canManageProducts ? (
         <div className="mb-4 rounded-admin-control border border-admin-primary/20 bg-admin-primary/5 px-4 py-3 text-sm leading-6 text-admin-text-secondary" role="status">
           Tài khoản của bạn chỉ có quyền xem sản phẩm. Liên hệ quản lý để tạo hoặc chỉnh sửa dữ liệu.
         </div>
@@ -399,6 +470,9 @@ export const ProductListPage: React.FC = () => {
           {successMessage}
         </div>
       ) : null}
+
+      {publishError ? <div className="mb-4 rounded-admin-control border border-admin-status-error/25 bg-red-50 px-4 py-3 text-sm leading-6 text-admin-status-error" role="alert">{publishError}</div> : null}
+      {exportWarnings.length ? <div className="mb-4 rounded-admin-control border border-admin-status-warning/30 bg-amber-50 px-4 py-3 text-sm leading-6 text-admin-status-warning" role="status"><p className="font-semibold">FE Data đã xuất với cảnh báo:</p><ul className="mt-1 list-disc pl-5">{exportWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div> : null}
 
       <form
         onSubmit={submitSearch}
@@ -543,15 +617,17 @@ export const ProductListPage: React.FC = () => {
         loading={loading}
         error={error}
         hasActiveFilters={hasActiveFilters}
-        canEdit={isManagerOrAbove}
-        canDelete={isAdmin}
+        canEdit={canManageProducts}
+        canDelete={canManageProducts}
         deletingId={deletingId}
+        feVisibilityUpdatingId={feVisibilityUpdatingId}
         page={currentPage}
         pageSize={PAGE_SIZE}
         totalItems={filteredProducts.length}
         totalPages={totalPages}
         onEdit={editProduct}
         onDelete={requestDelete}
+        onToggleFeVisibility={(product, nextValue) => void toggleFeVisibility(product, nextValue)}
         onPageChange={setPage}
         onClearFilters={resetFilters}
         onRetry={() => void load()}

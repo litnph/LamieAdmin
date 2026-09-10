@@ -16,6 +16,57 @@ export interface ProductImagePayload {
   contentType: string;
 }
 
+export interface ProductIngredientDto {
+  id: number;
+  ingredientId: number;
+  baseQuantity: number;
+  note: string | null;
+  sortOrder: number;
+}
+
+export interface FeDataExportResult {
+  generatedAt: string;
+  productCount: number;
+  imageCount: number;
+  catalogVersion: string;
+  warnings: string[];
+}
+
+export interface ProductCatalogSettings {
+  priceDeviationPercent: number;
+  updatedAt: string | null;
+}
+
+export interface ProductRecognitionResult {
+  productId: number;
+  sku: string;
+  name: string;
+  thumbnailUrl: string | null;
+  similarityPercent: number;
+}
+
+export interface ProductRecognitionResponse {
+  results: ProductRecognitionResult[];
+  indexedProductCount: number;
+  activeProductCount: number;
+  minimumSimilarityPercent: number;
+  embeddingVersion: string;
+}
+
+export interface ProductRecognitionIndexStatus {
+  indexedProductCount: number;
+  activeProductCount: number;
+  pendingImageCount: number;
+  embeddingVersion: string;
+}
+
+export interface ProductRecognitionBackfillResult {
+  processedImageCount: number;
+  failedImageCount: number;
+  remainingImageCount: number;
+  warnings: string[];
+}
+
 export interface CreateProductRequest {
   sku: string;
   price: number;
@@ -30,6 +81,7 @@ export interface CreateProductRequest {
   collectionIds: number[];
   styleIds: number[];
   occasionIds: number[];
+  similarProductIds: number[];
   translations: ProductTranslation[];
   images: ProductImagePayload[];
 }
@@ -44,6 +96,7 @@ export interface ProductDto {
   categoryId: number;
   productTypeId?: number | null;
   isActive: boolean;
+  isVisibleOnFE: boolean;
   thumbnailUrl: string | null;
   translations: Array<{
     id: number;
@@ -63,6 +116,8 @@ export interface ProductDto {
   collectionIds: number[];
   styleIds: number[];
   occasionIds: number[];
+  similarProductIds: number[];
+  ingredients: ProductIngredientDto[];
 }
 
 export const ProductApi = {
@@ -97,6 +152,55 @@ export const ProductApi = {
 
   remove: async (id: number): Promise<void> => {
     await apiClient.delete(`/api/settings/products/${id}`);
+  },
+
+  setFeVisibility: async (id: number, isVisibleOnFE: boolean): Promise<void> => {
+    await apiClient.patch(`/api/settings/products/${id}/fe-visibility`, { isVisibleOnFE });
+  },
+
+  exportFeData: async (): Promise<FeDataExportResult> => {
+    const { data } = await apiClient.post<FeDataExportResult>('/api/fe-data/export');
+    return data;
+  },
+
+  getCatalogSettings: async (): Promise<ProductCatalogSettings> => {
+    const { data } = await apiClient.get<ProductCatalogSettings>('/api/settings/products/catalog/settings');
+    return data;
+  },
+
+  updateCatalogSettings: async (priceDeviationPercent: number): Promise<ProductCatalogSettings> => {
+    const { data } = await apiClient.put<ProductCatalogSettings>(
+      '/api/settings/products/catalog/settings',
+      { priceDeviationPercent },
+    );
+    return data;
+  },
+
+  getRecognitionStatus: async (): Promise<ProductRecognitionIndexStatus> => {
+    const { data } = await apiClient.get<ProductRecognitionIndexStatus>(
+      '/api/settings/products/catalog/recognition/status',
+    );
+    return data;
+  },
+
+  recognizeImage: async (image: File): Promise<ProductRecognitionResponse> => {
+    const formData = new FormData();
+    formData.append('Image', image);
+    const { data } = await apiClient.post<ProductRecognitionResponse>(
+      '/api/settings/products/catalog/recognition',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
+  },
+
+  backfillRecognition: async (batchSize = 40): Promise<ProductRecognitionBackfillResult> => {
+    const { data } = await apiClient.post<ProductRecognitionBackfillResult>(
+      '/api/settings/products/catalog/recognition/backfill',
+      null,
+      { params: { batchSize } },
+    );
+    return data;
   },
 };
 

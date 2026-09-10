@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Edit3,
   Image as ImageIcon,
+  Leaf,
   LoaderCircle,
   MapPin,
   PackageOpen,
@@ -26,6 +27,7 @@ import { ImagePreview, type ImagePreviewItem } from '@/shared/components/ImagePr
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { ordersApi } from '../api/ordersApi';
 import { OrderStatusBadge, PaymentStatusBadge, DeliveryUrgencyBadge } from '../components/OrderStatusBadges';
+import { OrderMaterialsPanel } from '../components/OrderMaterialsPanel';
 import {
   nextOrderStatuses,
   nextPaymentStatuses,
@@ -151,6 +153,34 @@ const ProductVisual: React.FC<{ item: OrderItemDto; illustrations: OrderImageDto
     </div>
   );
 };
+
+const OrderItemIngredients: React.FC<{ item: OrderItemDto }> = ({ item }) => (
+  <div className="mt-3 rounded-admin-control border border-admin-border bg-admin-muted/35 px-3 py-2.5">
+    <div className="flex items-center justify-between gap-3">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-admin-text-primary">
+        <Leaf size={14} className="text-admin-primary" aria-hidden="true" /> Nguyên liệu cần chuẩn bị
+      </p>
+      <span className="text-[11px] tabular-nums text-admin-text-muted">{item.ingredientSnapshots?.length ?? 0} loại</span>
+    </div>
+    {item.ingredientSnapshots?.length ? (
+      <ul className="mt-2 space-y-1.5">
+        {[...item.ingredientSnapshots].sort((left, right) => left.sortOrder - right.sortOrder).map((ingredient) => (
+          <li key={ingredient.id} className="flex items-start justify-between gap-3 text-xs">
+            <span className="min-w-0 text-admin-text-secondary">
+              <span className="font-medium text-admin-text-primary">{ingredient.ingredientName}</span>
+              {ingredient.note ? <span className="ml-1 text-admin-text-muted">· {ingredient.note}</span> : null}
+            </span>
+            <span className="shrink-0 font-semibold tabular-nums text-admin-text-primary">
+              {ingredient.totalBaseQuantity.toLocaleString('vi-VN')} {ingredient.baseUnitSymbol || ingredient.baseUnitName}
+            </span>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className="mt-2 text-xs leading-5 text-admin-text-muted">Dòng sản phẩm này không có nguyên liệu đã lưu.</p>
+    )}
+  </div>
+);
 
 const OrderTimeline: React.FC<{ logs: OrderChangeLogDto[] }> = ({ logs }) => (
   <section className="rounded-admin-panel border border-admin-border bg-admin-surface shadow-admin-panel" aria-labelledby="timeline-title">
@@ -563,6 +593,7 @@ export const OrderDetailPage: React.FC = () => {
         </aside>
 
         <main className="min-w-0 space-y-5 xl:col-start-1 xl:row-start-1">
+          <OrderMaterialsPanel order={order} canManage={canManageOrder} onSaved={refreshOrder} />
           <section
             className={[
               'overflow-hidden rounded-admin-panel border bg-admin-surface shadow-admin-panel',
@@ -702,6 +733,7 @@ export const OrderDetailPage: React.FC = () => {
                           ) : null}
                           {item.hasCard && item.cardMessage ? <p className="mt-2 break-words text-xs leading-5 text-admin-text-secondary"><strong>Thiệp:</strong> {item.cardMessage}</p> : null}
                           {item.hasBanner && item.bannerMessage ? <p className="mt-1 break-words text-xs leading-5 text-admin-text-secondary"><strong>Banner:</strong> {item.bannerMessage}</p> : null}
+                          <OrderItemIngredients item={item} />
                         </div>
                       </div>
                       <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-admin-border pt-3 text-sm">
@@ -752,6 +784,7 @@ export const OrderDetailPage: React.FC = () => {
                               ) : null}
                               {item.hasCard && item.cardMessage ? <p className="mt-2 break-words text-xs leading-5 text-admin-text-secondary"><strong>Thiệp:</strong> {item.cardMessage}</p> : null}
                               {item.hasBanner && item.bannerMessage ? <p className="mt-1 break-words text-xs leading-5 text-admin-text-secondary"><strong>Banner:</strong> {item.bannerMessage}</p> : null}
+                              <OrderItemIngredients item={item} />
                             </div>
                           </div>
                         </th>

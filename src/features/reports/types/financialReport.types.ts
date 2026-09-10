@@ -10,6 +10,8 @@ export type FinancialReportPoint = {
   to: string;
   label: string;
   revenue: number;
+  productRevenue: number;
+  shippingFee: number;
   expense: number;
   profit: number;
   orderCount: number;
@@ -27,6 +29,9 @@ export type FinancialReport = {
   period: FinancialReportPeriod;
   generatedAt: string;
   revenue: number;
+  productRevenue: number;
+  shippingFee: number;
+  includeShippingFeeInRevenue: boolean;
   expense: number;
   profit: number;
   profitMarginPercent: number | null;
@@ -42,4 +47,5 @@ export type FinancialReportParams = {
   from: string;
   to: string;
   groupBy: 'auto' | 'day' | 'month';
+  includeShippingFeeInRevenue: boolean;
 };

@@ -43,6 +43,8 @@ export type AdministrativeAddressSnapshot = {
 export type OrderItemDto = {
   id: string;
   productId?: string | null;
+  productTypeId?: number | null;
+  productTypeName?: string | null;
   productSku?: string | null;
   productName: string;
   thumbnailUrl?: string | null;
@@ -54,7 +56,25 @@ export type OrderItemDto = {
   cardMessage?: string | null;
   hasBanner: boolean;
   bannerMessage?: string | null;
+  ingredientSnapshotCapturedAt?: string | null;
+  ingredientSnapshots: OrderItemIngredientSnapshotDto[];
   images?: OrderImageDto[];
+};
+
+export type OrderItemIngredientSnapshotDto = {
+  id: string;
+  ingredientId?: number | null;
+  ingredientCode: string;
+  ingredientName: string;
+  baseUnitCode: string;
+  baseUnitName: string;
+  baseUnitSymbol?: string | null;
+  perProductBaseQuantity: number;
+  productQuantity: number;
+  totalBaseQuantity: number;
+  note?: string | null;
+  sortOrder: number;
+  capturedAt: string;
 };
 
 export type OrderImageDto = {
@@ -114,7 +134,25 @@ export type OrderDetailDto = OrderListItemDto & AdministrativeAddressSnapshot & 
   items: OrderItemDto[];
   images: OrderImageDto[];
   changeLogs: OrderChangeLogDto[];
+  materials?: OrderMaterialDto[] | null;
 };
+
+export type OrderMaterialDto = {
+  id: string;
+  stockUnitId: string;
+  inventoryItemId: string;
+  inventoryItemCode: string;
+  inventoryItemName: string;
+  sizeName?: string | null;
+  unitName: string;
+  unitSymbol?: string | null;
+  requiredQuantity: number;
+  deductedQuantity: number;
+  currentStock: number;
+  stockUnitIsActive: boolean;
+};
+
+export type SaveOrderMaterialItem = { id?: string; stockUnitId: string; quantity: number };
 
 export type OrderCalendarItemDto = {
   id: string;
@@ -170,6 +208,7 @@ export type OrderListQuery = {
 
 export type CreateOrderLine = {
   productId?: string;
+  productTypeId?: number;
   productSku?: string;
   productName: string;
   unitPrice: number;
@@ -179,6 +218,14 @@ export type CreateOrderLine = {
   cardMessage?: string | null;
   hasBanner: boolean;
   bannerMessage?: string | null;
+  ingredients?: OrderLineIngredientInput[];
+};
+
+export type OrderLineIngredientInput = {
+  ingredientId: number;
+  baseQuantity: number;
+  note?: string | null;
+  sortOrder: number;
 };
 
 export type UpdateOrderLine = CreateOrderLine & { id?: string };
@@ -204,6 +251,7 @@ export type CreateOrderPayload = AdministrativeAddressSnapshot & {
   deliveryAt: string;
   deliveryTo?: string;
   depositAmount?: number | null;
+  isPaid: boolean;
   shippingFee: number;
   description?: string;
   contentNote?: string;

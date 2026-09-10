@@ -23,15 +23,15 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'settings.channels',
-      parentKey: 'group.management',
+      parentKey: 'catalog-settings.home',
       moduleKey: 'settings-channels',
       pageKey: 'settings.channels',
       label: 'Kênh bán',
       defaultPath: '/admin/settings/channels',
       iconKey: 'radio',
       permissionCode: Permission.ChannelsView,
-      sortOrder: 20,
-      isVisible: true,
+      sortOrder: 120,
+      isVisible: false,
       isEnabled: true,
       isSystem: true,
     },
