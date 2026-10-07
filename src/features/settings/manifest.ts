@@ -3,12 +3,12 @@ import { Permission } from '@/features/auth/permissions';
 
 export const manifest = defineAdminModuleManifest({
   moduleKey: 'catalog-settings',
-  displayName: 'Cài đặt danh mục',
+  displayName: 'Cấu hình cửa hàng',
   version: '1.0.0',
   permissions: [
     {
       code: Permission.CatalogSettingsView,
-      name: 'Xem Cài đặt danh mục',
+      name: 'Xem cấu hình cửa hàng',
       group: 'Cấu hình',
       description: 'Mở workspace danh mục; từng nhóm dữ liệu vẫn yêu cầu quyền nghiệp vụ riêng.',
     },
@@ -27,8 +27,7 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'group.settings',
-      label: 'CÀI ĐẶT',
-      iconKey: 'folder',
+      label: 'Quản trị',
       sortOrder: 70,
       isVisible: true,
       isEnabled: true,
@@ -39,7 +38,7 @@ export const manifest = defineAdminModuleManifest({
       parentKey: 'group.settings',
       moduleKey: 'catalog-settings',
       pageKey: 'catalog-settings.home',
-      label: 'Cài đặt danh mục',
+      label: 'Cấu hình cửa hàng',
       defaultPath: '/admin/settings/catalog',
       iconKey: 'settings',
       permissionCode: Permission.CatalogSettingsView,

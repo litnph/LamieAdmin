@@ -39,7 +39,7 @@ export const manifest = defineAdminModuleManifest({
       defaultPath: '/admin/customers',
       iconKey: 'contact-round',
       permissionCode: Permission.CustomersView,
-      sortOrder: 30,
+      sortOrder: 20,
       isVisible: true,
       isEnabled: true,
       isSystem: true,

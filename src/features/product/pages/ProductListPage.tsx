@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Loader2, Plus, RefreshCw, RotateCcw, ScanSearch, Search, SlidersHorizontal } from 'lucide-react';
+import { Download, Loader2, Plus, RefreshCw, RotateCcw, ScanSearch, Search } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { ProductTable, type ProductListItem, type ProductStockStatus } from '@/features/product/components/ProductTable';
@@ -422,16 +422,6 @@ export const ProductListPage: React.FC = () => {
               >
                 <ScanSearch size={17} aria-hidden="true" />
                 Nhận diện ảnh
-              </button>
-            ) : null}
-            {canManageProducts ? (
-              <button
-                type="button"
-                onClick={() => navigate('/admin/products/catalog-settings')}
-                className="btn-press inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-surface px-4 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted sm:w-auto"
-              >
-                <SlidersHorizontal size={17} aria-hidden="true" />
-                Tầm giá
               </button>
             ) : null}
             {canManageProducts ? (

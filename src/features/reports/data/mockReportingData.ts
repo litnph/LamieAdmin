@@ -1,0 +1,40 @@
+import type { ReportingDataset } from '../types/reporting.types';
+
+export const mockReportingDataset: ReportingDataset = {
+  generatedAt: '2026-09-15T16:42:00+07:00',
+  orders: [
+    { id: 'o-deposit', code: 'LH-0913-01', customerName: 'Nguyễn Thảo', createdAt: '2026-09-09T09:20:00+07:00', expectedDeliveryAt: '2026-09-13T10:00:00+07:00', completedAt: '2026-09-13T10:18:00+07:00', productRevenueAfterDiscount: 1_000_000, shippingFeeCharged: 200_000, status: 'completed', channel: 'Facebook', productLine: 'Hoa tươi', category: 'Hoa bó' },
+    { id: 'o-prepaid', code: 'LH-0913-02', customerName: 'Trần Minh Anh', createdAt: '2026-09-08T14:10:00+07:00', expectedDeliveryAt: '2026-09-13T16:00:00+07:00', completedAt: '2026-09-13T15:42:00+07:00', productRevenueAfterDiscount: 1_000_000, shippingFeeCharged: 0, status: 'completed', channel: 'Cửa hàng', productLine: 'Hoa tươi', category: 'Giỏ hoa' },
+    { id: 'o-upcoming-deposit', code: 'LH-0918-03', customerName: 'Lê Hoàng Yến', createdAt: '2026-09-12T10:30:00+07:00', expectedDeliveryAt: '2026-09-18T08:00:00+07:00', completedAt: null, productRevenueAfterDiscount: 850_000, shippingFeeCharged: 100_000, status: 'producing', channel: 'Instagram', productLine: 'Hoa tươi', category: 'Hoa bó' },
+    { id: 'o-upcoming-paid', code: 'LH-0916-04', customerName: 'Phạm Quốc Huy', createdAt: '2026-09-10T15:00:00+07:00', expectedDeliveryAt: '2026-09-16T18:30:00+07:00', completedAt: null, productRevenueAfterDiscount: 1_500_000, shippingFeeCharged: 150_000, status: 'shipping', channel: 'Website', productLine: 'Hoa nhập khẩu', category: 'Hộp hoa' },
+    { id: 'o-actual-late', code: 'LH-0913-05', customerName: 'Võ Ngọc Mai', createdAt: '2026-09-11T08:15:00+07:00', expectedDeliveryAt: '2026-09-13T09:00:00+07:00', completedAt: '2026-09-14T09:35:00+07:00', productRevenueAfterDiscount: 650_000, shippingFeeCharged: 50_000, status: 'completed', channel: 'Zalo', productLine: 'Hoa tươi', category: 'Hoa bó' },
+    { id: 'o-cancelled', code: 'LH-0917-06', customerName: 'Đỗ Thanh Tâm', createdAt: '2026-09-08T17:10:00+07:00', expectedDeliveryAt: '2026-09-17T11:00:00+07:00', completedAt: null, productRevenueAfterDiscount: 800_000, shippingFeeCharged: 100_000, status: 'cancelled', channel: 'Facebook', productLine: 'Hoa tươi', category: 'Hoa bó' },
+    { id: 'o-partial-refund', code: 'LH-0911-07', customerName: 'Bùi Gia Hân', createdAt: '2026-09-07T12:40:00+07:00', expectedDeliveryAt: '2026-09-11T14:00:00+07:00', completedAt: '2026-09-11T14:06:00+07:00', productRevenueAfterDiscount: 1_800_000, shippingFeeCharged: 200_000, status: 'completed', channel: 'Cửa hàng', productLine: 'Hoa nhập khẩu', category: 'Kệ hoa' },
+    { id: 'o-completed-due', code: 'LH-0915-08', customerName: 'Ngô Bảo Châu', createdAt: '2026-09-10T09:10:00+07:00', expectedDeliveryAt: '2026-09-15T07:30:00+07:00', completedAt: '2026-09-15T08:02:00+07:00', productRevenueAfterDiscount: 1_200_000, shippingFeeCharged: 100_000, status: 'completed', channel: 'Điện thoại', productLine: 'Hoa tươi', category: 'Giỏ hoa' },
+    { id: 'o-overpaid', code: 'LH-0912-09', customerName: 'Đặng Hải Nam', createdAt: '2026-09-10T11:25:00+07:00', expectedDeliveryAt: '2026-09-12T13:00:00+07:00', completedAt: '2026-09-12T13:21:00+07:00', productRevenueAfterDiscount: 450_000, shippingFeeCharged: 50_000, status: 'completed', channel: 'Website', productLine: 'Hoa tươi', category: 'Hoa bó' },
+  ],
+  payments: [
+    { id: 'p-deposit-1', orderId: 'o-deposit', paidAt: '2026-09-10T10:00:00+07:00', amount: 400_000, kind: 'deposit', method: 'bank_transfer', status: 'succeeded', note: 'Cọc 1/3 giá trị đơn' },
+    { id: 'p-deposit-2', orderId: 'o-deposit', paidAt: '2026-09-13T10:20:00+07:00', amount: 800_000, kind: 'remainder', method: 'cash', status: 'succeeded', note: 'Thu phần còn lại khi giao' },
+    { id: 'p-prepaid', orderId: 'o-prepaid', paidAt: '2026-09-10T14:00:00+07:00', amount: 1_000_000, kind: 'full', method: 'bank_transfer', status: 'succeeded' },
+    { id: 'p-upcoming-deposit', orderId: 'o-upcoming-deposit', paidAt: '2026-09-12T11:00:00+07:00', amount: 300_000, kind: 'deposit', method: 'bank_transfer', status: 'succeeded' },
+    { id: 'p-upcoming-paid', orderId: 'o-upcoming-paid', paidAt: '2026-09-11T15:15:00+07:00', amount: 1_650_000, kind: 'full', method: 'card', status: 'succeeded' },
+    { id: 'p-actual-late', orderId: 'o-actual-late', paidAt: '2026-09-14T09:38:00+07:00', amount: 700_000, kind: 'full', method: 'cash', status: 'succeeded' },
+    { id: 'p-cancel-deposit', orderId: 'o-cancelled', paidAt: '2026-09-08T17:15:00+07:00', amount: 300_000, kind: 'deposit', method: 'bank_transfer', status: 'succeeded' },
+    { id: 'p-cancel-refund', orderId: 'o-cancelled', paidAt: '2026-09-09T09:30:00+07:00', amount: 300_000, kind: 'refund', method: 'bank_transfer', status: 'succeeded', affectsRecognizedRevenue: false, note: 'Hoàn cọc do hủy trước khi giao' },
+    { id: 'p-refund-full', orderId: 'o-partial-refund', paidAt: '2026-09-10T11:00:00+07:00', amount: 2_000_000, kind: 'full', method: 'bank_transfer', status: 'succeeded' },
+    { id: 'p-refund-partial', orderId: 'o-partial-refund', paidAt: '2026-09-12T09:15:00+07:00', amount: 200_000, kind: 'refund', method: 'bank_transfer', status: 'succeeded', affectsRecognizedRevenue: true, note: 'Điều chỉnh một phần sau giao' },
+    { id: 'p-completed-due', orderId: 'o-completed-due', paidAt: '2026-09-10T09:20:00+07:00', amount: 500_000, kind: 'deposit', method: 'bank_transfer', status: 'succeeded' },
+    { id: 'p-overpaid', orderId: 'o-overpaid', paidAt: '2026-09-12T13:22:00+07:00', amount: 600_000, kind: 'full', method: 'cash', status: 'succeeded', note: 'Dư 100.000 ₫ cần đối soát' },
+    { id: 'p-failed', orderId: 'o-upcoming-deposit', paidAt: '2026-09-13T11:20:00+07:00', amount: 650_000, kind: 'remainder', method: 'card', status: 'failed', note: 'Giao dịch thẻ thất bại' },
+  ],
+  expenses: [
+    { id: 'e-case-3', categoryId: 'operations', categoryName: 'Điện, nước & vận hành', description: 'Bảo trì tủ mát hoa', amount: 300_000, incurredAt: '2026-09-13T08:00:00+07:00', paidAt: '2026-09-15T09:00:00+07:00', vendor: 'Điện lạnh Minh Phát', method: 'bank_transfer', orderId: null, scope: 'operating', evidenceUrl: null, note: 'Chi phí phát sinh 13/09, thanh toán 15/09' },
+    { id: 'e-flowers', categoryId: 'flowers', categoryName: 'Tiền nhập hoa', description: 'Hoa nhập cho đơn LH-0913-01', amount: 400_000, incurredAt: '2026-09-11T07:00:00+07:00', paidAt: '2026-09-11T07:15:00+07:00', vendor: 'Vựa hoa Đà Lạt', method: 'bank_transfer', orderId: 'o-deposit', scope: 'direct', evidenceUrl: '/evidence/e-flowers.jpg' },
+    { id: 'e-shipping', categoryId: 'shipping', categoryName: 'Phí vận chuyển', description: 'Đối tác giao đơn LH-0913-01', amount: 120_000, incurredAt: '2026-09-13T10:00:00+07:00', paidAt: '2026-09-13T17:00:00+07:00', vendor: 'Ahamove', method: 'bank_transfer', orderId: 'o-deposit', scope: 'direct' },
+    { id: 'e-rent', categoryId: 'rent', categoryName: 'Mặt bằng', description: 'Tiền thuê cửa hàng tháng 9', amount: 6_000_000, incurredAt: '2026-09-01T00:00:00+07:00', paidAt: '2026-09-02T10:00:00+07:00', vendor: 'Nguyễn Văn Bình', method: 'bank_transfer', orderId: null, scope: 'operating' },
+    { id: 'e-marketing', categoryId: 'marketing', categoryName: 'Marketing', description: 'Quảng cáo mùa tựu trường', amount: 800_000, incurredAt: '2026-09-05T00:00:00+07:00', paidAt: null, vendor: 'Meta Ads', method: null, orderId: null, scope: 'operating' },
+    { id: 'e-materials', categoryId: 'materials', categoryName: 'Phụ kiện & vật tư', description: 'Giấy gói và ruy băng', amount: 350_000, incurredAt: '2026-09-14T09:00:00+07:00', paidAt: '2026-09-14T09:00:00+07:00', vendor: 'Phụ kiện Hoa Việt', method: 'cash', orderId: null, scope: 'operating', evidenceUrl: '/evidence/e-materials.jpg' },
+    { id: 'e-wage', categoryId: 'wage', categoryName: 'Lương nhân viên', description: 'Ứng lương giữa tháng', amount: 1_500_000, incurredAt: '2026-09-15T12:00:00+07:00', paidAt: '2026-09-15T12:00:00+07:00', vendor: 'Nhân viên cửa hàng', method: 'bank_transfer', orderId: null, scope: 'operating' },
+  ],
+};

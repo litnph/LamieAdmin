@@ -43,6 +43,8 @@ export type AdministrativeAddressSnapshot = {
 export type OrderItemDto = {
   id: string;
   productId?: string | null;
+  categoryId?: number | null;
+  categoryName?: string | null;
   productTypeId?: number | null;
   productTypeName?: string | null;
   productSku?: string | null;
@@ -124,6 +126,9 @@ export type OrderListItemDto = {
 };
 
 export type OrderDetailDto = OrderListItemDto & AdministrativeAddressSnapshot & {
+  customerId?: string | null;
+  senderName?: string;
+  senderPhone?: string;
   deliveryAddressDescription?: string | null;
   deliveryLatitude?: number | null;
   deliveryLongitude?: number | null;
@@ -208,6 +213,7 @@ export type OrderListQuery = {
 
 export type CreateOrderLine = {
   productId?: string;
+  categoryId?: number;
   productTypeId?: number;
   productSku?: string;
   productName: string;
@@ -239,9 +245,13 @@ export type OrderImageUpload = {
 export type CreateOrderPayload = AdministrativeAddressSnapshot & {
   ordererName: string;
   ordererPhone: string;
+  customerId?: string | null;
+  createMember?: boolean;
   channelId: string;
   recipientName: string;
   recipientPhone: string;
+  senderName?: string;
+  senderPhone?: string;
   pickupAtShop: boolean;
   provinceShipping: boolean;
   deliveryAddress?: string;
@@ -253,10 +263,12 @@ export type CreateOrderPayload = AdministrativeAddressSnapshot & {
   depositAmount?: number | null;
   isPaid: boolean;
   shippingFee: number;
+  shippingFeeActual?: number | null;
   description?: string;
   contentNote?: string;
   items: CreateOrderLine[];
   imageFiles: OrderImageUpload[];
+  materials?: SaveOrderMaterialItem[];
 };
 
 export type BatchCreateOrderPayload = CreateOrderPayload & {

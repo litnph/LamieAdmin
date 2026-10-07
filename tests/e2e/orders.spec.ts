@@ -151,6 +151,9 @@ const installApiMocks = async (page: Page) => {
     if (url.pathname === '/api/settings/attributes/product-types') {
       return json(route, [{ id: 1, code: 'FRESH_FLOWERS', isActive: true, sortOrder: 10, translations: [{ languageCode: 'vi', name: 'Hoa tươi' }] }]);
     }
+    if (url.pathname === '/api/settings/attributes/categories') {
+      return json(route, [{ id: 1, code: 'BOUQUET', isActive: true, sortOrder: 10, translations: [{ languageCode: 'vi', name: 'Hoa bó' }] }]);
+    }
     if (url.pathname === '/api/admin/administrative-units/provinces') return json(route, []);
     if (url.pathname === '/api/settings/products') {
       return json(route, [{
@@ -172,10 +175,15 @@ const installApiMocks = async (page: Page) => {
         styleIds: [],
         occasionIds: [],
         ingredients: [],
+        inventoryMaterials: [],
       }]);
     }
+    if (url.pathname === '/api/inventory/items') return json(route, []);
     if (url.pathname === '/api/settings/ingredients') {
       return json(route, { items: [], totalCount: 0, page: 1, pageSize: 100, totalPages: 0, hasNext: false, hasPrevious: false });
+    }
+    if (url.pathname === '/api/customers') {
+      return json(route, { items: [], totalCount: 0, page: 1, pageSize: 8, totalPages: 0, hasNext: false, hasPrevious: false });
     }
     if (url.pathname === `/api/orders/${ORDER_ID}` && request.method() === 'DELETE') {
       deleted = true;

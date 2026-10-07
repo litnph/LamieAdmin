@@ -23,14 +23,14 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'roles.list',
-      parentKey: 'group.system',
+      parentKey: 'group.settings',
       moduleKey: 'roles',
       pageKey: 'roles.list',
       label: 'Vai trò',
       defaultPath: '/admin/roles',
       iconKey: 'shield-check',
       permissionCode: Permission.RolesView,
-      sortOrder: 20,
+      sortOrder: 30,
       isVisible: true,
       isEnabled: true,
       isSystem: true,

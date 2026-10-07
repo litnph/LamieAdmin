@@ -79,7 +79,9 @@ const isValidAttribute = (value: string | undefined): value is AttributeName =>
 
 const getDefaultTranslation = (translations: AttributeTranslation[], preferred: string[]) => {
   for (const code of preferred) {
-    const translation = translations.find((item) => item.languageCode === code);
+    const translation = translations.find((item) =>
+      item.languageCode.trim().toLowerCase().startsWith(code.toLowerCase()),
+    );
     if (translation) return translation;
   }
   return translations[0];
@@ -196,7 +198,11 @@ export const AttributesPage: React.FC = () => {
   }, [attribute, isColor, isLanguage]);
 
   useEffect(() => {
-    if (!isValidAttribute(params.attributeKey)) {
+    // The visible category navigation entry uses the concrete categories path,
+    // so React Router does not provide attributeKey for that route. Treat that
+    // concrete route as the default category instead of redirecting to itself
+    // and returning before the data request is made.
+    if (params.attributeKey !== undefined && !isValidAttribute(params.attributeKey)) {
       navigate('/admin/settings/attributes/categories', { replace: true });
       return;
     }
@@ -561,7 +567,9 @@ export const AttributesPage: React.FC = () => {
                 ) : (
                   attributeItems.map((item) => {
                     const preferred = getDefaultTranslation(item.translations, ['vi', 'en']);
-                    const english = item.translations.find((translation) => translation.languageCode === 'en');
+                    const english = item.translations.find((translation) =>
+                      translation.languageCode.trim().toLowerCase().startsWith('en'),
+                    );
                     const color = isColor ? (item as AttributeItemColor) : null;
                     return (
                       <tr key={item.id} className="transition-colors hover:bg-admin-muted/35">

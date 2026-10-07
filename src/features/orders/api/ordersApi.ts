@@ -24,9 +24,13 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
 
   fd.append(field('ordererName'), payload.ordererName);
   fd.append(field('ordererPhone'), payload.ordererPhone);
+  if (payload.customerId) fd.append(field('customerId'), payload.customerId);
+  if (payload.createMember !== undefined) fd.append(field('createMember'), String(payload.createMember));
   fd.append(field('channelId'), payload.channelId);
   fd.append(field('recipientName'), payload.recipientName);
   fd.append(field('recipientPhone'), payload.recipientPhone);
+  if (payload.senderName) fd.append(field('senderName'), payload.senderName);
+  if (payload.senderPhone) fd.append(field('senderPhone'), payload.senderPhone);
   fd.append(field('pickupAtShop'), String(payload.pickupAtShop));
   fd.append(field('provinceShipping'), String(payload.provinceShipping));
   if (payload.deliveryAddress) fd.append(field('deliveryAddress'), payload.deliveryAddress);
@@ -47,11 +51,13 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
   if (payload.depositAmount != null) fd.append(field('depositAmount'), String(payload.depositAmount));
   fd.append(field('isPaid'), String(payload.isPaid));
   fd.append(field('shippingFee'), String(payload.shippingFee));
+  if (payload.shippingFeeActual != null) fd.append(field('shippingFeeActual'), String(payload.shippingFeeActual));
   if (payload.description) fd.append(field('description'), payload.description);
   if (payload.contentNote) fd.append(field('contentNote'), payload.contentNote);
 
   payload.items.forEach((item, index) => {
     if (item.productId) fd.append(itemField(index, 'productId'), item.productId);
+    if (item.categoryId) fd.append(itemField(index, 'categoryId'), String(item.categoryId));
     if (item.productTypeId) fd.append(itemField(index, 'productTypeId'), String(item.productTypeId));
     if (item.productSku) fd.append(itemField(index, 'productSku'), item.productSku);
     fd.append(itemField(index, 'productName'), item.productName);
@@ -79,6 +85,15 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
     fd.append(imageField(index, 'orderItemIndex'), String(image.orderItemIndex));
     fd.append(imageField(index, 'sortOrder'), String(image.sortOrder));
   });
+  if (payload.materials !== undefined) {
+    fd.append(field('materialsSpecified'), 'true');
+    payload.materials.forEach((material, index) => {
+      const materialField = (name: string) => field(`materials[${index}].${name}`);
+      if (material.id) fd.append(materialField('id'), material.id);
+      fd.append(materialField('stockUnitId'), material.stockUnitId);
+      fd.append(materialField('quantity'), String(material.quantity));
+    });
+  }
 };
 
 export const ordersApi = {
@@ -115,9 +130,13 @@ export const ordersApi = {
     body: {
       ordererName: string;
       ordererPhone: string;
+      customerId?: string | null;
+      createMember?: boolean;
       channelId: string;
       recipientName: string;
-      recipientPhone: string;
+      recipientPhone?: string;
+      senderName: string;
+      senderPhone: string;
       pickupAtShop: boolean;
       provinceShipping: boolean;
       deliveryAddress?: string;
@@ -144,6 +163,7 @@ export const ordersApi = {
       contentNote?: string;
       items: UpdateOrderLine[];
       imageFiles: OrderImageUpload[];
+      materials?: import('../types/order.types').SaveOrderMaterialItem[];
     },
   ): Promise<OrderDetailDto> => {
     const fd = new FormData();
@@ -151,9 +171,13 @@ export const ordersApi = {
     if (body.rowVersion) fd.append('rowVersion', body.rowVersion);
     fd.append('ordererName', body.ordererName);
     fd.append('ordererPhone', body.ordererPhone);
+    if (body.customerId) fd.append('customerId', body.customerId);
+    if (body.createMember !== undefined) fd.append('createMember', String(body.createMember));
     fd.append('channelId', body.channelId);
     fd.append('recipientName', body.recipientName);
-    fd.append('recipientPhone', body.recipientPhone);
+    if (body.recipientPhone) fd.append('recipientPhone', body.recipientPhone);
+    if (body.senderName) fd.append('senderName', body.senderName);
+    if (body.senderPhone) fd.append('senderPhone', body.senderPhone);
     fd.append('pickupAtShop', String(body.pickupAtShop));
     fd.append('provinceShipping', String(body.provinceShipping));
     if (body.deliveryAddress) fd.append('deliveryAddress', body.deliveryAddress);
@@ -181,6 +205,7 @@ export const ordersApi = {
     body.items.forEach((item, index) => {
       if (item.id) fd.append(`items[${index}].id`, item.id);
       if (item.productId) fd.append(`items[${index}].productId`, item.productId);
+      if (item.categoryId) fd.append(`items[${index}].categoryId`, String(item.categoryId));
       if (item.productTypeId) fd.append(`items[${index}].productTypeId`, String(item.productTypeId));
       if (item.productSku) fd.append(`items[${index}].productSku`, item.productSku);
       fd.append(`items[${index}].productName`, item.productName);
@@ -207,6 +232,14 @@ export const ordersApi = {
       fd.append(`images[${index}].orderItemIndex`, String(image.orderItemIndex));
       fd.append(`images[${index}].sortOrder`, String(image.sortOrder));
     });
+    if (body.materials !== undefined) {
+      fd.append('materialsSpecified', 'true');
+      body.materials.forEach((material, index) => {
+        if (material.id) fd.append(`materials[${index}].id`, material.id);
+        fd.append(`materials[${index}].stockUnitId`, material.stockUnitId);
+        fd.append(`materials[${index}].quantity`, String(material.quantity));
+      });
+    }
 
     const { data } = await apiClient.put<OrderDetailDto>(`/api/orders/${id}`, fd);
     return data;
@@ -216,8 +249,16 @@ export const ordersApi = {
     await apiClient.patch(`/api/orders/${id}/status`, { status });
   },
 
+  returnToPreviousStatus: async (id: string): Promise<void> => {
+    await apiClient.patch(`/api/orders/${id}/status/previous`);
+  },
+
   changePaymentStatus: async (id: string, status: PaymentStatus): Promise<void> => {
     await apiClient.patch(`/api/orders/${id}/payment-status`, { status });
+  },
+
+  updateShippingFeeActual: async (id: string, shippingFeeActual: number | null): Promise<void> => {
+    await apiClient.patch(`/api/orders/${id}/shipping-fee-actual`, { shippingFeeActual });
   },
 
   delete: async (id: string): Promise<void> => {

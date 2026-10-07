@@ -265,14 +265,14 @@ export const OrderListContent: React.FC<OrderListContentProps> = ({
                   >
                     {order.orderCode}
                   </Link>
-                  <p className="mt-1 truncate text-base font-semibold text-admin-text-primary">{order.recipientName}</p>
-                  <a
+                  <p className="mt-1 truncate text-base font-semibold text-admin-text-primary">{order.recipientName || order.ordererName || 'Chưa có thông tin khách'}</p>
+                  {order.recipientPhone ? <a
                     href={`tel:${order.recipientPhone}`}
                     className="mt-1 inline-flex min-h-6 items-center text-sm text-admin-text-secondary hover:text-admin-primary"
                     aria-label={`Gọi người nhận ${order.recipientName} theo số ${order.recipientPhone}`}
                   >
                     <span dir="ltr">{order.recipientPhone}</span>
-                  </a>
+                  </a> : <p className="mt-1 text-sm text-admin-text-muted">Chưa có SĐT người nhận</p>}
                   </div>
                 </div>
                 <OrderStatusBadge status={order.orderStatus} />
@@ -375,14 +375,14 @@ export const OrderListContent: React.FC<OrderListContentProps> = ({
                     {urgency ? <DeliveryUrgencyBadge urgency={urgency} /> : null}
                   </td>
                   <td className="px-4 py-3.5">
-                    <p className="max-w-44 truncate font-semibold text-admin-text-primary">{order.recipientName}</p>
-                    <a
+                    <p className="max-w-44 truncate font-semibold text-admin-text-primary">{order.recipientName || order.ordererName || 'Chưa có thông tin khách'}</p>
+                    {order.recipientPhone ? <a
                       href={`tel:${order.recipientPhone}`}
                       className="mt-1 inline-flex text-xs text-admin-text-muted hover:text-admin-primary"
                       aria-label={`Gọi người nhận ${order.recipientName} theo số ${order.recipientPhone}`}
                     >
                       <span dir="ltr">{order.recipientPhone}</span>
-                    </a>
+                    </a> : <p className="mt-1 text-xs text-admin-text-muted">Chưa có SĐT người nhận</p>}
                   </td>
                   <td className="px-4 py-3.5">
                     <p className="line-clamp-2 max-w-52 text-xs leading-5 text-admin-text-secondary" title={order.contentNote ?? undefined}>

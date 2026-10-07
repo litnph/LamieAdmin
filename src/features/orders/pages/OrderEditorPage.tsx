@@ -5,43 +5,41 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  ImageOff,
-  ImagePlus,
+  Leaf,
   LoaderCircle,
   LocateFixed,
   MapPin,
   MessageSquareText,
-  Plus,
+  PackageOpen,
   Search,
-  Trash2,
-  X,
 } from 'lucide-react';
 import { PageHeader } from '@/shared/components/PageHeader';
-import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
-import { ImagePreview, type ImagePreviewItem } from '@/shared/components/ImagePreview';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
 import { AttributesApi } from '@/features/settings/attributes/api/attributesApi';
 import type { AttributeItem } from '@/features/settings/attributes/types/attributes.types';
 import { ingredientsApi } from '@/features/ingredients/api/ingredientsApi';
 import type { IngredientDto } from '@/features/ingredients/types/ingredient.types';
-import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
+import { inventoryApi } from '@/features/ingredients/api/inventoryApi';
+import type { InventoryMaterialDraft } from '@/features/ingredients/components/InventoryMaterialsEditor';
+import type { InventoryItem } from '@/features/ingredients/types/inventory.types';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { formatVndInput, parseVndInput } from '@/shared/utils/displayFormatters';
 import { ordersApi } from '../api/ordersApi';
 import { orderStatusLabel } from '../constants/orderLabels';
 import { DeliveryLocationPicker } from '../components/DeliveryLocationPicker';
+import { CustomerMemberLookup, type SelectedMember } from '../components/CustomerMemberLookup';
 import { QuickOrderBatchImportDialog } from '../components/QuickOrderBatchImportDialog';
 import { AdministrativeAddressFields, type AdministrativeAddressValue } from '../components/AdministrativeAddressFields';
 import { AddressAutoImport } from '../components/AddressAutoImport';
+import { OrderLineIngredientsEditor } from '../components/OrderLineIngredientsEditor';
 import {
-  OrderLineIngredientsEditor,
-  type OrderLineIngredientDraft,
-  type OrderLineIngredientOrigin,
-} from '../components/OrderLineIngredientsEditor';
+  OrderProductLinesEditor,
+  type OrderProductLineDraft,
+  type ProductLineValidationError,
+} from '../components/OrderProductLinesEditor';
 import type { AddressResolutionDto } from '../types/administrativeAddress.types';
-import { AdministrativeScheme, OrderStatus, PaymentStatus, type OrderImageDto, type OrderImageUpload, type UpdateOrderLine } from '../types/order.types';
-import { formatOrderCurrency } from '../utils/orderListFormatters';
+import { AdministrativeScheme, OrderStatus, PaymentStatus, type OrderImageUpload, type OrderMaterialDto, type SaveOrderMaterialItem } from '../types/order.types';
 import { nominatimReverse, nominatimSearch } from '../utils/geocode';
 import { calculateDefaultDeposit } from '../utils/deposit';
 
@@ -51,31 +49,15 @@ const labelClass = 'mb-1 block min-h-4 text-xs font-medium leading-4 text-admin-
 const panelClass = 'rounded-admin-panel border border-admin-border bg-admin-card p-4 shadow-admin-panel';
 const ORDER_DELIVERY_LOCATION_UI_ENABLED = false;
 const OUTSIDE_CATALOG_PRODUCT_NAME = 'Sản phẩm ngoài danh mục';
-type LineDraft = UpdateOrderLine & {
-  key: string;
-  imageFiles: File[];
-  existingImages: OrderImageDto[];
-  snapshotThumbnailUrl?: string | null;
-  ingredientDrafts: OrderLineIngredientDraft[];
-  ingredientOrigin: OrderLineIngredientOrigin;
-};
+type LineDraft = OrderProductLineDraft;
 
-type ProductSelectOption = AdminSelectOption<string> & {
-  searchText: string;
-  productCode?: string;
-  productName: string;
-  price?: number;
-  thumbnailUrl?: string | null;
-  isManual?: boolean;
+type OrderInventoryMaterialDraft = InventoryMaterialDraft & {
+  lineKey: string;
 };
 
 type EditorProps = { orderId?: string };
 
-type LineValidationError = {
-  message: string;
-  fieldId: string;
-  inDetails: boolean;
-};
+type LineValidationError = ProductLineValidationError;
 
 const createLineKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -102,27 +84,93 @@ const productName = (product: ProductDto) =>
   || product.translations[0]?.name?.trim()
   || product.sku;
 
+const quantityText = (value: number) => String(Number(value.toFixed(6)));
+
+const inventoryItemIdForStockUnit = (stockUnitId: string, inventoryItems: InventoryItem[]) =>
+  inventoryItems.find((item) => item.stockUnits.some((unit) => unit.id === stockUnitId))?.id ?? '';
+
+const suggestedInventoryMaterialsForLine = (
+  line: LineDraft,
+  products: ProductDto[],
+  inventoryItems: InventoryItem[],
+): OrderInventoryMaterialDraft[] => {
+  if (!line.productId) return [];
+  const product = products.find((candidate) => String(candidate.id) === line.productId);
+  return [...(product?.inventoryMaterials ?? [])]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((material) => ({
+      key: `${line.key}-suggested-${material.stockUnitId}`,
+      lineKey: line.key,
+      inventoryItemId: inventoryItemIdForStockUnit(material.stockUnitId, inventoryItems),
+      stockUnitId: material.stockUnitId,
+      quantity: quantityText(material.quantity),
+    }));
+};
+
+const distributeSavedInventoryMaterials = (
+  lines: LineDraft[],
+  savedMaterials: OrderMaterialDto[],
+  products: ProductDto[],
+  inventoryItems: InventoryItem[],
+): OrderInventoryMaterialDraft[] => {
+  if (lines.length === 0) return [];
+  return savedMaterials.flatMap((material) => {
+    const candidates = lines.flatMap((line) => {
+      if (!line.productId || line.quantity <= 0) return [];
+      const product = products.find((candidate) => String(candidate.id) === line.productId);
+      const productMaterial = product?.inventoryMaterials?.find((candidate) => candidate.stockUnitId === material.stockUnitId);
+      if (!productMaterial) return [];
+      return [{ line, weight: productMaterial.quantity * line.quantity }];
+    });
+    const targets = candidates.length > 0 ? candidates : [{ line: lines[0], weight: 1 }];
+    const totalWeight = targets.reduce((total, target) => total + target.weight, 0) || targets.length;
+    let remaining = material.requiredQuantity;
+    return targets.map((target, index) => {
+      const allocatedTotal = index === targets.length - 1
+        ? remaining
+        : Number((material.requiredQuantity * (target.weight / totalWeight)).toFixed(6));
+      remaining = Number((remaining - allocatedTotal).toFixed(6));
+      return {
+        key: `${material.id}-${target.line.key}`,
+        id: index === 0 ? material.id : undefined,
+        lineKey: target.line.key,
+        inventoryItemId: material.inventoryItemId || inventoryItemIdForStockUnit(material.stockUnitId, inventoryItems),
+        stockUnitId: material.stockUnitId,
+        quantity: quantityText(allocatedTotal / Math.max(1, target.line.quantity)),
+      };
+    });
+  });
+};
+
+const flattenInventoryMaterials = (
+  materials: OrderInventoryMaterialDraft[],
+  lines: LineDraft[],
+  persistedIdsByStockUnit: Record<string, string> = {},
+): SaveOrderMaterialItem[] => {
+  const lineQuantities = new Map(lines.map((line) => [line.key, Math.max(0, line.quantity)]));
+  const totals = new Map<string, SaveOrderMaterialItem>();
+  materials.forEach((material) => {
+    const requiredQuantity = Number(material.quantity) * (lineQuantities.get(material.lineKey) ?? 0);
+    const current = totals.get(material.stockUnitId);
+    if (current) {
+      current.quantity = Number((current.quantity + requiredQuantity).toFixed(6));
+      if (!current.id && material.id) current.id = material.id;
+      return;
+    }
+    totals.set(material.stockUnitId, {
+      id: material.id ?? persistedIdsByStockUnit[material.stockUnitId],
+      stockUnitId: material.stockUnitId,
+      quantity: Number(requiredQuantity.toFixed(6)),
+    });
+  });
+  return [...totals.values()];
+};
+
 const attributeName = (attribute: AttributeItem) =>
   attribute.translations.find((translation) => translation.languageCode.toLowerCase().startsWith('vi'))?.name?.trim()
   || attribute.translations[0]?.name?.trim()
   || attribute.code
-  || `Dòng sản phẩm #${attribute.id}`;
-
-const productCode = (value?: string | null) => value?.trim() || 'Chưa có mã';
-
-const productOptionLabel = (
-  code: string | null | undefined,
-  name: string | null | undefined,
-  price: number,
-) => `${productCode(code)} - ${name?.trim() || 'Chưa có tên'} - ${formatOrderCurrency(price)}`;
-
-const normalizeProductSearch = (value: string) => value
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .replace(/đ/g, 'd')
-  .replace(/Đ/g, 'D')
-  .toLocaleLowerCase('vi')
-  .trim();
+  || `Thuộc tính #${attribute.id}`;
 
 const productImageSource = (product: ProductDto) => {
   const detailImage = [...product.images]
@@ -131,90 +179,28 @@ const productImageSource = (product: ProductDto) => {
   return product.thumbnailUrl || detailImage || '';
 };
 
-const productPreviewItems = (
-  product: ProductDto | undefined,
-  fallbackSrc: string | null | undefined,
-  alt: string,
-): ImagePreviewItem[] => {
-  const catalogImages = product
-    ? [
-        product.thumbnailUrl,
-        ...[...product.images]
-          .filter((image) => image.isActive)
-          .sort((left, right) => left.sortOrder - right.sortOrder)
-          .map((image) => image.imageUrl),
-      ]
-    : [];
-
-  return [fallbackSrc, ...catalogImages]
-    .filter((source): source is string => Boolean(source?.trim()))
-    .map((source, index) => ({
-      src: source,
-      alt: index === 0 ? alt : `${alt}, ảnh ${index + 1}`,
-      title: alt,
-    }));
-};
-
-const ProductOptionThumbnail: React.FC<{ src?: string | null }> = ({ src }) => {
-  const resolvedSrc = resolveApiResourceUrl(src);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => setFailed(false), [resolvedSrc]);
-
-  if (!resolvedSrc || failed) {
-    return (
-      <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-admin-control border border-admin-border bg-admin-muted text-admin-text-muted"
-        aria-hidden="true"
-        title="Sản phẩm chưa có ảnh"
-      >
-        <ImageOff size={16} strokeWidth={1.7} aria-hidden="true" />
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={resolvedSrc}
-      alt=""
-      aria-hidden="true"
-      width={36}
-      height={36}
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailed(true)}
-      className="h-9 w-9 shrink-0 rounded-admin-control border border-admin-border object-cover"
-    />
-  );
-};
-
-const ProductOptionContent: React.FC<{
-  option: ProductSelectOption;
-  context: 'menu' | 'value';
-}> = ({ option, context }) => {
-  if (context === 'value') {
-    return <span className="block truncate" title={option.label}>{option.label}</span>;
-  }
-
-  return (
-    <div className="flex min-w-0 items-center gap-2.5">
-      <ProductOptionThumbnail src={option.thumbnailUrl} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-admin-text-primary" title={option.label}>
-          {option.productCode ? <span className="font-mono text-xs font-semibold">{option.productCode}</span> : null}
-          {option.productCode ? <span className="text-admin-text-muted"> - </span> : null}
-          <span>{option.productName}</span>
-        </p>
-        {option.price != null ? (
-          <p className="mt-0.5 text-xs tabular-nums text-admin-text-secondary">
-            {formatOrderCurrency(option.price)}
-          </p>
-        ) : (
-          <p className="mt-0.5 text-xs text-admin-text-muted">Nhập thông tin sản phẩm riêng</p>
-        )}
-      </div>
-    </div>
-  );
+const catalogLineFromProduct = (line: LineDraft, selected: ProductDto): LineDraft => {
+  const defaultIngredients = selected.ingredients ?? [];
+  return {
+    ...line,
+    productId: String(selected.id),
+    categoryId: selected.categoryId ?? undefined,
+    productTypeId: selected.productTypeId ?? undefined,
+    productSku: selected.sku,
+    productName: productName(selected),
+    unitPrice: selected.salePrice ?? selected.price,
+    snapshotThumbnailUrl: productImageSource(selected),
+    ingredientDrafts: [...defaultIngredients]
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((ingredient) => ({
+        key: createLineKey(),
+        ingredientId: ingredient.ingredientId,
+        baseQuantity: ingredient.baseQuantity,
+        note: ingredient.note ?? '',
+        sortOrder: ingredient.sortOrder,
+      })),
+    ingredientOrigin: defaultIngredients.length > 0 ? 'default' : 'empty',
+  };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -239,6 +225,12 @@ const getOrderEditorErrorMessage = (requestError: unknown, orderStatus: OrderSta
   if (fallback === 'The order was changed by another request. Reload and try again.') {
     return 'Đơn hàng đã được xử lý bởi người khác, vui lòng tải lại.';
   }
+  if (fallback === 'A Member with this phone already exists. Select that Member before saving the order.') {
+    return 'Số điện thoại này đã thuộc một Member. Hãy chọn đúng Member trong danh sách gợi ý trước khi lưu đơn.';
+  }
+  if (fallback === 'Multiple Members use this phone. Select the intended Member before saving the order.') {
+    return 'Có nhiều Member dùng số điện thoại này. Hãy chọn đúng Member trong danh sách gợi ý trước khi lưu đơn.';
+  }
   return fallback;
 };
 
@@ -249,86 +241,20 @@ const toLocalInput = (iso: string) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-const OrderItemImagePreviews: React.FC<{
-  existingImages: OrderImageDto[];
-  files: File[];
-  productName: string;
-  onRemove: (index: number) => void;
-}> = ({ existingImages, files, productName: itemProductName, onRemove }) => {
-  const [previews, setPreviews] = useState<Array<{ file: File; url: string }>>([]);
-
-  useEffect(() => {
-    const nextPreviews = files.map((file) => ({ file, url: URL.createObjectURL(file) }));
-    setPreviews(nextPreviews);
-    return () => nextPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
-  }, [files]);
-
-  const gallery: ImagePreviewItem[] = [
-    ...existingImages.map((image, index) => ({
-      src: image.imageUrl,
-      alt: image.description || `Ảnh minh họa đã lưu ${index + 1} của ${itemProductName}`,
-      title: `Ảnh minh họa của ${itemProductName}`,
-      caption: image.description || undefined,
-    })),
-    ...previews.map((preview, index) => ({
-      src: preview.url,
-      alt: `Ảnh minh họa mới ${index + 1} của ${itemProductName}`,
-      title: `Ảnh minh họa của ${itemProductName}`,
-      caption: preview.file.name,
-    })),
-  ];
-
-  return (
-    <>
-      {existingImages.map((image, index) => (
-        <ImagePreview
-          key={image.id}
-          src={image.imageUrl}
-          alt={image.description || `Ảnh minh họa đã lưu ${index + 1} của ${itemProductName}`}
-          title={`Ảnh minh họa của ${itemProductName}`}
-          caption={image.description || undefined}
-          gallery={gallery}
-          buttonClassName="h-9 w-9 rounded-admin-control"
-          thumbnailClassName="h-9 w-9 rounded-admin-control border border-admin-border object-cover"
-        />
-      ))}
-      {previews.map((preview, index) => (
-        <div key={`${preview.file.name}-${preview.file.lastModified}`} className="group relative h-9 w-9 shrink-0">
-          <ImagePreview
-            src={preview.url}
-            alt={`Ảnh minh họa mới ${index + 1} của ${itemProductName}`}
-            title={`Ảnh minh họa của ${itemProductName}`}
-            caption={preview.file.name}
-            gallery={gallery}
-            loading="eager"
-            buttonClassName="h-full w-full rounded-admin-control"
-            thumbnailClassName="h-full w-full rounded-admin-control border border-admin-border object-cover"
-          />
-          <button
-            type="button"
-            onClick={() => onRemove(index)}
-            className="absolute -right-1 -top-1 inline-flex h-5 w-5 items-center justify-center rounded bg-admin-card text-admin-status-error opacity-100 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-            aria-label={`Bỏ ảnh ${preview.file.name}`}
-          >
-            <X size={11} aria-hidden="true" />
-          </button>
-        </div>
-      ))}
-    </>
-  );
-};
-
 const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const navigate = useNavigate();
   const isEdit = Boolean(orderId);
   const [channels, setChannels] = useState<ChannelDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
+  const [categories, setCategories] = useState<AttributeItem[]>([]);
   const [productTypes, setProductTypes] = useState<AttributeItem[]>([]);
   const [ingredientCatalog, setIngredientCatalog] = useState<IngredientDto[]>([]);
+  const [inventoryCatalog, setInventoryCatalog] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addressImporting, setAddressImporting] = useState(false);
   const submitLockRef = useRef(false);
+  const persistedMaterialIdsRef = useRef<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lineErrors, setLineErrors] = useState<Record<number, LineValidationError>>({});
@@ -337,10 +263,14 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
 
   const [ordererName, setOrdererName] = useState('');
   const [ordererPhone, setOrdererPhone] = useState('');
+  const [selectedMember, setSelectedMember] = useState<SelectedMember | null>(null);
+  const [createMember, setCreateMember] = useState(true);
   const [channelId, setChannelId] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [recipientIsOrderer, setRecipientIsOrderer] = useState(false);
+  const [senderName, setSenderName] = useState('');
+  const [senderPhone, setSenderPhone] = useState('');
   const [pickupAtShop, setPickupAtShop] = useState(false);
   const [provinceShipping, setProvinceShipping] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
@@ -369,8 +299,14 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [description, setDescription] = useState('');
   const [contentNote, setContentNote] = useState('');
   const [items, setItems] = useState<LineDraft[]>([emptyLine()]);
-  const [expandedLineKeys, setExpandedLineKeys] = useState<Set<string>>(() => new Set());
+  const [inventoryMaterials, setInventoryMaterials] = useState<OrderInventoryMaterialDraft[]>([]);
+  const [materialsError, setMaterialsError] = useState<string | null>(null);
+  const [expandedLineKeys, setExpandedLineKeys] = useState<Set<string>>(() => new Set(items.map((item) => item.key)));
   const [quickImportOpen, setQuickImportOpen] = useState(false);
+
+  const orderRequiredQuantityByStockUnit = useMemo(() => Object.fromEntries(
+    flattenInventoryMaterials(inventoryMaterials, items).map((material) => [material.stockUnitId, material.quantity]),
+  ), [inventoryMaterials, items]);
 
   const [showMap, setShowMap] = useState(false);
   const [geoSearching, setGeoSearching] = useState(false);
@@ -379,63 +315,59 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const geoSearchAbortRef = useRef<AbortController | null>(null);
   const skipAddressSearchRef = useRef(false);
 
-  const productOptions = useMemo<ProductSelectOption[]>(() => [
-    {
-      value: 'manual',
-      label: 'Sản phẩm ngoài danh mục',
-      searchText: 'san pham ngoai danh muc',
-      productName: 'Sản phẩm ngoài danh mục',
-      isManual: true,
-    },
-    ...products.map((product) => ({
-      value: String(product.id),
-      label: productOptionLabel(product.sku, productName(product), product.salePrice ?? product.price),
-      searchText: normalizeProductSearch(`${product.sku} ${productName(product)}`),
-      productCode: product.sku,
-      productName: productName(product),
-      price: product.salePrice ?? product.price,
-      thumbnailUrl: productImageSource(product),
-      isDisabled: !product.isActive,
-    })),
-  ], [products]);
-
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       if (!orderId) {
-        const [loadedChannels, loadedProducts, loadedProductTypes, loadedIngredients] = await Promise.all([
+        persistedMaterialIdsRef.current = {};
+        const [loadedChannels, loadedProducts, loadedCategories, loadedProductTypes, loadedIngredients, loadedInventory] = await Promise.all([
           channelsApi.list(),
           ProductApi.getAll(),
+          AttributesApi.getAll<AttributeItem>('categories'),
           AttributesApi.getAll<AttributeItem>('product-types'),
           ingredientsApi.listAll({ includeInactive: true }),
+          inventoryApi.listItems(true),
         ]);
         setChannels(loadedChannels);
         setProducts(loadedProducts);
+        setCategories(loadedCategories);
         setProductTypes(loadedProductTypes);
         setIngredientCatalog(loadedIngredients);
+        setInventoryCatalog(loadedInventory);
         const defaultChannel = loadedChannels.find((channel) => channel.code === 'admin' && channel.isActive)
           ?? loadedChannels.find((channel) => channel.isActive);
         setChannelId(defaultChannel?.id ?? '');
         return;
       }
 
-      const [loadedChannels, loadedProducts, loadedProductTypes, loadedIngredients, order] = await Promise.all([
+      const [loadedChannels, loadedProducts, loadedCategories, loadedProductTypes, loadedIngredients, loadedInventory, order] = await Promise.all([
         channelsApi.list(),
         ProductApi.getAll(),
+        AttributesApi.getAll<AttributeItem>('categories'),
         AttributesApi.getAll<AttributeItem>('product-types'),
         ingredientsApi.listAll({ includeInactive: true }),
+        inventoryApi.listItems(true),
         ordersApi.getById(orderId),
       ]);
       setChannels(loadedChannels);
       setProducts(loadedProducts);
+      setCategories(loadedCategories);
       setProductTypes(loadedProductTypes);
       setIngredientCatalog(loadedIngredients);
+      setInventoryCatalog(loadedInventory);
       setOrdererName(order.ordererName);
       setOrdererPhone(order.ordererPhone);
+      setSelectedMember(order.customerId ? {
+        id: order.customerId,
+        name: order.ordererName,
+        phone: order.ordererPhone,
+      } : null);
       setChannelId(order.channelId);
       setRecipientName(order.recipientName);
       setRecipientPhone(order.recipientPhone);
+      setSenderName(order.senderName ?? '');
+      setSenderPhone(order.senderPhone ?? '');
       setRecipientIsOrderer(
         order.ordererName.trim() === order.recipientName.trim()
         && order.ordererPhone.trim() === order.recipientPhone.trim(),
@@ -471,11 +403,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       setLoadedOrderStatus(order.orderStatus);
       setRowVersion(order.rowVersion ?? undefined);
       setExpandedLineKeys(new Set());
-      setItems(order.items.length > 0
+      const loadedLines: LineDraft[] = order.items.length > 0
         ? order.items.map((item) => ({
             key: item.id,
             id: item.id,
             productId: item.productId ?? undefined,
+            categoryId: item.categoryId ?? undefined,
             productTypeId: item.productTypeId ?? undefined,
             productSku: item.productSku ?? undefined,
             productName: item.productName,
@@ -500,7 +433,17 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
               })),
             ingredientOrigin: item.ingredientSnapshotCapturedAt ? 'order' : 'empty',
           }))
-        : [emptyLine()]);
+        : [emptyLine()];
+      setItems(loadedLines);
+      persistedMaterialIdsRef.current = Object.fromEntries(
+        (order.materials ?? []).map((material) => [material.stockUnitId, material.id]),
+      );
+      setInventoryMaterials(distributeSavedInventoryMaterials(
+        loadedLines,
+        order.materials ?? [],
+        loadedProducts,
+        loadedInventory,
+      ));
     } catch (requestError) {
       setLoadError(getOrderEditorErrorMessage(requestError, null));
     } finally {
@@ -559,9 +502,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   };
 
   const selectProduct = (index: number, value: string) => {
+    const lineKey = items[index]?.key;
+    if (!lineKey) return;
     if (value === 'manual') {
       updateLine(index, {
         productId: undefined,
+        categoryId: undefined,
         productTypeId: undefined,
         productSku: undefined,
         productName: OUTSIDE_CATALOG_PRODUCT_NAME,
@@ -570,30 +516,46 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         ingredientDrafts: [],
         ingredientOrigin: 'empty',
       });
+      setInventoryMaterials((current) => current.filter((material) => material.lineKey !== lineKey));
+      setMaterialsError(null);
       return;
     }
     const selected = products.find((product) => String(product.id) === value);
     if (!selected) return;
-    const defaultIngredients = selected.ingredients ?? [];
-    updateLine(index, {
-      productId: String(selected.id),
-      productTypeId: selected.productTypeId ?? undefined,
-      productSku: selected.sku,
-      productName: productName(selected),
-      unitPrice: selected.salePrice ?? selected.price,
-      snapshotThumbnailUrl: productImageSource(selected),
-      ingredientDrafts: [...defaultIngredients]
-        .sort((left, right) => left.sortOrder - right.sortOrder)
-        .map((ingredient) => ({
-          key: createLineKey(),
-          ingredientId: ingredient.ingredientId,
-          baseQuantity: ingredient.baseQuantity,
-          note: ingredient.note ?? '',
-          sortOrder: ingredient.sortOrder,
-        })),
-      ingredientOrigin: defaultIngredients.length > 0 ? 'default' : 'empty',
-    });
+    const nextLine = catalogLineFromProduct(items[index], selected);
+    updateLine(index, nextLine);
+    setInventoryMaterials((current) => [
+      ...current.filter((material) => material.lineKey !== lineKey),
+      ...suggestedInventoryMaterialsForLine(nextLine, products, inventoryCatalog),
+    ]);
+    setMaterialsError(null);
     setExpandedLineKeys((current) => new Set(current).add(items[index].key));
+  };
+
+  const addManualProduct = () => {
+    const line = emptyLine();
+    const nextIndex = items.length;
+    setItems((current) => [...current, line]);
+    setExpandedLineKeys((current) => new Set(current).add(line.key));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.getElementById(`order-line-category-${nextIndex}`)?.focus();
+    }));
+  };
+
+  const addCatalogProduct = (productId: string) => {
+    const selected = products.find((product) => String(product.id) === productId);
+    if (!selected) return;
+    const line = catalogLineFromProduct(emptyLine(), selected);
+    setItems((current) => [...current, line]);
+    setInventoryMaterials((current) => [
+      ...current,
+      ...suggestedInventoryMaterialsForLine(line, products, inventoryCatalog),
+    ]);
+    setMaterialsError(null);
+    setExpandedLineKeys((current) => new Set(current).add(line.key));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.getElementById(`order-line-price-${items.length}`)?.focus();
+    }));
   };
 
   const removeLine = (index: number) => {
@@ -601,6 +563,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     const removedKey = items[index]?.key;
     setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
     if (removedKey) {
+      setInventoryMaterials((current) => current.filter((material) => material.lineKey !== removedKey));
       setExpandedLineKeys((current) => {
         const next = new Set(current);
         next.delete(removedKey);
@@ -608,6 +571,35 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       });
     }
     setLineErrors({});
+  };
+
+  const applyProductMaterialDefaults = async (index: number) => {
+    const line = items[index];
+    const product = line?.productId
+      ? products.find((candidate) => String(candidate.id) === line.productId)
+      : undefined;
+    if (!line || !product) throw new Error('Product defaults are unavailable.');
+
+    const nextIngredients = [...(product.ingredients ?? [])]
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((ingredient) => ({
+        key: createLineKey(),
+        ingredientId: ingredient.ingredientId,
+        baseQuantity: ingredient.baseQuantity,
+        note: ingredient.note ?? '',
+        sortOrder: ingredient.sortOrder,
+      }));
+    const nextInventoryMaterials = suggestedInventoryMaterialsForLine(line, products, inventoryCatalog);
+
+    updateLine(index, {
+      ingredientDrafts: nextIngredients,
+      ingredientOrigin: nextIngredients.length > 0 ? 'default' : 'empty',
+    });
+    setInventoryMaterials((current) => [
+      ...current.filter((material) => material.lineKey !== line.key),
+      ...nextInventoryMaterials,
+    ]);
+    setMaterialsError(null);
   };
 
   const runGeoSearch = useCallback(async (requestedQuery?: string, automatic = false) => {
@@ -704,16 +696,14 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     const nextLineErrors: Record<number, LineValidationError> = {};
     const detailErrorKeys = new Set<string>();
     let firstField = '';
+    setMaterialsError(null);
     const requireValue = (value: string, message: string, fieldId: string) => {
       if (value.trim()) return;
       problems.push(message);
       if (!firstField) firstField = fieldId;
     };
 
-    requireValue(ordererName, 'Thiếu tên người đặt.', 'orderer-name');
     requireValue(channelId, 'Chưa chọn kênh bán.', 'order-channel');
-    requireValue(recipientName, 'Thiếu tên người nhận.', 'recipient-name');
-    requireValue(recipientPhone, 'Thiếu số điện thoại người nhận.', 'recipient-phone');
     requireValue(deliveryAt, 'Chưa chọn thời gian nhận hàng.', 'delivery-at');
     if (deliveryMode === 'range') {
       requireValue(deliveryTo, 'Chưa chọn thời gian kết thúc khoảng nhận hàng.', 'delivery-to');
@@ -748,6 +738,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         nextLineErrors[index] = {
           message: 'Số lượng phải là số nguyên từ 1 trở lên.',
           fieldId: `order-line-quantity-${index}`,
+          inDetails: false,
+        };
+      } else if (!item.productId && !item.categoryId) {
+        nextLineErrors[index] = {
+          message: 'Chọn danh mục cho sản phẩm ngoài danh mục.',
+          fieldId: `order-line-category-${index}`,
           inDetails: false,
         };
       } else if (!item.productId && !item.productTypeId) {
@@ -785,22 +781,38 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
           nextLineErrors[index] = {
             message: 'Chọn nguyên liệu và nhập số lượng lớn hơn 0.',
             fieldId: `order-line-ingredient-quantity-${index}-${invalidIngredientIndex}`,
-            inDetails: true,
+            inDetails: false,
           };
         } else if (uniqueIngredientIds.size !== item.ingredientDrafts.length) {
           nextLineErrors[index] = {
             message: 'Một nguyên liệu chỉ được xuất hiện một lần trong cùng dòng sản phẩm.',
             fieldId: `order-line-ingredient-${index}-0`,
-            inDetails: true,
+            inDetails: false,
           };
         }
       }
       const lineError = nextLineErrors[index];
       if (lineError) {
-        if (lineError.inDetails) detailErrorKeys.add(item.key);
+        detailErrorKeys.add(item.key);
         if (!firstField) firstField = lineError.fieldId;
       }
     });
+
+    const invalidMaterial = inventoryMaterials.some((material) => (
+      !material.stockUnitId
+      || !/^\d+(?:\.\d{1,6})?$/.test(material.quantity.trim())
+      || Number(material.quantity) <= 0
+    ));
+    const materialKeys = inventoryMaterials.map((material) => `${material.lineKey}:${material.stockUnitId}`);
+    const hasDuplicateMaterialInLine = new Set(materialKeys).size !== materialKeys.length;
+    if (invalidMaterial || hasDuplicateMaterialInLine) {
+      const message = invalidMaterial
+        ? 'Mỗi vật tư kho cần hàng tồn kho, size khi có và định mức lớn hơn 0.'
+        : 'Một vật tư kho và size chỉ được xuất hiện một lần trong cùng sản phẩm.';
+      setMaterialsError(message);
+      problems.push(message);
+      if (!firstField) firstField = 'order-inventory-materials';
+    }
 
     if (Object.keys(nextLineErrors).length > 0) problems.push('Kiểm tra lại các dòng sản phẩm được đánh dấu.');
     setLineErrors(nextLineErrors);
@@ -837,9 +849,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
     submitLockRef.current = true;
     setSaving(true);
     setError(null);
-    const orderItems = items.map(({ id, productId, productTypeId, productSku, productName: name, unitPrice, quantity, note, hasCard, cardMessage, hasBanner, bannerMessage, ingredientDrafts }) => ({
+    const orderItems = items.map(({ id, productId, categoryId, productTypeId, productSku, productName: name, unitPrice, quantity, note, hasCard, cardMessage, hasBanner, bannerMessage, ingredientDrafts }) => ({
       id,
       productId,
+      categoryId,
       productTypeId,
       productSku,
       productName: name.trim(),
@@ -866,9 +879,13 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       const commonPayload = {
         ordererName: ordererName.trim(),
         ordererPhone: ordererPhone.trim(),
+        customerId: selectedMember?.id ?? null,
+        createMember,
         channelId,
         recipientName: recipientName.trim(),
         recipientPhone: recipientPhone.trim(),
+        senderName: senderName.trim(),
+        senderPhone: senderPhone.trim(),
         pickupAtShop,
         provinceShipping,
         deliveryAddress: pickupAtShop || administrativeAddress.provinceCode
@@ -901,19 +918,20 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         depositAmount,
         isPaid,
         shippingFee: pickupAtShop ? 0 : shippingFee,
+        shippingFeeActual: pickupAtShop || shippingFeeActual.trim() === ''
+          ? null
+          : Number(shippingFeeActual),
         description: description || undefined,
         contentNote: contentNote.trim() || undefined,
         items: orderItems,
         imageFiles: imageUploads(),
+        materials: flattenInventoryMaterials(inventoryMaterials, items, persistedMaterialIdsRef.current),
       };
 
       if (orderId) {
         await ordersApi.update(orderId, {
           ...commonPayload,
           rowVersion,
-          shippingFeeActual: pickupAtShop || shippingFeeActual.trim() === ''
-            ? null
-            : Number(shippingFeeActual),
         });
         navigate(`/admin/orders/${orderId}`, { state: { successMessage: 'Đã cập nhật đơn hàng.' } });
       } else {
@@ -1031,9 +1049,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
               <h2 id="customer-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Khách hàng</h2>
               <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-12">
                 <div className="sm:col-span-5">
-                  <label htmlFor="recipient-name" className={labelClass}>Người nhận</label>
+                  <label htmlFor="recipient-name" className={labelClass}>Người nhận <span aria-hidden="true" className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
                   <input
                     id="recipient-name"
+                    aria-label="Người nhận"
                     className={inputClass}
                     value={recipientName}
                     onChange={(event) => {
@@ -1044,9 +1063,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                   />
                 </div>
                 <div className="sm:col-span-4">
-                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận</label>
+                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận <span aria-hidden="true" className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
                   <input
                     id="recipient-phone"
+                    aria-label="SĐT người nhận"
                     type="tel"
                     className={inputClass}
                     value={recipientPhone}
@@ -1076,12 +1096,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                   </label>
                 </div>
                 <div className="sm:col-span-4">
-                  <label htmlFor="orderer-name" className={labelClass}>Người đặt</label>
-                  <input id="orderer-name" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" disabled={recipientIsOrderer} />
+                  <label htmlFor="orderer-name" className={labelClass}>Người đặt <span aria-hidden="true" className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
+                  <input id="orderer-name" aria-label="Người đặt" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" disabled={recipientIsOrderer} />
                 </div>
                 <div className="sm:col-span-4">
                   <label htmlFor="orderer-phone" className={labelClass}>SĐT người đặt <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
-                  <input id="orderer-phone" type="tel" className={inputClass} value={ordererPhone} onChange={(event) => setOrdererPhone(event.target.value)} autoComplete="tel" disabled={recipientIsOrderer} />
+                  <input id="orderer-phone" aria-label="SĐT người đặt" type="tel" className={inputClass} value={ordererPhone} onChange={(event) => setOrdererPhone(event.target.value)} autoComplete="tel" disabled={recipientIsOrderer} />
                 </div>
                 <div className="sm:col-span-4">
                   <label htmlFor="order-channel" className={labelClass}>Kênh bán</label>
@@ -1090,268 +1110,118 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                     {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
                   </select>
                 </div>
+                <div className="sm:col-span-12">
+                  <CustomerMemberLookup
+                    name={ordererName}
+                    phone={ordererPhone}
+                    selected={selectedMember}
+                    onSelect={(customer) => {
+                      setSelectedMember(customer);
+                      setOrdererName(customer.name);
+                      setOrdererPhone(customer.phone);
+                      if (recipientIsOrderer) {
+                        setRecipientName(customer.name);
+                        setRecipientPhone(customer.phone);
+                      }
+                    }}
+                    onClear={() => setSelectedMember(null)}
+                  />
+                </div>
+                <div className="sm:col-span-12">
+                  <div className="flex items-start justify-between gap-4 rounded-admin-control border border-admin-border px-3 py-3">
+                    <div className="min-w-0">
+                      <label htmlFor="create-member" className="text-sm font-semibold text-admin-text-primary">Tạo Member</label>
+                      <p className="mt-1 text-xs leading-5 text-admin-text-muted">
+                        {selectedMember
+                          ? 'Member đã chọn luôn được liên kết; tùy chọn này không tạo thêm bản ghi.'
+                          : createMember
+                            ? 'Tạo Member mới nếu có tên hoặc số điện thoại người đặt.'
+                            : 'Chỉ lưu thông tin trên đơn, không tạo Member.'}
+                      </p>
+                    </div>
+                    <input
+                      id="create-member"
+                      type="checkbox"
+                      role="switch"
+                      checked={createMember}
+                      onChange={(event) => setCreateMember(event.target.checked)}
+                      className="mt-0.5 h-5 w-5 shrink-0 rounded border-admin-input-border text-admin-primary focus:ring-admin-primary/25"
+                    />
+                  </div>
+                </div>
               </div>
             </section>
 
-            <section className={panelClass} aria-labelledby="order-lines-title">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h2 id="order-lines-title" className="text-sm font-semibold text-admin-text-primary">Sản phẩm</h2>
-                  <p className="mt-0.5 text-xs text-admin-text-muted">Chọn từ danh mục hoặc tạo một sản phẩm ngoài danh mục.</p>
+            <OrderProductLinesEditor
+              items={items}
+              products={products}
+              categories={categories}
+              productTypes={productTypes}
+              lineErrors={lineErrors}
+              expandedLineKeys={expandedLineKeys}
+              inventoryMaterialLineKeys={new Set(inventoryMaterials.map((material) => material.lineKey))}
+              disabled={saving}
+              onAddCatalogProduct={addCatalogProduct}
+              onAddManualProduct={addManualProduct}
+              onSelectProduct={selectProduct}
+              onUpdateLine={updateLine}
+              onRemoveLine={removeLine}
+              onToggleExpanded={(lineKey) => setExpandedLineKeys((current) => {
+                const next = new Set(current);
+                if (next.has(lineKey)) next.delete(lineKey);
+                else next.add(lineKey);
+                return next;
+              })}
+            />
+            <section id="order-inventory-materials" className={panelClass} aria-labelledby="order-materials-title" tabIndex={-1}>
+              <div className="border-b border-admin-border pb-3">
+                <h2 id="order-materials-title" className="flex items-center gap-2 text-sm font-semibold text-admin-text-primary">
+                  <PackageOpen size={17} aria-hidden="true" /> Nguyên liệu &amp; vật tư
+                </h2>
+                <p className="mt-1 max-w-[70ch] text-xs leading-5 text-admin-text-secondary">
+                  Quản lý thành phần sử dụng cho từng sản phẩm trong đơn. Vật tư kho sẽ ảnh hưởng tồn kho, nguyên liệu thì không.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-admin-text-secondary" aria-label="Chú thích loại thành phần">
+                  <span className="inline-flex items-center gap-1.5"><Leaf size={14} className="text-admin-accent" aria-hidden="true" /><span>Nguyên liệu</span></span>
+                  <span className="inline-flex items-center gap-1.5"><PackageOpen size={14} className="text-admin-status-success" aria-hidden="true" /><span>Vật tư kho</span></span>
                 </div>
-                <button type="button" onClick={() => setItems((current) => [...current, emptyLine()])} className="inline-flex min-h-9 items-center gap-1.5 rounded-admin-control px-2.5 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/10">
-                  <Plus size={15} aria-hidden="true" /> Thêm
-                </button>
               </div>
 
-              <div className="space-y-2.5">
-                {items.map((item, index) => {
-                  const selectedProduct = item.productId
-                    ? products.find((product) => String(product.id) === item.productId)
-                    : undefined;
-                  const selectedProductImage = item.snapshotThumbnailUrl || (selectedProduct ? productImageSource(selectedProduct) : '');
-                  const selectedProductAlt = `${productCode(item.productSku)} - ${item.productName}`;
-                  const selectedProductGallery = productPreviewItems(
-                    selectedProduct,
-                    selectedProductImage,
-                    selectedProductAlt,
-                  );
-                  const isManual = !item.productId;
-                  const catalogPrice = selectedProduct ? selectedProduct.salePrice ?? selectedProduct.price : null;
-                  const priceDifference = catalogPrice == null ? 0 : item.unitPrice - catalogPrice;
-                  const fallbackProductOption: ProductSelectOption | null = item.productId
-                    ? {
-                        value: item.productId,
-                        label: productOptionLabel(item.productSku, item.productName, item.unitPrice),
-                        searchText: normalizeProductSearch(`${item.productSku ?? ''} ${item.productName}`),
-                        productCode: item.productSku ?? undefined,
-                        productName: item.productName,
-                        price: item.unitPrice,
-                        thumbnailUrl: item.snapshotThumbnailUrl,
-                      }
-                    : null;
-                  const hasLoadedProductOption = productOptions.some((option) => option.value === item.productId);
-                  const lineProductOptions = [
-                    ...productOptions.map((option) => (
-                      option.value === item.productId ? { ...option, isDisabled: false } : option
-                    )),
-                    ...(!hasLoadedProductOption && fallbackProductOption ? [fallbackProductOption] : []),
-                  ];
-                  const selectedProductOption = lineProductOptions.find(
-                    (option) => option.value === (item.productId ?? 'manual'),
-                  ) ?? lineProductOptions[0];
-                  const isExpanded = expandedLineKeys.has(item.key);
-                  const lineError = lineErrors[index];
-                  const detailsId = `order-line-details-${item.key}`;
-                  const errorId = `order-line-error-${index}`;
+              <div className="mt-4 overflow-hidden rounded-admin-control border border-admin-border">
+                {items.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-admin-text-muted">Chưa có sản phẩm trong đơn.</div>
+                ) : items.map((item, index) => {
+                  const lineInventoryMaterials = inventoryMaterials.filter((material) => material.lineKey === item.key);
                   return (
-                    <fieldset key={item.key} className={`min-w-0 rounded-admin-control border p-3 ${lineError ? 'border-admin-status-error/45 bg-red-50/50' : 'border-admin-border bg-admin-muted/25'}`}>
-                      <legend className="px-1 text-[11px] font-semibold text-admin-text-muted">#{index + 1}</legend>
-                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(5rem,6rem)_2.75rem_2.75rem] items-start gap-2 lg:grid-cols-[minmax(0,1.25fr)_minmax(9rem,0.75fr)_minmax(9.5rem,11rem)_minmax(5rem,6rem)_2.75rem_2.75rem] min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(7rem,8rem)_minmax(8.5rem,9.5rem)_minmax(4.5rem,5rem)_2.75rem_2.75rem]">
-                        <div className="col-span-4 min-w-0 lg:col-span-1">
-                          <label htmlFor={`order-line-product-${index}`} className={labelClass}>Sản phẩm</label>
-                          <AdminSelect<string, ProductSelectOption>
-                            inputId={`order-line-product-${index}`}
-                            aria-label={`Tìm sản phẩm cụ thể cho dòng ${index + 1}`}
-                            options={lineProductOptions}
-                            value={selectedProductOption}
-                            onChange={(option) => selectProduct(index, option?.value ?? 'manual')}
-                            placeholder="Tìm theo mã hoặc tên sản phẩm"
-                            filterOption={(option, inputValue) => (
-                              option.data.searchText.includes(normalizeProductSearch(inputValue))
-                            )}
-                            formatOptionLabel={(option, meta) => (
-                              <ProductOptionContent option={option} context={meta.context} />
-                            )}
-                            isSearchable
-                            openMenuOnFocus
-                          />
-                        </div>
-                        <div className="col-span-4 min-w-0 lg:col-span-1">
-                          <label htmlFor={`order-line-product-type-${index}`} className={labelClass}>Dòng sản phẩm</label>
-                          <select
-                            id={`order-line-product-type-${index}`}
-                            className={`${inputClass} disabled:cursor-not-allowed disabled:bg-admin-muted disabled:text-admin-text-muted`}
-                            value={item.productTypeId ?? selectedProduct?.productTypeId ?? ''}
-                            onChange={(event) => updateLine(index, { productTypeId: event.target.value ? Number(event.target.value) : undefined })}
-                            disabled={!isManual}
-                            aria-invalid={lineError?.fieldId === `order-line-product-type-${index}` || undefined}
-                            aria-describedby={lineError?.fieldId === `order-line-product-type-${index}` ? errorId : undefined}
-                          >
-                            <option value="">Chọn dòng sản phẩm</option>
-                            {productTypes
-                              .filter((type) => type.isActive || type.id === item.productTypeId || type.id === selectedProduct?.productTypeId)
-                              .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0))
-                              .map((type) => <option key={type.id} value={type.id}>{attributeName(type)}</option>)}
-                          </select>
-                        </div>
-                        <div className="min-w-0">
-                          <label htmlFor={`order-line-price-${index}`} className={labelClass}>Đơn giá</label>
-                          <div className="relative">
-                            <input
-                              id={`order-line-price-${index}`}
-                              type="text"
-                              inputMode="numeric"
-                              className={`${inputClass} pr-8 text-right tabular-nums`}
-                              value={formatVndInput(item.unitPrice)}
-                              onChange={(event) => updateLine(index, { unitPrice: parseVndInput(event.target.value) })}
-                              aria-invalid={lineError?.fieldId === `order-line-price-${index}` || undefined}
-                              aria-describedby={lineError?.fieldId === `order-line-price-${index}` ? errorId : undefined}
-                            />
-                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-admin-text-muted">₫</span>
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <label htmlFor={`order-line-quantity-${index}`} className={labelClass}>SL</label>
-                          <input
-                            id={`order-line-quantity-${index}`}
-                            type="number"
-                            min={1}
-                            step={1}
-                            className={inputClass}
-                            value={item.quantity}
-                            onChange={(event) => updateLine(index, { quantity: Number(event.target.value) })}
-                            aria-invalid={lineError?.fieldId === `order-line-quantity-${index}` || undefined}
-                            aria-describedby={lineError?.fieldId === `order-line-quantity-${index}` ? errorId : undefined}
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <span className={`${labelClass} invisible`} aria-hidden="true">Chi tiết</span>
-                          <button
-                            type="button"
-                            onClick={() => setExpandedLineKeys((current) => {
-                              const next = new Set(current);
-                              if (next.has(item.key)) next.delete(item.key);
-                              else next.add(item.key);
-                              return next;
-                            })}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control border border-admin-border bg-admin-card text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary/30"
-                            aria-label={`${isExpanded ? 'Thu gọn' : 'Mở'} chi tiết sản phẩm ${index + 1}`}
-                            aria-expanded={isExpanded}
-                            aria-controls={detailsId}
-                          >
-                            {isExpanded ? <ChevronUp size={17} aria-hidden="true" /> : <ChevronDown size={17} aria-hidden="true" />}
-                          </button>
-                        </div>
-                        <div className="min-w-0">
-                          <span className={`${labelClass} invisible`} aria-hidden="true">Xóa</span>
-                          <button type="button" onClick={() => removeLine(index)} disabled={items.length <= 1} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-status-error transition-colors hover:bg-admin-status-error/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-status-error/30 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Xóa sản phẩm ${index + 1}`}>
-                            <Trash2 size={16} aria-hidden="true" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {isExpanded ? (
-                        <div id={detailsId} className="mt-3 border-t border-admin-border pt-3">
-                          {!isManual ? (
-                            <div className="flex min-w-0 items-center gap-2.5 text-xs text-admin-text-secondary">
-                              <ImagePreview
-                                src={selectedProductImage}
-                                alt={selectedProductAlt}
-                                title={selectedProductAlt}
-                                previewTitle={selectedProductAlt}
-                                gallery={selectedProductGallery}
-                                buttonClassName="h-11 w-11 rounded-admin-control"
-                                thumbnailClassName="h-11 w-11 rounded-admin-control border border-admin-border object-cover"
-                              />
-                              <div className="min-w-0">
-                                <p className="font-mono text-xs font-semibold text-admin-text-primary">SKU: {productCode(item.productSku)}</p>
-                                <p className="mt-0.5 text-admin-text-muted">
-                                  {selectedProduct
-                                    ? selectedProduct.tracksInventory
-                                      ? `Tồn kho: ${selectedProduct.stock}`
-                                      : 'Làm theo đơn, không trừ tồn kho'
-                                    : 'Tồn kho: chưa có dữ liệu'}
-                                </p>
-                                {priceDifference !== 0 ? (
-                                  <p className={`mt-0.5 font-medium ${priceDifference < 0 ? 'text-admin-status-warning' : 'text-admin-status-success'}`}>
-                                    {priceDifference < 0 ? 'Giảm size' : 'Tăng size'} {priceDifference > 0 ? '+' : ''}{formatOrderCurrency(priceDifference)} so với giá danh mục
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          <div className={`${isManual ? '' : 'mt-3'} grid min-w-0 gap-3 lg:grid-cols-2 min-[1400px]:grid-cols-1 2xl:grid-cols-2`}>
-                            <div className="min-w-0">
-                              <label htmlFor={`order-line-note-${index}`} className={labelClass}>Ghi chú riêng cho sản phẩm</label>
-                              <input id={`order-line-note-${index}`} className={inputClass} value={item.note ?? ''} onChange={(event) => updateLine(index, { note: event.target.value })} placeholder="Màu hoa, kích thước và yêu cầu riêng" />
-                            </div>
-                            <div className="min-w-0">
-                              <span className={labelClass}>Ảnh minh họa <span className="text-admin-text-muted">(không bắt buộc)</span></span>
-                              <div className="flex min-h-11 min-w-0 flex-wrap items-center gap-1.5 rounded-admin-control border border-dashed border-admin-border px-1.5 py-1">
-                                <OrderItemImagePreviews
-                                  existingImages={item.existingImages}
-                                  files={item.imageFiles}
-                                  productName={item.productName || `sản phẩm ${index + 1}`}
-                                  onRemove={(fileIndex) => updateLine(index, { imageFiles: item.imageFiles.filter((_, currentIndex) => currentIndex !== fileIndex) })}
-                                />
-                                <label htmlFor={`order-line-images-${index}`} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-admin-control border border-admin-primary/35 px-2.5 text-xs font-semibold text-admin-primary transition-colors hover:bg-admin-primary/8">
-                                  <ImagePlus size={15} aria-hidden="true" /> Thêm ảnh
-                                </label>
-                                <input
-                                  id={`order-line-images-${index}`}
-                                  type="file"
-                                  accept="image/jpeg,image/png,image/webp,image/gif"
-                                  multiple
-                                  className="sr-only"
-                                  onChange={(event) => {
-                                    const nextFiles = Array.from(event.target.files ?? []);
-                                    updateLine(index, { imageFiles: [...item.imageFiles, ...nextFiles] });
-                                    event.target.value = '';
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <OrderLineIngredientsEditor
-                            lineIndex={index}
-                            productQuantity={item.quantity}
-                            ingredients={item.ingredientDrafts}
-                            catalog={ingredientCatalog}
-                            origin={item.ingredientOrigin}
-                            onChange={(ingredientDrafts) => updateLine(index, {
-                              ingredientDrafts,
-                              ingredientOrigin: ingredientDrafts.length > 0 ? 'custom' : 'empty',
-                            })}
-                          />
-
-                          <div className="mt-3 border-t border-admin-border pt-3">
-                            <p className="mb-2 text-xs font-semibold text-admin-text-secondary">Thiệp & banner</p>
-                            <div className="grid gap-3 sm:grid-cols-2 min-[1400px]:grid-cols-1 2xl:grid-cols-2">
-                              {([
-                                ['hasCard', 'cardMessage', 'Ghi thiệp', 'Nội dung thiệp', `order-line-card-message-${index}`],
-                                ['hasBanner', 'bannerMessage', 'In banner', 'Nội dung banner', `order-line-banner-message-${index}`],
-                              ] as const).map(([toggleKey, messageKey, toggleLabel, messageLabel, messageId]) => (
-                                <div key={toggleKey}>
-                                  <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-xs font-semibold text-admin-text-primary">
-                                    <input type="checkbox" checked={item[toggleKey]} onChange={(event) => updateLine(index, { [toggleKey]: event.target.checked, ...(!event.target.checked ? { [messageKey]: null } : {}) })} className="h-4 w-4 accent-admin-primary" />
-                                    {toggleLabel}
-                                  </label>
-                                  {item[toggleKey] ? (
-                                    <textarea
-                                      id={messageId}
-                                      aria-label={messageLabel}
-                                      className={`${inputClass} mt-1 min-h-16 resize-y`}
-                                      value={item[messageKey] ?? ''}
-                                      onChange={(event) => updateLine(index, { [messageKey]: event.target.value })}
-                                      placeholder={messageLabel}
-                                      aria-invalid={lineError?.fieldId === messageId || undefined}
-                                      aria-describedby={lineError?.fieldId === messageId ? errorId : undefined}
-                                    />
-                                  ) : null}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-                      {lineError ? <p id={errorId} className="mt-2 text-xs font-medium text-admin-status-error" role="alert">{lineError.message}</p> : null}
-                    </fieldset>
+                    <OrderLineIngredientsEditor
+                      key={item.key}
+                      lineIndex={index}
+                      productName={item.productName || 'Sản phẩm chưa chọn'}
+                      productQuantity={item.quantity}
+                      ingredients={item.ingredientDrafts}
+                      ingredientCatalog={ingredientCatalog}
+                      inventoryMaterials={lineInventoryMaterials}
+                      inventoryCatalog={inventoryCatalog}
+                      orderRequiredQuantityByStockUnit={orderRequiredQuantityByStockUnit}
+                      disabled={saving}
+                      canApplyDefaults={Boolean(item.productId && products.some((product) => String(product.id) === item.productId))}
+                      onIngredientsChange={(ingredientDrafts) => updateLine(index, {
+                        ingredientDrafts,
+                        ingredientOrigin: ingredientDrafts.length > 0 ? 'custom' : 'empty',
+                      })}
+                      onInventoryMaterialsChange={(next) => {
+                        setInventoryMaterials((current) => [
+                          ...current.filter((material) => material.lineKey !== item.key),
+                          ...next.map((material) => ({ ...material, lineKey: item.key })),
+                        ]);
+                        setMaterialsError(null);
+                      }}
+                      onApplyDefaults={() => applyProductMaterialDefaults(index)}
+                    />
                   );
                 })}
               </div>
+              {materialsError ? <p className="mt-3 text-xs font-medium text-admin-status-error" role="alert">{materialsError}</p> : null}
             </section>
 
             <section className={panelClass} aria-labelledby="order-note-section-title">
@@ -1404,15 +1274,13 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
                     </div>
                   </div>
-                  {isEdit ? (
-                    <div>
-                      <label htmlFor="shipping-fee-actual" className={labelClass}>Phí giao thực tế</label>
-                      <div className="relative">
-                        <input id="shipping-fee-actual" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFeeActual)} onChange={(event) => setShippingFeeActual(event.target.value.replace(/\D/g, ''))} placeholder="Chưa có" />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
-                      </div>
+                  <div>
+                    <label htmlFor="shipping-fee-actual" className={labelClass}>Phí giao thực tế</label>
+                    <div className="relative">
+                      <input id="shipping-fee-actual" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} disabled={pickupAtShop} value={formatVndInput(shippingFeeActual)} onChange={(event) => setShippingFeeActual(event.target.value.replace(/\D/g, ''))} placeholder="Chưa có" />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
                     </div>
-                  ) : null}
+                  </div>
                 </div>
               </section>
 

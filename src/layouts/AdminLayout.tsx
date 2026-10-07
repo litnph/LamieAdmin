@@ -1,24 +1,49 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import { PanelLeft } from 'lucide-react';
-import { Sidebar } from '@/shared/components/Sidebar';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import { PrimaryColorPicker } from '@/shared/components/PrimaryColorPicker';
-import { useAuth } from '@/features/auth/context/AuthContext';
+import { Sidebar, findActiveNavigationLabel } from '@/shared/components/Sidebar';
+import { useNavigation } from '@/features/navigation/context/NavigationContext';
 
 const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)';
+const SIDEBAR_STORAGE_KEY = 'lamie_admin_sidebar_collapsed';
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 const getIsDesktop = () =>
   typeof window === 'undefined' ? true : window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
 
+const getInitialDesktopCollapsed = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored !== null) return stored === 'true';
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts.
+  }
+  return window.innerWidth >= 1024 && window.innerWidth < 1200;
+};
+
 export const AdminLayout: React.FC = () => {
   const [isDesktop, setIsDesktop] = useState(getIsDesktop);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(getInitialDesktopCollapsed);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarCloseButtonRef = useRef<HTMLButtonElement>(null);
-  const { user } = useAuth();
+  const sidebarContainerRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const { items, routes } = useNavigation();
 
-  const sidebarVisible = isDesktop ? !desktopSidebarCollapsed : mobileSidebarOpen;
+  const currentPageLabel = useMemo(
+    () => findActiveNavigationLabel(items, location.pathname, routes),
+    [items, location.pathname, routes],
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
@@ -33,19 +58,45 @@ export const AdminLayout: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(desktopSidebarCollapsed));
+    } catch {
+      // The preference is optional; the sidebar remains fully usable without storage.
+    }
+  }, [desktopSidebarCollapsed]);
+
+  useEffect(() => {
     if (isDesktop || !mobileSidebarOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-
-    const focusTimer = window.requestAnimationFrame(() => {
-      sidebarCloseButtonRef.current?.focus();
-    });
+    const focusTimer = window.requestAnimationFrame(() => sidebarCloseButtonRef.current?.focus());
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setMobileSidebarOpen(false);
-      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMobileSidebarOpen(false);
+        window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = [...(sidebarContainerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [])]
+        .filter((element) => !element.hasAttribute('inert') && element.getClientRects().length > 0);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        sidebarCloseButtonRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -58,9 +109,7 @@ export const AdminLayout: React.FC = () => {
 
   const closeMobileSidebar = (restoreFocus = false) => {
     setMobileSidebarOpen(false);
-    if (restoreFocus) {
-      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
-    }
+    if (restoreFocus) window.requestAnimationFrame(() => menuButtonRef.current?.focus());
   };
 
   const handleSidebarNavigation = () => {
@@ -68,30 +117,6 @@ export const AdminLayout: React.FC = () => {
     setMobileSidebarOpen(false);
     window.requestAnimationFrame(() => document.getElementById('admin-main-content')?.focus());
   };
-
-  const toggleSidebar = () => {
-    if (isDesktop) {
-      setDesktopSidebarCollapsed((current) => !current);
-      return;
-    }
-    setMobileSidebarOpen((current) => !current);
-  };
-
-  const menuButtonLabel = isDesktop
-    ? desktopSidebarCollapsed
-      ? 'Mở menu điều hướng'
-      : 'Thu gọn menu điều hướng'
-    : mobileSidebarOpen
-      ? 'Đóng menu điều hướng'
-      : 'Mở menu điều hướng';
-
-  const initials = (user?.fullName ?? 'LM')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <div className="relative flex h-[100dvh] min-h-[100dvh] w-full max-w-full overflow-hidden bg-admin-bg font-sans text-admin-text-primary">
@@ -105,28 +130,30 @@ export const AdminLayout: React.FC = () => {
       </a>
 
       {!isDesktop && mobileSidebarOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-admin-overlay bg-slate-950/35 lg:hidden"
+        <div
+          className="fixed inset-0 z-admin-overlay bg-admin-text-primary/40 lg:hidden"
           onClick={() => closeMobileSidebar(true)}
-          aria-label="Đóng menu điều hướng"
-          tabIndex={-1}
+          aria-hidden="true"
         />
       ) : null}
 
       <div
+        ref={sidebarContainerRef}
         className={[
           'fixed inset-y-0 left-0 z-admin-sidebar w-admin-sidebar max-w-[calc(100vw-2rem)] transform-gpu transition-transform duration-200 ease-out',
           'lg:static lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:transition-[width] lg:duration-200',
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          desktopSidebarCollapsed ? 'lg:w-0 lg:overflow-hidden' : 'lg:w-admin-sidebar',
         ].join(' ')}
-        aria-hidden={!sidebarVisible}
-        inert={!sidebarVisible}
+        style={isDesktop ? { width: desktopSidebarCollapsed ? '4.75rem' : '16rem' } : undefined}
+        aria-hidden={!isDesktop && !mobileSidebarOpen}
+        inert={!isDesktop && !mobileSidebarOpen}
       >
         <Sidebar
+          collapsed={isDesktop && desktopSidebarCollapsed}
+          isDesktop={isDesktop}
           closeButtonRef={sidebarCloseButtonRef}
           onClose={() => closeMobileSidebar(true)}
+          onToggleCollapsed={() => setDesktopSidebarCollapsed((current) => !current)}
           onNavigate={handleSidebarNavigation}
         />
       </div>
@@ -136,44 +163,22 @@ export const AdminLayout: React.FC = () => {
         aria-hidden={!isDesktop && mobileSidebarOpen}
         inert={!isDesktop && mobileSidebarOpen}
       >
-        <header className="relative z-admin-header flex h-admin-header shrink-0 items-center justify-between gap-2 border-b border-admin-border bg-admin-card/95 px-3 shadow-admin-panel sm:gap-4 sm:px-5 lg:px-6">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <header className="relative z-admin-header flex h-admin-header shrink-0 items-center justify-between gap-3 border-b border-admin-border bg-admin-card/95 px-3 shadow-admin-panel sm:px-5 lg:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
               ref={menuButtonRef}
               type="button"
-              onClick={toggleSidebar}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-text-primary"
+              onClick={() => setMobileSidebarOpen(true)}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary/45 lg:hidden"
               aria-controls="admin-sidebar"
-              aria-expanded={sidebarVisible}
-              aria-label={menuButtonLabel}
-              title={menuButtonLabel}
+              aria-expanded={mobileSidebarOpen}
+              aria-label="Mở menu điều hướng"
             >
-              <PanelLeft size={20} strokeWidth={1.8} aria-hidden="true" />
+              <Menu size={20} strokeWidth={1.8} aria-hidden="true" />
             </button>
-            <div className="hidden min-w-0 sm:block">
-              <p className="truncate text-sm font-semibold leading-tight text-admin-text-primary">Lamie Admin</p>
-              <p className="truncate text-[11px] text-admin-text-muted">Cửa hàng hoa</p>
-            </div>
+            <p className="truncate text-sm font-semibold text-admin-text-primary" aria-live="polite">{currentPageLabel}</p>
           </div>
-
-          <div className="flex items-center justify-end gap-1 sm:gap-2">
-            <PrimaryColorPicker />
-            <div className="flex min-w-0 items-center gap-3 border-l border-admin-border pl-2 sm:pl-3" title={user?.email}>
-              <div className="hidden min-w-0 text-right xl:block">
-                <p className="max-w-40 truncate text-sm font-medium leading-tight text-admin-text-primary">
-                  {user?.fullName ?? 'Tài khoản'}
-                </p>
-                <p className="mt-0.5 max-w-40 truncate text-[11px] text-admin-text-muted">{user?.email ?? ''}</p>
-              </div>
-              <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-admin-control bg-admin-primary/10 text-xs font-bold text-admin-primary"
-                aria-label={user?.fullName ? `Tài khoản ${user.fullName}` : 'Tài khoản'}
-                role="img"
-              >
-                {initials}
-              </div>
-            </div>
-          </div>
+          <PrimaryColorPicker />
         </header>
 
         <main

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-14T00:00:00+07:00",
+  "title": "Design System: Lamie Admin",
+  "extensions": {
+    "colorMeta": {
+      "botanical-primary": { "role": "primary", "displayName": "Botanical Primary", "canonical": "#6B7B8B" },
+      "warm-canvas": { "role": "neutral", "displayName": "Warm Canvas", "canonical": "#F7F6F3" },
+      "warm-sidebar": { "role": "neutral", "displayName": "Warm Sidebar", "canonical": "#F1EFEB" },
+      "paper-surface": { "role": "neutral", "displayName": "Paper Surface", "canonical": "#FFFFFF" },
+      "ink-primary": { "role": "neutral", "displayName": "Warm Ink", "canonical": "#292623" }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Page and section titles." },
+      "body": { "displayName": "Body", "purpose": "Dense operational UI and supporting copy." },
+      "label": { "displayName": "Label", "purpose": "Navigation groups, controls and metadata." }
+    },
+    "shadows": [
+      { "name": "panel", "value": "0 1px 2px rgb(58 48 40 / 0.04)", "purpose": "Quiet separation for content panels." },
+      { "name": "popover", "value": "0 12px 36px rgb(58 48 40 / 0.10)", "purpose": "Floating account menus and popovers." }
+    ],
+    "motion": [
+      { "name": "state", "value": "150ms ease-out", "purpose": "Hover, active and disclosure state changes." },
+      { "name": "shell", "value": "200ms ease-out", "purpose": "Sidebar rail and mobile drawer transitions." }
+    ],
+    "breakpoints": [
+      { "name": "xs", "value": "360px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "wide", "value": "1440px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Sidebar navigation item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Compact warm-neutral navigation with tint-based active state.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\" aria-current=\"page\">Đơn hàng</a>",
+      "css": ".ds-nav-item { display:flex; align-items:center; min-height:44px; padding:0 12px; border-radius:8px; color:#625d57; text-decoration:none; font:600 14px/1.4 'Segoe UI',sans-serif; transition:background-color 150ms ease-out,color 150ms ease-out; } .ds-nav-item:hover { background:#e8e4df; color:#292623; } .ds-nav-item[aria-current='page'] { background:rgb(var(--admin-primary-rgb) / .10); color:rgb(var(--admin-primary-rgb)); } .ds-nav-item:focus-visible { outline:2px solid rgb(var(--admin-primary-rgb) / .72); outline-offset:2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Bàn điều phối cửa hàng hoa",
+    "overview": "Một workspace vận hành ấm, gọn và đáng tin cậy, nơi nhận diện Lamie nằm trong chi tiết tinh tế còn nhiệm vụ hằng ngày luôn dẫn đầu.",
+    "keyCharacteristics": ["Warm neutral surfaces", "One restrained accent", "Dense but calm operations UI", "Clear state and keyboard support"],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Primary dành cho hành động chính, focus và current selection.", "section": "colors" },
+      { "name": "The Flat-by-Default Rule", "body": "Tonal layering và border là cách phân lớp chính.", "section": "elevation" }
+    ],
+    "dos": ["Nhóm điều hướng theo luồng nghiệp vụ.", "Duy trì vùng bấm 40–44px và focus-visible."],
+    "donts": ["Không lặp thông tin cửa hàng/tài khoản giữa sidebar và header.", "Không dùng gradient, glow hoặc nested cards."]
+  }
+}

@@ -101,15 +101,15 @@ test('Sidebar renders the API tree recursively, resolves icons from source and s
 
   await expect(page.getByRole('link', { name: 'Đơn hàng từ API' })).toBeVisible();
   const managementDropdown = page.getByRole('button', { name: 'Quản lý động' });
-  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'false');
+  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'true');
   const productLink = page.getByRole('link', { name: 'Sản phẩm động' });
+  await expect(productLink).toBeVisible();
+  await managementDropdown.click();
+  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'false');
   await expect(productLink).toBeHidden();
   await managementDropdown.click();
-  await expect(managementDropdown).toHaveAttribute('aria-expanded', 'true');
   await expect(productLink).toBeVisible();
   await expect(productLink.locator('svg')).toHaveCount(1);
-  await managementDropdown.click();
-  await expect(productLink).toBeHidden();
   await expect(page.getByRole('link', { name: 'Lịch giao từ API' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Đơn hàng từ API' })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Vai trò & quyền' })).toHaveCount(0);

@@ -132,11 +132,15 @@ test('legacy preparation URL keeps its granular permission and activates the vis
   await expect(page.getByRole('tab', { name: /Việc nhập hàng/ })).toHaveCount(0);
 });
 
-test('Cài đặt danh mục only exposes sections allowed by each original permission', async ({ page }) => {
+test('Cấu hình cửa hàng only exposes sections allowed by each original permission', async ({ page }) => {
   const routes = [
     {
       id: 'catalog-route', key: 'catalog-settings.home', moduleKey: 'catalog-settings', pageKey: 'catalog-settings.home',
       path: '/admin/settings/catalog', permissionCode: 'catalog-settings.view', sortOrder: 10, activeMenuKey: 'catalog-settings.home',
+    },
+    {
+      id: 'attributes-categories', key: 'settings.attributes', moduleKey: 'settings-attributes', pageKey: 'settings.attributes',
+      path: '/admin/settings/attributes/categories', permissionCode: 'settings.view', sortOrder: 15, activeMenuKey: 'catalog-settings.home',
     },
     {
       id: 'attributes-route', key: 'settings.attributes.route', moduleKey: 'settings-attributes', pageKey: 'settings.attributes',
@@ -149,15 +153,54 @@ test('Cài đặt danh mục only exposes sections allowed by each original perm
     routes,
     (route, path) => {
       if (path !== '/api/settings/attributes/categories') return false;
-      return json(route, []).then(() => true);
+      return json(route, [{
+        id: 1001,
+        sortOrder: 10,
+        isActive: true,
+        translations: [
+          { languageCode: 'en-US', name: 'Bouquets', description: null },
+          { languageCode: 'vi-VN', name: 'Hoa bó đúng', description: null },
+        ],
+      }]).then(() => true);
     },
   );
 
   await page.goto('/admin/settings/catalog');
   await expect(page).toHaveURL(/\/admin\/settings\/attributes\/categories$/);
-  await expect(page.getByRole('heading', { name: 'Cài đặt danh mục', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cấu hình cửa hàng', level: 1 })).toBeVisible();
   await expect(page.getByRole('link', { name: /Danh mục nguyên liệu/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Danh mục hàng tồn kho/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Kênh bán/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Màu sắc/ })).toBeVisible();
+  await expect(page.getByRole('table').getByText('Hoa bó đúng', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table')).toContainText('Tiếng Anh: Bouquets');
+});
+
+test('Danh mục chi phí appears inside Cấu hình cửa hàng for expense viewers', async ({ page }) => {
+  const routes = [
+    {
+      id: 'catalog-route', key: 'catalog-settings.home', moduleKey: 'catalog-settings', pageKey: 'catalog-settings.home',
+      path: '/admin/settings/catalog', permissionCode: 'catalog-settings.view', sortOrder: 10, activeMenuKey: 'catalog-settings.home',
+    },
+    {
+      id: 'expense-categories-route', key: 'expenses.categories', moduleKey: 'expenses', pageKey: 'expenses.categories',
+      path: '/admin/settings/expense-categories', permissionCode: 'expenses.view', sortOrder: 140, activeMenuKey: 'catalog-settings.home',
+    },
+  ];
+  await installSession(
+    page,
+    ['catalog-settings.view', 'expenses.view'],
+    routes,
+    (route, path) => {
+      if (path !== '/api/expense-categories') return false;
+      return json(route, []).then(() => true);
+    },
+  );
+
+  await page.goto('/admin/settings/catalog');
+  await expect(page).toHaveURL(/\/admin\/settings\/expense-categories$/);
+  await expect(page.getByRole('heading', { name: 'Cấu hình cửa hàng', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tài chính', level: 2 })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Danh mục chi phí' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Danh mục chi phí', level: 2 })).toBeVisible();
 });

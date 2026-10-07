@@ -25,6 +25,12 @@ export type FinancialReportExpenseCategory = {
   expenseCount: number;
 };
 
+export type ProductRevenueBreakdown = {
+  id: number | null;
+  name: string;
+  revenue: number;
+};
+
 export type FinancialReport = {
   period: FinancialReportPeriod;
   generatedAt: string;
@@ -39,6 +45,8 @@ export type FinancialReport = {
   expenseCount: number;
   points: FinancialReportPoint[];
   expensesByCategory: FinancialReportExpenseCategory[];
+  revenueByProductLine?: ProductRevenueBreakdown[];
+  revenueByCategory?: ProductRevenueBreakdown[];
   revenueBasis: string;
   profitBasis: string;
 };

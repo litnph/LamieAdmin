@@ -64,13 +64,13 @@ export const manifest = defineAdminModuleManifest({
   ],
   defaultNavigation: [
     {
-      key: 'group.operations', label: 'VẬN HÀNH', iconKey: 'folder', sortOrder: 30,
+      key: 'group.operations', label: 'Vận hành', sortOrder: 30,
       isVisible: true, isEnabled: true, isSystem: true,
     },
     {
       key: 'tasks.workspace', parentKey: 'group.operations', moduleKey: 'ingredients', pageKey: 'ingredients.tasks',
       label: 'Việc cần làm', defaultPath: '/admin/tasks', iconKey: 'list-checks', permissionCode: 'tasks.view',
-      sortOrder: 10, isVisible: true, isEnabled: true, isSystem: true,
+      sortOrder: 20, isVisible: true, isEnabled: true, isSystem: true,
     },
     {
       key: 'ingredients.list', parentKey: 'catalog-settings.home', moduleKey: 'ingredients', pageKey: 'ingredients.list',
@@ -83,7 +83,7 @@ export const manifest = defineAdminModuleManifest({
       sortOrder: 30, isVisible: false, isEnabled: true, isSystem: true,
     },
     {
-      key: 'ingredients.inventory', parentKey: 'group.operations', moduleKey: 'ingredients', pageKey: 'ingredients.inventory',
+      key: 'ingredients.inventory', parentKey: 'group.goods', moduleKey: 'ingredients', pageKey: 'ingredients.inventory',
       label: 'Kho hàng', defaultPath: '/admin/ingredients/inventory', iconKey: 'package-open', permissionCode: 'inventory.view',
       sortOrder: 20, isVisible: true, isEnabled: true, isSystem: true,
     },

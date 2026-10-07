@@ -6,6 +6,7 @@ export const Permission = {
   OrdersView: 'orders.view',
   OrdersManage: 'orders.manage',
   OrdersCancel: 'orders.cancel',
+  OrdersReverseStatus: 'orders.reverse-status',
   CustomersView: 'customers.view',
   CustomersManage: 'customers.manage',
   ChannelsView: 'channels.view',

@@ -24,6 +24,19 @@ export interface ProductIngredientDto {
   sortOrder: number;
 }
 
+export interface ProductInventoryMaterialDto {
+  id: string;
+  stockUnitId: string;
+  quantity: number;
+  sortOrder: number;
+}
+
+export enum ProductWatermarkSource {
+  Sku = 1,
+  ShopLogo = 2,
+  UploadedImage = 3,
+}
+
 export interface FeDataExportResult {
   generatedAt: string;
   productCount: number;
@@ -34,8 +47,20 @@ export interface FeDataExportResult {
 
 export interface ProductCatalogSettings {
   priceDeviationPercent: number;
+  shopLogoUrl: string | null;
+  watermarkEnabled: boolean;
+  watermarkSource: ProductWatermarkSource;
+  watermarkImageUrl: string | null;
   updatedAt: string | null;
 }
+
+export type UpdateProductCatalogSettings = {
+  priceDeviationPercent: number;
+  shopLogoFile?: File | null;
+  watermarkEnabled: boolean;
+  watermarkSource: ProductWatermarkSource;
+  watermarkImageFile?: File | null;
+};
 
 export interface ProductRecognitionResult {
   productId: number;
@@ -118,6 +143,7 @@ export interface ProductDto {
   occasionIds: number[];
   similarProductIds: number[];
   ingredients: ProductIngredientDto[];
+  inventoryMaterials: ProductInventoryMaterialDto[];
 }
 
 export const ProductApi = {
@@ -168,10 +194,25 @@ export const ProductApi = {
     return data;
   },
 
-  updateCatalogSettings: async (priceDeviationPercent: number): Promise<ProductCatalogSettings> => {
+  updateCatalogPriceSettings: async (priceDeviationPercent: number): Promise<ProductCatalogSettings> => {
     const { data } = await apiClient.put<ProductCatalogSettings>(
       '/api/settings/products/catalog/settings',
       { priceDeviationPercent },
+    );
+    return data;
+  },
+
+  updateBrandingSettings: async (settings: UpdateProductCatalogSettings): Promise<ProductCatalogSettings> => {
+    const formData = new FormData();
+    formData.append('priceDeviationPercent', String(settings.priceDeviationPercent));
+    formData.append('watermarkEnabled', String(settings.watermarkEnabled));
+    formData.append('watermarkSource', String(settings.watermarkSource));
+    if (settings.shopLogoFile) formData.append('shopLogoFile', settings.shopLogoFile);
+    if (settings.watermarkImageFile) formData.append('watermarkImageFile', settings.watermarkImageFile);
+    const { data } = await apiClient.put<ProductCatalogSettings>(
+      '/api/settings/products/catalog/settings',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
     );
     return data;
   },

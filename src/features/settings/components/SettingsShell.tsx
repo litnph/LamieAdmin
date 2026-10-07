@@ -6,10 +6,13 @@ import {
   Flower2,
   FolderTree,
   Gift,
+  Image,
   Languages,
   Layers3,
   Palette,
+  Percent,
   Radio,
+  ReceiptText,
   Ruler,
   Tags,
   WandSparkles,
@@ -32,6 +35,25 @@ type SettingsNavigationGroup = {
 };
 
 const SETTINGS_NAVIGATION: SettingsNavigationGroup[] = [
+  {
+    label: 'Cửa hàng & sản phẩm',
+    items: [
+      {
+        label: 'Logo & watermark',
+        description: 'Nhận diện shop và đóng dấu ảnh sản phẩm',
+        to: '/admin/settings/catalog/branding',
+        icon: Image,
+        permission: 'products.manage',
+      },
+      {
+        label: 'Gợi ý theo giá',
+        description: 'Khoảng giá cho sản phẩm tương đương',
+        to: '/admin/settings/catalog/product-pricing',
+        icon: Percent,
+        permission: 'products.manage',
+      },
+    ],
+  },
   {
     label: 'Danh mục vận hành',
     items: [
@@ -67,6 +89,18 @@ const SETTINGS_NAVIGATION: SettingsNavigationGroup[] = [
         to: '/admin/settings/channels',
         icon: Radio,
         permission: 'channels.view',
+      },
+    ],
+  },
+  {
+    label: 'Tài chính',
+    items: [
+      {
+        label: 'Danh mục chi phí',
+        description: 'Nhóm phân loại cho các khoản chi',
+        to: '/admin/settings/expense-categories',
+        icon: ReceiptText,
+        permission: 'expenses.view',
       },
     ],
   },
@@ -107,8 +141,8 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
   return (
     <div className="min-w-0">
       <PageHeader
-        title="Cài đặt danh mục"
-        description="Quản lý nguyên liệu, hàng tồn kho, thuộc tính, đơn vị tính và kênh bán trong một không gian thống nhất."
+        title="Cấu hình cửa hàng"
+        description="Quản lý nhận diện shop, sản phẩm, nguyên liệu, hàng tồn kho, chi phí, thuộc tính và kênh bán trong một không gian thống nhất."
       />
 
       <div className="mb-5 lg:hidden">
@@ -154,6 +188,7 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        end
                         className={({ isActive }) =>
                           [
                             'group flex min-h-11 items-center gap-2.5 rounded-admin-control px-2.5 py-2 text-sm transition-colors',

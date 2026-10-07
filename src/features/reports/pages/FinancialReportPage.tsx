@@ -21,6 +21,7 @@ import {
 } from '@/features/expenses/utils/expenseFormatters';
 import { reportsApi } from '../api/reportsApi';
 import { FinancialReportChart } from '../components/FinancialReportChart';
+import { ProductRevenueBreakdown } from '../components/ProductRevenueBreakdown';
 import type {
   FinancialReport,
   FinancialReportParams,
@@ -319,6 +320,19 @@ export const FinancialReportPage: React.FC = () => {
             <FinancialReportChart
               points={report.points}
               includeShippingFeeInRevenue={report.includeShippingFeeInRevenue}
+            />
+          </div>
+
+          <div className="mb-6 grid gap-5 xl:grid-cols-2">
+            <ProductRevenueBreakdown
+              title="Doanh thu theo dòng sản phẩm"
+              description="Tổng tiền sản phẩm sau giảm giá của các đơn đủ điều kiện ghi nhận doanh thu."
+              items={report.revenueByProductLine ?? []}
+            />
+            <ProductRevenueBreakdown
+              title="Doanh thu theo danh mục"
+              description="Phân bổ theo danh mục được lưu cùng sản phẩm hoặc ảnh chụp tại thời điểm tạo đơn."
+              items={report.revenueByCategory ?? []}
             />
           </div>
 

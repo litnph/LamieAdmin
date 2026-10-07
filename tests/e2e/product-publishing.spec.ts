@@ -7,7 +7,7 @@ const user = {
   fullName: 'Product Manager',
   role: 3,
   roleCode: 'catalog-editor',
-  permissions: ['products.view', 'products.manage', 'ingredients.view'],
+  permissions: ['products.view', 'products.manage', 'ingredients.view', 'catalog-settings.view'],
   isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
 };
@@ -18,6 +18,8 @@ const routes = [
   { id: 'route-product-edit', key: 'products.edit', moduleKey: 'products', pageKey: 'products.edit', path: '/admin/products/:id/edit', permissionCode: 'products.manage', sortOrder: 3 },
   { id: 'route-product-recognition', key: 'products.recognition', moduleKey: 'products', pageKey: 'products.recognition', path: '/admin/products/recognition', permissionCode: 'products.manage', sortOrder: 4 },
   { id: 'route-product-catalog-settings', key: 'products.catalog-settings', moduleKey: 'products', pageKey: 'products.catalog-settings', path: '/admin/products/catalog-settings', permissionCode: 'products.manage', sortOrder: 5 },
+  { id: 'route-product-price-settings', key: 'products.price-settings', moduleKey: 'products', pageKey: 'products.price-settings', path: '/admin/settings/catalog/product-pricing', permissionCode: 'products.manage', sortOrder: 6 },
+  { id: 'route-product-branding-settings', key: 'products.branding-settings', moduleKey: 'products', pageKey: 'products.branding-settings', path: '/admin/settings/catalog/branding', permissionCode: 'products.manage', sortOrder: 7 },
 ];
 
 const json = (route: Route, body: unknown, status = 200) =>
@@ -65,6 +67,17 @@ const relatedProduct = {
   ingredients: [],
 };
 
+const inventoryItems = [{
+  id: '50000000-0000-0000-0000-000000000001', code: 'WRAP', name: 'Giấy gói', measurementUnitId: 1,
+  unitName: 'Tờ', unitSymbol: 'tờ', note: null, isActive: true, usesSizes: false, legacyIngredientId: null,
+  stockUnits: [{
+    id: '51000000-0000-0000-0000-000000000001', inventoryItemId: '50000000-0000-0000-0000-000000000001',
+    inventoryItemCode: 'WRAP', inventoryItemName: 'Giấy gói', sizeName: null, unitName: 'Tờ', unitSymbol: 'tờ',
+    quantity: 30, lowStockThreshold: 5, status: 1, isActive: true, updatedAt: '2026-09-01T00:00:00Z',
+  }],
+  updatedAt: '2026-09-01T00:00:00Z',
+}];
+
 type MockState = {
   visibilityCalls: number;
   visibilityFails: boolean;
@@ -74,6 +87,10 @@ type MockState = {
   ingredientPageRequests?: number[];
   productMultipart?: string;
   settingsValue?: number;
+  watermarkEnabled?: boolean;
+  watermarkSource?: number;
+  shopLogoUrl?: string | null;
+  watermarkImageUrl?: string | null;
 };
 
 const installMocks = async (page: Page, state: MockState) => {
@@ -89,6 +106,12 @@ const installMocks = async (page: Page, state: MockState) => {
     localStorage.setItem('lamie_user_json', JSON.stringify(currentUser));
   }, { currentUser: user });
 
+  await page.route(/^https?:\/\/[^/]+\/uploads\//, (route) => route.fulfill({
+    status: 200,
+    contentType: 'image/png',
+    body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  }));
+
   await page.route(/^https?:\/\/[^/]+\/api\//, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -97,6 +120,7 @@ const installMocks = async (page: Page, state: MockState) => {
     if (url.pathname === '/api/admin/navigation/me/routes') return json(route, routes);
     if (url.pathname === '/api/admin/navigation/me') return json(route, []);
     if (url.pathname === '/api/settings/products' && method === 'GET') return json(route, [product, relatedProduct]);
+    if (url.pathname === '/api/inventory/items' && method === 'GET') return json(route, inventoryItems);
     if (url.pathname === '/api/settings/products/7' && method === 'GET') return json(route, product);
     if (url.pathname === '/api/settings/products/7' && method === 'PUT') {
       state.productMultipart = request.postData() ?? '';
@@ -108,12 +132,37 @@ const installMocks = async (page: Page, state: MockState) => {
       return route.fulfill({ status: 204 });
     }
     if (url.pathname === '/api/settings/products/catalog/settings' && method === 'GET') {
-      return json(route, { priceDeviationPercent: state.settingsValue ?? 20, updatedAt: null });
+      return json(route, {
+        priceDeviationPercent: state.settingsValue ?? 20,
+        shopLogoUrl: state.shopLogoUrl ?? null,
+        watermarkEnabled: state.watermarkEnabled ?? true,
+        watermarkSource: state.watermarkSource ?? 1,
+        watermarkImageUrl: state.watermarkImageUrl ?? null,
+        updatedAt: null,
+      });
     }
     if (url.pathname === '/api/settings/products/catalog/settings' && method === 'PUT') {
-      const payload = request.postDataJSON() as { priceDeviationPercent: number };
-      state.settingsValue = payload.priceDeviationPercent;
-      return json(route, { priceDeviationPercent: state.settingsValue, updatedAt: '2026-09-05T00:00:00.000Z' });
+      const body = request.postData() ?? '';
+      const contentType = request.headers()['content-type'] ?? '';
+      if (contentType.includes('application/json')) {
+        state.settingsValue = Number((request.postDataJSON() as { priceDeviationPercent: number }).priceDeviationPercent);
+      } else {
+        const value = body.match(/name="priceDeviationPercent"\r?\n\r?\n([^\r\n]+)/)?.[1];
+        const source = body.match(/name="watermarkSource"\r?\n\r?\n([^\r\n]+)/)?.[1];
+        state.settingsValue = Number(value);
+        state.watermarkEnabled = body.includes('name="watermarkEnabled"\r\n\r\ntrue');
+        state.watermarkSource = Number(source);
+        if (body.includes('filename="logo.png"')) state.shopLogoUrl = '/uploads/shop/logo.png';
+        if (body.includes('filename="watermark.png"')) state.watermarkImageUrl = '/uploads/shop/watermark.png';
+      }
+      return json(route, {
+        priceDeviationPercent: state.settingsValue,
+        shopLogoUrl: state.shopLogoUrl ?? null,
+        watermarkEnabled: state.watermarkEnabled ?? true,
+        watermarkSource: state.watermarkSource ?? 1,
+        watermarkImageUrl: state.watermarkImageUrl ?? null,
+        updatedAt: '2026-09-05T00:00:00.000Z',
+      });
     }
     if (url.pathname === '/api/settings/products/catalog/recognition/status' && method === 'GET') {
       return json(route, { indexedProductCount: 2, activeProductCount: 2, pendingImageCount: 0, embeddingVersion: 'lamie-visual-v1' });
@@ -168,14 +217,24 @@ const installMocks = async (page: Page, state: MockState) => {
     }
     if (url.pathname.startsWith('/api/settings/attributes/')) {
       const name = url.pathname.split('/').at(-1);
-      if (name === 'categories') return json(route, [{ id: 1, code: 'BOUQUET', isActive: true, translations: [{ languageCode: 'vi', name: 'Hoa bó' }] }]);
-      if (name === 'product-types') return json(route, [{ id: 2, code: 'FRESH_FLOWER', isActive: true, translations: [{ languageCode: 'vi', name: 'Hoa tươi' }] }]);
+      if (name === 'categories') return json(route, [{ id: 1, code: 'BOUQUET', isActive: true, translations: [{ languageCode: 'en-US', name: 'Bouquets' }, { languageCode: 'vi-VN', name: 'Hoa bó' }] }]);
+      if (name === 'product-types') return json(route, [{ id: 2, code: 'FRESH_FLOWER', isActive: true, translations: [{ languageCode: 'en-US', name: 'Fresh flowers' }, { languageCode: 'vi-VN', name: 'Hoa tươi' }] }]);
       if (name === 'languages') return json(route, [{ code: 'vi', name: 'Tiếng Việt', isActive: true }]);
       return json(route, []);
     }
     return json(route, { message: `Unhandled ${method} ${url.pathname}` }, 404);
   });
 };
+
+test('product attribute selectors prefer localized Vietnamese category and product line names', async ({ page }) => {
+  const state: MockState = { visibilityCalls: 0, visibilityFails: false, exportCalls: 0 };
+  await installMocks(page, state);
+  await page.goto('/admin/products/7/edit');
+
+  await expect(page.getByText('Hoa bó', { exact: true })).toBeVisible();
+  await expect(page.getByText('Hoa tươi', { exact: true })).toBeVisible();
+  await expect(page.getByText('Bouquets', { exact: true })).toHaveCount(0);
+});
 
 test('FE visibility rolls back on failure and FE Data export rejects double submit', async ({ page }) => {
   const state: MockState = { visibilityCalls: 0, visibilityFails: true, exportCalls: 0 };
@@ -208,8 +267,10 @@ test('product editor loads every ingredient page, validates recipe quantities, t
   await installMocks(page, state);
   await page.goto('/admin/products/7/edit');
 
-  await expect(page.getByRole('heading', { name: 'Định mức nguyên liệu' })).toBeVisible();
-  await page.getByRole('button', { name: 'Thêm nguyên liệu' }).click();
+  await expect(page.getByRole('heading', { name: 'Nguyên liệu' })).toBeVisible();
+  await expect(page.getByText('Không tồn kho').first()).toBeVisible();
+  await expect(page.getByText('Có tồn kho').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Thêm không tồn kho' }).click();
   const secondRow = page.getByRole('group', { name: 'Nguyên liệu 2' });
   await secondRow.getByLabel('Nguyên liệu *').selectOption('10');
   await secondRow.getByLabel('Số lượng cơ sở *').fill('0');
@@ -226,6 +287,15 @@ test('product editor loads every ingredient page, validates recipe quantities, t
   await secondRow.getByLabel('Nguyên liệu *').selectOption('11');
   await secondRow.getByLabel('Số lượng cơ sở *').fill('5.5');
   await secondRow.getByLabel('Ghi chú').fill('Hoa phụ');
+  await page.getByRole('button', { name: 'Thêm có tồn kho' }).click();
+  await page.getByLabel('Hàng tồn kho 1').selectOption(inventoryItems[0].id);
+  await page.getByLabel('Số lượng vật tư 1').fill('1.5');
+  if (process.env.LAMIE_VISUAL_QA_DIR) {
+    const materialsSection = page.getByRole('heading', { name: 'Nguyên liệu' }).locator('xpath=ancestor::section');
+    await materialsSection.screenshot({ path: `${process.env.LAMIE_VISUAL_QA_DIR}/product-materials.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await materialsSection.screenshot({ path: `${process.env.LAMIE_VISUAL_QA_DIR}/product-materials-mobile.png` });
+  }
   await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
 
   await expect(page).toHaveURL(/\/admin\/products$/);
@@ -233,6 +303,9 @@ test('product editor loads every ingredient page, validates recipe quantities, t
   expect(state.productMultipart).toContain('Ingredients[1].IngredientId');
   expect(state.productMultipart).toContain('5.5');
   expect(state.productMultipart).toContain('Hoa phụ');
+  expect(state.productMultipart).toContain('InventoryMaterials[0].StockUnitId');
+  expect(state.productMultipart).toContain(inventoryItems[0].stockUnits[0].id);
+  expect(state.productMultipart).toContain('1.5');
   expect(Array.from(new Set(state.ingredientPageRequests))).toEqual([1, 2]);
 });
 
@@ -266,8 +339,9 @@ test('similar product picker excludes the current product and persists the selec
   expect(state.productMultipart).toContain('8');
 });
 
-test('image recognition shows ranked similarity scores and price deviation settings persist', async ({ page }) => {
+test('image recognition and separated product settings persist safely', async ({ page }) => {
   const state: MockState = { visibilityCalls: 0, visibilityFails: false, exportCalls: 0 };
+  const visualQaDirectory = process.env.LAMIE_VISUAL_QA_DIR;
   await installMocks(page, state);
   await page.goto('/admin/products/recognition');
 
@@ -282,11 +356,50 @@ test('image recognition shows ranked similarity scores and price deviation setti
   await expect(page.getByText('92.4%')).toBeVisible();
   await expect(page.getByText('81.1%')).toBeVisible();
 
-  await page.goto('/admin/products/catalog-settings');
+  await page.goto('/admin/settings/catalog/product-pricing');
   const deviation = page.getByLabel('Phần trăm độ lệch');
   await deviation.fill('25');
   await expect(page.getByText(/375\.000.*625\.000/)).toBeVisible();
-  await page.getByRole('button', { name: 'Lưu cài đặt' }).click();
-  await expect(page.getByText('Đã lưu cài đặt.')).toBeVisible();
+  await page.getByRole('button', { name: 'Lưu tầm giá' }).click();
+  await expect(page.getByText('Đã lưu tầm giá.')).toBeVisible();
   expect(state.settingsValue).toBe(25);
+  if (visualQaDirectory) await page.screenshot({ path: `${visualQaDirectory}/product-pricing-desktop.png`, fullPage: true });
+
+  await expect(page.getByRole('link', { name: 'Logo & watermark' })).toBeVisible();
+  await page.getByRole('link', { name: 'Logo & watermark' }).click();
+  await expect(page).toHaveURL(/\/admin\/settings\/catalog\/branding$/);
+  await expect(page.getByText('LAMI-2026')).toBeVisible();
+  await page.getByRole('switch', { name: /Đang bật/ }).uncheck();
+  await expect(page.getByText('Watermark đang tắt; ảnh sản phẩm sẽ được lưu nguyên bản.')).toBeVisible();
+  await page.getByRole('switch', { name: /Đang tắt/ }).check();
+  await page.getByRole('radio', { name: /Logo shop/ }).check();
+  await expect(page.getByText(/Chưa có logo shop/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Lưu logo & watermark' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Lưu logo & watermark' }).click();
+  await expect(page.getByText('Đã lưu logo & watermark.')).toBeVisible();
+  if (visualQaDirectory) await page.screenshot({ path: `${visualQaDirectory}/branding-desktop.png`, fullPage: true });
+  expect(state.watermarkSource).toBe(2);
+  await page.locator('#shop-logo-file').setInputFiles({
+    name: 'logo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  });
+  await expect(page.getByAltText('Xem trước logo shop')).toBeVisible();
+  await page.getByRole('button', { name: 'Lưu logo & watermark' }).click();
+  await expect(page.getByText('Đã lưu logo & watermark.')).toBeVisible();
+  await page.getByRole('radio', { name: /Ảnh tải lên/ }).check();
+  await expect(page.getByText(/Chưa có ảnh watermark/)).toBeVisible();
+  await page.locator('#watermark-image-file').setInputFiles({
+    name: 'watermark.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  });
+  await expect(page.getByAltText('Xem trước watermark')).toBeVisible();
+  await page.getByRole('button', { name: 'Lưu logo & watermark' }).click();
+  await expect(page.getByText('Đã lưu logo & watermark.')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Logo & watermark' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  if (visualQaDirectory) await page.screenshot({ path: `${visualQaDirectory}/branding-mobile.png`, fullPage: true });
 });

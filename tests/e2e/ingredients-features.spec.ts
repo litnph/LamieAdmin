@@ -225,6 +225,14 @@ test('paginates the measurement-unit catalog without requesting more than the AP
   expect(Array.from(new Set(state.unitPageRequests))).toEqual([1, 2]);
 });
 
+test('highlights only the exact catalog setting section', async ({ page }) => {
+  await installMocks(page, {});
+  await page.goto('/admin/ingredients/units');
+
+  await expect(page.getByRole('link', { name: /Đơn vị tính/ })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: /Danh mục nguyên liệu/ })).not.toHaveAttribute('aria-current', 'page');
+});
+
 test('validates conversion factor then saves a unique product-ready ingredient', async ({ page }) => {
   const state: MockState = {};
   await installMocks(page, state);

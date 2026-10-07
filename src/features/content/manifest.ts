@@ -25,7 +25,7 @@ export const manifest = defineAdminModuleManifest({
   defaultNavigation: [
     {
       key: 'content.create', moduleKey: 'content', pageKey: 'content.create',
-      label: 'Nội dung', defaultPath: '/admin/content', iconKey: 'radio', permissionCode: 'content.view',
+      label: 'Nội dung đa kênh', defaultPath: '/admin/content', iconKey: 'radio', permissionCode: 'content.view',
       sortOrder: 60, isVisible: true, isEnabled: true, isSystem: true,
     },
     {

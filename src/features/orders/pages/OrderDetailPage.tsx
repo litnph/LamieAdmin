@@ -13,6 +13,7 @@ import {
   PackageOpen,
   Phone,
   RefreshCw,
+  RotateCcw,
   ShoppingBag,
   Truck,
   UserRound,
@@ -154,6 +155,13 @@ const ProductVisual: React.FC<{ item: OrderItemDto; illustrations: OrderImageDto
   );
 };
 
+const previousOrderStatus = (status: OrderStatus): OrderStatus | null => {
+  if (status === OrderStatus.Producing) return OrderStatus.Created;
+  if (status === OrderStatus.Shipping) return OrderStatus.Producing;
+  if (status === OrderStatus.Completed) return OrderStatus.Shipping;
+  return null;
+};
+
 const OrderItemIngredients: React.FC<{ item: OrderItemDto }> = ({ item }) => (
   <div className="mt-3 rounded-admin-control border border-admin-border bg-admin-muted/35 px-3 py-2.5">
     <div className="flex items-center justify-between gap-3">
@@ -251,6 +259,7 @@ export const OrderDetailPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const canManageOrder = hasPermission(Permission.OrdersManage);
   const canCancelOrder = hasPermission(Permission.OrdersCancel);
+  const canReverseOrderStatus = hasPermission(Permission.OrdersReverseStatus);
   const [order, setOrder] = useState<OrderDetailDto | null>(null);
   const [channels, setChannels] = useState<ChannelDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,6 +267,9 @@ export const OrderDetailPage: React.FC = () => {
   const [actionMessage, setActionMessage] = useState<string | null>(() => navigationSuccessMessage(location.state));
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
+  const [reverseDialogOpen, setReverseDialogOpen] = useState(false);
+  const [shippingFeeDialogOpen, setShippingFeeDialogOpen] = useState(false);
+  const [shippingFeeActualInput, setShippingFeeActualInput] = useState('');
   const actionLockRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -289,6 +301,13 @@ export const OrderDetailPage: React.FC = () => {
   const paymentTransitions = order ? nextPaymentStatuses(order.paymentStatus) : [];
   const primaryStatus = orderTransitions.find((status) => status !== OrderStatus.Cancelled);
   const canCancel = orderTransitions.includes(OrderStatus.Cancelled);
+  const previousStatus = order ? previousOrderStatus(order.orderStatus) : null;
+  const canEditShippingFeeActual = Boolean(
+    order
+    && canManageOrder
+    && !order.pickupAtShop
+    && [OrderStatus.Created, OrderStatus.Producing, OrderStatus.Shipping].includes(order.orderStatus),
+  );
   const deliveryUrgency = order ? getDeliveryUrgency(order.deliveryAt, order.orderStatus) : null;
 
   const sortedLogs = useMemo(
@@ -372,6 +391,53 @@ export const OrderDetailPage: React.FC = () => {
       await ordersApi.changePaymentStatus(id, status);
       await refreshOrder();
       setActionMessage(`Đã cập nhật thanh toán thành ${paymentStatusLabel[status].toLocaleLowerCase('vi')}.`);
+    } catch (updateError) {
+      setError(getApiErrorMessage(updateError));
+    } finally {
+      actionLockRef.current = false;
+      setBusyAction(null);
+    }
+  };
+
+  const returnToPreviousStatus = async () => {
+    if (!id || !order || previousStatus == null || busyAction || actionLockRef.current) return;
+    actionLockRef.current = true;
+    setBusyAction('reverse-status');
+    setError(null);
+    setActionMessage(null);
+    try {
+      await ordersApi.returnToPreviousStatus(id);
+      await refreshOrder();
+      setReverseDialogOpen(false);
+      setActionMessage(`Đã trả đơn về trạng thái ${orderStatusLabel[previousStatus].toLocaleLowerCase('vi')}.`);
+    } catch (updateError) {
+      setError(getApiErrorMessage(updateError));
+    } finally {
+      actionLockRef.current = false;
+      setBusyAction(null);
+    }
+  };
+
+  const openShippingFeeDialog = () => {
+    if (!order) return;
+    setShippingFeeActualInput(order.shippingFeeActual == null ? '' : String(order.shippingFeeActual));
+    setShippingFeeDialogOpen(true);
+  };
+
+  const updateShippingFeeActual = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!id || !canEditShippingFeeActual || busyAction || actionLockRef.current) return;
+    const normalizedInput = shippingFeeActualInput.replace(/\D/g, '');
+    const value = normalizedInput === '' ? null : Number(normalizedInput);
+    actionLockRef.current = true;
+    setBusyAction('shipping-fee-actual');
+    setError(null);
+    setActionMessage(null);
+    try {
+      await ordersApi.updateShippingFeeActual(id, value);
+      await refreshOrder();
+      setShippingFeeDialogOpen(false);
+      setActionMessage(value == null ? 'Đã xóa phí giao hàng thực tế.' : 'Đã cập nhật phí giao hàng thực tế.');
     } catch (updateError) {
       setError(getApiErrorMessage(updateError));
     } finally {
@@ -548,6 +614,17 @@ export const OrderDetailPage: React.FC = () => {
                   Hủy đơn
                 </button>
               ) : null}
+              {previousStatus != null && canReverseOrderStatus ? (
+                <button
+                  type="button"
+                  onClick={() => setReverseDialogOpen(true)}
+                  disabled={busyAction !== null}
+                  className="btn-press mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-surface px-3 text-sm font-semibold text-admin-text-secondary transition-colors hover:border-admin-primary/45 hover:bg-admin-primary/5 hover:text-admin-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCcw size={17} strokeWidth={1.8} aria-hidden="true" />
+                  Trả về {orderStatusLabel[previousStatus]}
+                </button>
+              ) : null}
             </section>
 
             <section className="border-t border-admin-border pt-5" aria-labelledby="payment-action-title">
@@ -631,7 +708,7 @@ export const OrderDetailPage: React.FC = () => {
               </div>
             ) : null}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
               <div className="px-4 py-4 sm:px-5">
                 <h3 className="text-sm font-semibold text-admin-text-primary">Người nhận</h3>
                 <div className="mt-3 flex items-start gap-3">
@@ -639,15 +716,15 @@ export const OrderDetailPage: React.FC = () => {
                     <UserRound size={19} strokeWidth={1.8} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
-                    <p className="break-words font-semibold text-admin-text-primary">{order.recipientName}</p>
-                    <a
+                    <p className="break-words font-semibold text-admin-text-primary">{order.recipientName || 'Chưa có thông tin'}</p>
+                    {order.recipientPhone ? <a
                       href={`tel:${order.recipientPhone}`}
                       className="mt-1 inline-flex min-h-7 items-center gap-1.5 text-sm text-admin-text-secondary hover:text-admin-primary"
                       aria-label={`Gọi người nhận ${order.recipientName} theo số ${order.recipientPhone}`}
                     >
                       <Phone size={14} strokeWidth={1.8} aria-hidden="true" />
                       <span dir="ltr">{order.recipientPhone}</span>
-                    </a>
+                    </a> : <p className="mt-1 text-sm text-admin-text-muted">Chưa có số điện thoại</p>}
                   </div>
                 </div>
               </div>
@@ -659,7 +736,7 @@ export const OrderDetailPage: React.FC = () => {
                     <UserRound size={19} strokeWidth={1.8} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
-                    <p className="break-words font-semibold text-admin-text-primary">{order.ordererName}</p>
+                    <p className="break-words font-semibold text-admin-text-primary">{order.ordererName || 'Chưa có thông tin'}</p>
                     {order.ordererPhone ? (
                       <a href={`tel:${order.ordererPhone}`} className="mt-1 inline-flex min-h-7 items-center gap-1.5 text-sm text-admin-text-secondary hover:text-admin-primary" aria-label={`Gọi người đặt ${order.ordererName} theo số ${order.ordererPhone}`}>
                         <Phone size={14} strokeWidth={1.8} aria-hidden="true" />
@@ -671,7 +748,25 @@ export const OrderDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="border-t border-admin-border px-4 py-4 sm:px-5 lg:border-l lg:border-t-0">
+              <div className="border-t border-admin-border px-4 py-4 sm:px-5 md:border-l md:border-t-0 xl:border-l">
+                <h3 className="text-sm font-semibold text-admin-text-primary">Người gửi</h3>
+                <div className="mt-3 flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-admin-control bg-admin-muted text-admin-text-secondary">
+                    <UserRound size={19} strokeWidth={1.8} aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="break-words font-semibold text-admin-text-primary">{order.senderName || 'Chưa có thông tin'}</p>
+                    {order.senderPhone ? (
+                      <a href={`tel:${order.senderPhone}`} className="mt-1 inline-flex min-h-7 items-center gap-1.5 text-sm text-admin-text-secondary hover:text-admin-primary" aria-label={`Gọi người gửi ${order.senderName || ''} theo số ${order.senderPhone}`}>
+                        <Phone size={14} strokeWidth={1.8} aria-hidden="true" />
+                        <span dir="ltr">{order.senderPhone}</span>
+                      </a>
+                    ) : <p className="mt-1 text-sm text-admin-text-muted">Chưa có SĐT người gửi</p>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-admin-border px-4 py-4 sm:px-5 md:border-l xl:border-t-0">
                 <h3 className="text-sm font-semibold text-admin-text-primary">
                   {order.pickupAtShop ? 'Nhận tại cửa hàng' : order.provinceShipping ? 'Ship tỉnh' : 'Giao tận nơi'}
                 </h3>
@@ -841,12 +936,23 @@ export const OrderDetailPage: React.FC = () => {
                     <dd className="shrink-0 font-medium tabular-nums text-admin-text-primary">{formatOrderCurrency(order.shippingFee)}</dd>
                   </div>
                 ) : null}
-                {order.shippingFeeActual != null ? (
-                  <div className="flex items-start justify-between gap-4">
-                    <dt className="text-admin-text-secondary">Phí giao thực tế</dt>
-                    <dd className="shrink-0 font-medium tabular-nums text-admin-text-primary">{formatOrderCurrency(order.shippingFeeActual)}</dd>
-                  </div>
-                ) : null}
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-admin-text-secondary">
+                    Phí giao thực tế
+                    {canEditShippingFeeActual ? (
+                      <button
+                        type="button"
+                        onClick={openShippingFeeDialog}
+                        className="ml-2 rounded text-xs font-semibold text-admin-primary hover:underline"
+                      >
+                        Điều chỉnh
+                      </button>
+                    ) : null}
+                  </dt>
+                  <dd className="shrink-0 font-medium tabular-nums text-admin-text-primary">
+                    {order.shippingFeeActual == null ? 'Chưa có' : formatOrderCurrency(order.shippingFeeActual)}
+                  </dd>
+                </div>
                 <div className="flex items-end justify-between gap-4 border-t border-admin-border pt-3">
                   <dt className="font-semibold text-admin-text-primary">Tổng cộng</dt>
                   <dd className="shrink-0 text-lg font-semibold tabular-nums text-admin-text-primary">{formatOrderCurrency(order.totalAmount)}</dd>
@@ -940,6 +1046,81 @@ export const OrderDetailPage: React.FC = () => {
             if (pendingStatus != null) void changeStatus(pendingStatus);
           }}
         />
+      </SettingsDialog>
+
+      <SettingsDialog
+        open={reverseDialogOpen && previousStatus != null}
+        title={`Trả trạng thái đơn ${order.orderCode}`}
+        description={previousStatus == null ? undefined : `Đơn sẽ trở về trạng thái ${orderStatusLabel[previousStatus].toLocaleLowerCase('vi')}.`}
+        onRequestClose={() => {
+          if (busyAction !== 'reverse-status') setReverseDialogOpen(false);
+        }}
+        closeLabel="Đóng xác nhận trả trạng thái"
+      >
+        <ConfirmationPanel
+          title="Xác nhận trả về bước trước"
+          description={
+            order.orderStatus === OrderStatus.Producing
+              ? 'Tồn kho sản phẩm và nguyên liệu đã trừ sẽ được hoàn lại để đơn có thể chỉnh sửa ở trạng thái chờ xác nhận.'
+              : 'Lịch sử thay đổi vẫn được lưu để có thể kiểm tra người thực hiện và thời điểm thao tác.'
+          }
+          confirmLabel={previousStatus == null ? 'Trả trạng thái' : `Trả về ${orderStatusLabel[previousStatus]}`}
+          tone="warning"
+          busy={busyAction === 'reverse-status'}
+          onCancel={() => {
+            if (busyAction !== 'reverse-status') setReverseDialogOpen(false);
+          }}
+          onConfirm={() => void returnToPreviousStatus()}
+        />
+      </SettingsDialog>
+
+      <SettingsDialog
+        open={shippingFeeDialogOpen}
+        title="Điều chỉnh phí giao hàng thực tế"
+        description="Có thể cập nhật hoặc để trống để xóa khoản phí này trước khi đơn hoàn tất."
+        onRequestClose={() => {
+          if (busyAction !== 'shipping-fee-actual') setShippingFeeDialogOpen(false);
+        }}
+        closeLabel="Đóng điều chỉnh phí giao hàng"
+      >
+        <form className="space-y-5" onSubmit={(event) => void updateShippingFeeActual(event)}>
+          <div>
+            <label htmlFor="detail-shipping-fee-actual" className="mb-1.5 block text-sm font-semibold text-admin-text-primary">
+              Phí giao hàng thực tế
+            </label>
+            <div className="relative">
+              <input
+                id="detail-shipping-fee-actual"
+                data-autofocus
+                type="text"
+                inputMode="numeric"
+                value={shippingFeeActualInput === '' ? '' : Number(shippingFeeActualInput.replace(/\D/g, '')).toLocaleString('vi-VN')}
+                onChange={(event) => setShippingFeeActualInput(event.target.value.replace(/\D/g, ''))}
+                placeholder="Chưa có"
+                className="h-11 w-full rounded-admin-control border border-admin-border bg-admin-surface px-3 pr-10 text-right text-sm tabular-nums text-admin-text-primary outline-none transition focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15"
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-admin-text-muted">₫</span>
+            </div>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setShippingFeeDialogOpen(false)}
+              disabled={busyAction === 'shipping-fee-actual'}
+              className="h-11 rounded-admin-control border border-admin-border bg-admin-card px-4 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={busyAction === 'shipping-fee-actual'}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover disabled:opacity-50"
+            >
+              {busyAction === 'shipping-fee-actual' ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : null}
+              {busyAction === 'shipping-fee-actual' ? 'Đang lưu' : 'Lưu phí thực tế'}
+            </button>
+          </div>
+        </form>
       </SettingsDialog>
 
     </div>
