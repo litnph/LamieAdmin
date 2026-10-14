@@ -81,7 +81,7 @@ const createOrder = (orderStatus: number) => ({
   id: ORDER_ID,
   orderCode: 'L260731-6704',
   ordererName: 'Vy',
-  ordererPhone: '',
+  ordererPhone: '0901000001',
   channelId: CHANNEL_ID,
   recipientName: 'Thùy Trang',
   recipientPhone: '0353589709',
@@ -470,13 +470,13 @@ test('outside-catalog product requires category and product type and sends both 
   const mocks = await installMocks(page);
   await page.goto('/admin/orders/new');
 
-  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
-  await page.getByLabel('SĐT người nhận').fill('0909000111');
-  await page.getByLabel('Người nhận là người đặt').check();
+  await page.getByLabel('Tên người đặt').fill('Nguyễn An');
+  await page.getByLabel('SĐT người đặt').fill('0909000111');
+  await page.getByRole('button', { name: 'Người nhận là người đặt' }).click();
   await page.locator('#delivery-at').fill('2026-08-25T10:30');
   await page.locator('#order-line-price-0').fill('350000');
   await page.locator('#deposit-amount').fill('0');
-  await expect(page.getByTestId('payment-status-preview')).toHaveText('Chưa cọc');
+  await expect(page.getByTestId('payment-status-preview')).toHaveText('Chưa thanh toán đủ · Còn 350.000đ');
   await page.getByLabel('Đã thanh toán', { exact: true }).check();
   await expect(page.getByTestId('payment-status-preview')).toHaveText('Đã thanh toán');
   await expect(page.locator('#deposit-amount')).toHaveCount(0);
@@ -502,12 +502,14 @@ test('outside-catalog product requires category and product type and sends both 
   expect(mocks.createBodies[0]).not.toContain('name="images[0].imageFile"');
 });
 
-test('create order keeps all contact groups optional and sends explicit member intent', async ({ page }) => {
+test('create order requires buyer contact, keeps recipient optional and sends explicit member intent', async ({ page }) => {
   const mocks = await installMocks(page);
   await page.goto('/admin/orders/new');
 
   await expect(page.locator('#sender-name')).toHaveCount(0);
   await expect(page.locator('#sender-phone')).toHaveCount(0);
+  await page.getByLabel('Tên người đặt').fill('Khách đặt');
+  await page.getByLabel('SĐT người đặt').fill('0901000002');
   await page.locator('#delivery-at').fill('2026-08-25T10:30');
   await page.locator('#order-line-price-0').fill('350000');
   await page.locator('#order-line-category-0').selectOption('2');
@@ -518,8 +520,10 @@ test('create order keeps all contact groups optional and sends explicit member i
   expect(mocks.createBodies).toHaveLength(1);
   expect(mocks.createBodies[0]).not.toContain('name="senderName"');
   expect(mocks.createBodies[0]).not.toContain('name="senderPhone"');
+  expect(mocks.createBodies[0]).toMatch(/name="ordererName"\r?\n\r?\nKhách đặt/);
+  expect(mocks.createBodies[0]).toMatch(/name="ordererPhone"\r?\n\r?\n0901000002/);
   expect(mocks.createBodies[0]).toMatch(/name="createMember"\r?\n\r?\ntrue/);
-  expect(mocks.createBodies[0]).toMatch(/name="recipientName"\r?\n\r?\n\r?\n/);
+  expect(mocks.createBodies[0]).not.toContain('name="recipientName"');
 });
 
 test('member suggestions require an explicit selection and do not lose form values when cleared', async ({ page }) => {
@@ -662,9 +666,10 @@ test('delivery uses one text field, falls back to the legacy description and hid
 test('create submits an address description without map coordinates', async ({ page }) => {
   const mocks = await installMocks(page);
   await page.goto('/admin/orders/new');
-  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('Tên người nhận').fill('Nguyễn An');
   await page.getByLabel('SĐT người nhận').fill('0909000111');
-  await page.getByLabel('Người đặt', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('Tên người đặt').fill('Nguyễn An');
+  await page.getByLabel('SĐT người đặt').fill('0909000112');
   await page.locator('#delivery-at').fill('2026-08-15T10:30');
   await page.locator('#shipping-fee-actual').fill('42000');
   await page.getByLabel('Địa chỉ chi tiết').fill('461 Phan Văn Trị, Phường An Nhơn - cổng màu xanh');
@@ -1003,7 +1008,7 @@ test('edit order can paste and auto-import a replacement administrative address'
 
   await expect(page.locator('#address-detail')).toHaveValue(/461/);
 
-  await page.locator('button[type="submit"]').click();
+  await page.getByRole('button', { name: 'Cập nhật đơn' }).first().click();
 
   await expect(page).toHaveURL(`/admin/orders/${ORDER_ID}`);
   expect(mocks.updateBodies).toHaveLength(1);
@@ -1070,9 +1075,10 @@ test('create order auto-applies the highest ranked pasted address even at low co
   await expect(page.getByLabel('Địa chỉ chi tiết')).toHaveValue('461 Phan Văn Trị, cổng màu xanh');
 
   await page.getByRole('button', { name: 'Dán & nhập tự động' }).click();
-  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('Tên người nhận').fill('Nguyễn An');
   await page.getByLabel('SĐT người nhận').fill('0909000111');
-  await page.getByLabel('Người đặt', { exact: true }).fill('Nguyễn An');
+  await page.getByLabel('Tên người đặt').fill('Nguyễn An');
+  await page.getByLabel('SĐT người đặt').fill('0909000112');
   await page.locator('#delivery-at').fill('2026-08-15T10:30');
   await page.locator('#order-line-product-0').fill(product.sku);
   await page.getByRole('option', { name: PRODUCT_OPTION_NAME }).click();
@@ -1465,7 +1471,7 @@ test('new illustration preview opens without changing editor form state', async 
   await installMocks(page);
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
   await page.getByRole('button', { name: 'Mở chi tiết sản phẩm 1' }).click();
-  const recipient = page.getByLabel('Người nhận', { exact: true });
+  const recipient = page.getByLabel('Tên người nhận');
   await recipient.fill('Dữ liệu đang nhập');
   await page.locator('#order-line-images-0').setInputFiles({
     name: 'mau-hoa.png',
@@ -1500,13 +1506,15 @@ test('loaded order maps row version and item snapshot into multipart update and 
   await page.locator('#order-line-ingredient-quantity-0-0').fill('9');
   await page.getByLabel('Định mức vật tư kho 1 cho một sản phẩm').fill('3');
   await expect(page.getByText('Còn 30 tờ · Sau đơn còn 27 tờ')).toBeVisible();
-  await page.getByLabel('Người nhận', { exact: true }).fill('Thùy Trang cập nhật');
+  await page.getByLabel('Tên người nhận').fill('Thùy Trang cập nhật');
   await page.getByLabel('SĐT người nhận').fill('');
   if (process.env.LAMIE_VISUAL_QA_DIR) {
+    const originalViewport = page.viewportSize();
     const materialsSection = page.locator('#order-inventory-materials');
     await materialsSection.screenshot({ path: `${process.env.LAMIE_VISUAL_QA_DIR}/order-materials.png` });
     await page.setViewportSize({ width: 390, height: 844 });
     await materialsSection.screenshot({ path: `${process.env.LAMIE_VISUAL_QA_DIR}/order-materials-mobile.png` });
+    if (originalViewport) await page.setViewportSize(originalViewport);
   }
   await page.getByRole('button', { name: 'Cập nhật đơn' }).click();
 
@@ -1575,7 +1583,7 @@ test('materials card adapts at desktop, tablet and mobile without horizontal ove
 test('business rule error is localized and does not clear edited form data', async ({ page }) => {
   await installMocks(page, { rejectUpdate: true });
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
-  const recipient = page.getByLabel('Người nhận', { exact: true });
+  const recipient = page.getByLabel('Tên người nhận');
   await recipient.fill('Dữ liệu người dùng đang sửa');
   await page.getByRole('button', { name: 'Cập nhật đơn' }).click();
 
@@ -1589,7 +1597,7 @@ test('non-created order never exposes editor controls or detail edit action', as
   await page.goto(`/admin/orders/${ORDER_ID}/edit`);
 
   await expect(page.getByRole('alert')).toContainText('Đơn hàng chỉ có thể chỉnh sửa khi ở trạng thái Đã tạo.');
-  await expect(page.getByText('Trạng thái hiện tại: Đang chuẩn bị.')).toBeVisible();
+  await expect(page.getByText('Trạng thái hiện tại: Làm hoa.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cập nhật đơn' })).toHaveCount(0);
 
   await page.goto(`/admin/orders/${ORDER_ID}`);
@@ -1652,7 +1660,7 @@ test('wide layout keeps costs above delivery and all completion actions in the r
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/admin/orders/new');
 
-  const customerSection = page.getByRole('heading', { name: 'Khách hàng' }).locator('xpath=ancestor::section');
+  const customerSection = page.getByRole('heading', { name: 'Thông tin người đặt' }).locator('xpath=ancestor::section');
   const productSection = page.getByRole('heading', { name: 'Sản phẩm trong đơn', exact: true }).locator('xpath=ancestor::section');
   const deliverySection = page.getByRole('heading', { name: 'Giao nhận' }).locator('xpath=ancestor::section');
   const noteSection = page.getByRole('heading', { name: 'Ghi chú đơn hàng' }).locator('xpath=ancestor::section');

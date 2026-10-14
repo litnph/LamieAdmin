@@ -12,7 +12,7 @@ import {
   ShoppingBag,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
 import { ImagePreview, type ImagePreviewItem } from '@/shared/components/ImagePreview';
 import { SettingsDialog } from '@/features/settings/components/SettingsDialog';
@@ -187,6 +187,9 @@ const ProductOptionContent: React.FC<{
         ) : (
           <p className="mt-0.5 text-xs text-admin-text-muted">Nhập thông tin sản phẩm riêng</p>
         )}
+        {option.productCode && option.price != null ? (
+          <span className="sr-only">{`${option.productCode} - ${option.productName} ${formatOrderCurrency(option.price)}`}</span>
+        ) : null}
       </div>
     </div>
   );
@@ -377,7 +380,7 @@ export const OrderProductLinesEditor: React.FC<Props> = ({
       <header className="relative flex flex-col gap-3 border-b border-admin-border px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 id="order-lines-title" className="text-sm font-semibold text-admin-text-primary">Sản phẩm trong đơn</h2>
+            <h2 id="order-lines-title" className="text-sm font-semibold text-admin-text-primary"><span aria-hidden="true">02 · </span>Sản phẩm trong đơn</h2>
             <span className="text-xs tabular-nums text-admin-text-muted">{items.length} sản phẩm</span>
           </div>
           <p className="mt-1 max-w-[70ch] text-xs leading-5 text-admin-text-secondary">

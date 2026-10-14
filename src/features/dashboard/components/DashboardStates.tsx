@@ -81,7 +81,7 @@ export const PartialDataWarning: React.FC<PartialDataWarningProps> = ({
       type="button"
       onClick={onRetry}
       disabled={retrying}
-      className="h-10 shrink-0 rounded-admin-control border border-amber-400 bg-white px-3 text-sm font-semibold text-amber-950 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+      className="h-10 shrink-0 rounded-admin-control border border-admin-status-warning/40 bg-admin-surface px-3 text-sm font-semibold text-admin-status-warning transition-colors hover:bg-admin-status-warning-bg disabled:cursor-not-allowed disabled:opacity-50"
     >
       {retrying ? 'Đang tải lại' : 'Tải lại dữ liệu thiếu'}
     </button>

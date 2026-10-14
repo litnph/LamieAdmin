@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, RefreshCw, Save } from 'lucide-react';
+import { Check, RefreshCw, Save } from '@/shared/icons/lucideAnimated';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { contentApi } from '../api/contentApi';
 import { ContentShell, ContentStatus, platformLabel } from '../components/ContentShell';

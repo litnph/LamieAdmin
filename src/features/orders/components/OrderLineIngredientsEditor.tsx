@@ -10,7 +10,7 @@ import {
   RotateCcw,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import type { InventoryMaterialDraft } from '@/features/ingredients/components/InventoryMaterialsEditor';
 import { formatDecimalQuantity } from '@/features/ingredients/components/IngredientShell';
 import type { IngredientDto } from '@/features/ingredients/types/ingredient.types';

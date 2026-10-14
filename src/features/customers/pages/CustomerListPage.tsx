@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, Phone, RotateCcw, Search, UserRound } from 'lucide-react';
+import { ArrowUpRight, Phone, RotateCcw, Search, UserRound } from '@/shared/icons/lucideAnimated';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { orderStatusLabel } from '@/features/orders/constants/orderLabels';
 import { OrderStatus } from '@/features/orders/types/order.types';

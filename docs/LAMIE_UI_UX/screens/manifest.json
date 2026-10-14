@@ -1,0 +1,402 @@
+[
+  {
+    "file": "01-login.png",
+    "key": "login",
+    "title": "Đăng nhập",
+    "route": "/login",
+    "note": "Chưa đăng nhập; thông tin truy cập minh họa.",
+    "width": 1440,
+    "height": 850,
+    "full": true
+  },
+  {
+    "file": "02-dashboard.png",
+    "key": "dashboard",
+    "title": "Tổng quan",
+    "route": "/admin/dashboard",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1351,
+    "full": true
+  },
+  {
+    "file": "03-orders.png",
+    "key": "orders",
+    "title": "Đơn hàng",
+    "route": "/admin/orders",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1126,
+    "full": true
+  },
+  {
+    "file": "04-new-order.png",
+    "key": "new-order",
+    "title": "Tạo đơn hàng",
+    "route": "/admin/orders/new",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 2435,
+    "full": true
+  },
+  {
+    "file": "05-order-detail.png",
+    "key": "order-detail",
+    "title": "Chi tiết đơn hàng",
+    "route": "/admin/orders/:id",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1342,
+    "full": true
+  },
+  {
+    "file": "06-calendar.png",
+    "key": "calendar",
+    "title": "Lịch giao",
+    "route": "/admin/orders/calendar",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1154,
+    "full": true
+  },
+  {
+    "file": "07-customers.png",
+    "key": "customers",
+    "title": "Khách hàng",
+    "route": "/admin/customers",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 893,
+    "full": true
+  },
+  {
+    "file": "08-customer-detail.png",
+    "key": "customer-detail",
+    "title": "Hồ sơ khách hàng",
+    "route": "/admin/customers/:id",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1046,
+    "full": true
+  },
+  {
+    "file": "09-tasks.png",
+    "key": "tasks",
+    "title": "Việc cần làm",
+    "route": "/admin/tasks",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 988,
+    "full": true
+  },
+  {
+    "file": "10-products.png",
+    "key": "products",
+    "title": "Sản phẩm",
+    "route": "/admin/products",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 922,
+    "full": true
+  },
+  {
+    "file": "11-product-edit.png",
+    "key": "product-edit",
+    "title": "Thông tin sản phẩm",
+    "route": "/admin/products/:id/edit",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 2372,
+    "full": true
+  },
+  {
+    "file": "12-recognition.png",
+    "key": "recognition",
+    "title": "Nhận diện ảnh",
+    "route": "/admin/products/recognition",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 893,
+    "full": true
+  },
+  {
+    "file": "13-inventory.png",
+    "key": "inventory",
+    "title": "Kho hàng",
+    "route": "/admin/ingredients/inventory",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1066,
+    "full": true
+  },
+  {
+    "file": "14-reports.png",
+    "key": "reports",
+    "title": "Báo cáo tài chính",
+    "route": "/admin/reports",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1620,
+    "full": true
+  },
+  {
+    "file": "15-expenses.png",
+    "key": "expenses",
+    "title": "Chi phí",
+    "route": "/admin/expenses",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1022,
+    "full": true
+  },
+  {
+    "file": "16-content.png",
+    "key": "content",
+    "title": "Nội dung đa kênh",
+    "route": "/admin/content",
+    "note": "Đã có kết quả ba nền tảng; nội dung chưa lưu.",
+    "width": 1440,
+    "height": 1493,
+    "full": true
+  },
+  {
+    "file": "17-footer.png",
+    "key": "footer",
+    "title": "Cấu hình footer",
+    "route": "/admin/content/footer",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 893,
+    "full": true
+  },
+  {
+    "file": "18-history.png",
+    "key": "history",
+    "title": "Lịch sử nội dung",
+    "route": "/admin/content/history",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 893,
+    "full": true
+  },
+  {
+    "file": "19-settings.png",
+    "key": "settings",
+    "title": "Cấu hình cửa hàng",
+    "route": "/admin/settings/catalog",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 938,
+    "full": true
+  },
+  {
+    "file": "20-users.png",
+    "key": "users",
+    "title": "Người dùng",
+    "route": "/admin/users",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1045,
+    "full": true
+  },
+  {
+    "file": "21-user-edit.png",
+    "key": "user-edit",
+    "title": "Tạo người dùng",
+    "route": "/admin/users/new",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1045,
+    "full": true
+  },
+  {
+    "file": "22-roles.png",
+    "key": "roles",
+    "title": "Vai trò & quyền",
+    "route": "/admin/roles",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1437,
+    "full": true
+  },
+  {
+    "file": "23-permissions.png",
+    "key": "permissions",
+    "title": "Quyền hạn",
+    "route": "/admin/permissions",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1045,
+    "full": true
+  },
+  {
+    "file": "24-navigation.png",
+    "key": "navigation",
+    "title": "Menu & điều hướng",
+    "route": "/admin/navigation",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1045,
+    "full": true
+  },
+  {
+    "file": "25-design-system.png",
+    "key": "design-system",
+    "title": "Hệ thống thiết kế",
+    "route": "Bản bàn giao thiết kế",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 2621,
+    "full": true
+  },
+  {
+    "file": "26-states.png",
+    "key": "states",
+    "title": "Trạng thái hệ thống",
+    "route": "Bản bàn giao thiết kế",
+    "note": "Dữ liệu minh họa; quyền quản trị viên.",
+    "width": 1440,
+    "height": 1610,
+    "full": true
+  },
+  {
+    "file": "27-dialog-quick.png",
+    "key": "dialog-quick",
+    "title": "Nhập nhanh nhiều đơn",
+    "route": "/admin/orders/new",
+    "note": "Đang mở hộp thoại; hành động cần xác nhận.",
+    "width": 1440,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "28-dialog-receive.png",
+    "key": "dialog-receive",
+    "title": "Phiếu nhập kho",
+    "route": "/admin/ingredients/inventory",
+    "note": "Đang mở hộp thoại; hành động cần xác nhận.",
+    "width": 1440,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "29-dialog-expense.png",
+    "key": "dialog-expense",
+    "title": "Thêm khoản chi",
+    "route": "/admin/expenses",
+    "note": "Đang mở hộp thoại; hành động cần xác nhận.",
+    "width": 1440,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "30-dialog-filter.png",
+    "key": "dialog-filter",
+    "title": "Lọc nâng cao",
+    "route": "/admin/orders",
+    "note": "Đang mở hộp thoại; hành động cần xác nhận.",
+    "width": 1440,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "31-dialog-delete.png",
+    "key": "dialog-delete",
+    "title": "Xác nhận xóa đơn",
+    "route": "/admin/orders",
+    "note": "Đang mở hộp thoại; hành động cần xác nhận.",
+    "width": 1440,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "32-mobile-login.png",
+    "key": "mobile-login",
+    "title": "Đăng nhập · Mobile",
+    "route": "/login",
+    "note": "Viewport 390 × 844; phần đầu màn hình, nội dung còn lại cuộn dọc.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "33-mobile-dashboard.png",
+    "key": "mobile-dashboard",
+    "title": "Tổng quan · Mobile",
+    "route": "/admin/dashboard",
+    "note": "Viewport 390 × 844; phần đầu màn hình, nội dung còn lại cuộn dọc.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "34-mobile-orders.png",
+    "key": "mobile-orders",
+    "title": "Đơn hàng · Mobile",
+    "route": "/admin/orders",
+    "note": "Viewport 390 × 844; phần đầu màn hình, nội dung còn lại cuộn dọc.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "35-mobile-new-order.png",
+    "key": "mobile-new-order",
+    "title": "Tạo đơn hàng · Mobile",
+    "route": "/admin/orders/new",
+    "note": "Viewport 390 × 844; phần đầu màn hình, nội dung còn lại cuộn dọc.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "36-mobile-settings.png",
+    "key": "mobile-settings",
+    "title": "Cấu hình cửa hàng · Mobile",
+    "route": "/admin/settings/catalog",
+    "note": "Viewport 390 × 844; phần đầu màn hình, nội dung còn lại cuộn dọc.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "37-mobile-inventory.png",
+    "key": "mobile-inventory",
+    "title": "Kho hàng · Mobile",
+    "route": "/admin/ingredients/inventory",
+    "note": "Viewport 390 × 844; phần đầu màn hình, nội dung còn lại cuộn dọc.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "38-mobile-receive.png",
+    "key": "mobile-receive",
+    "title": "Nhập kho · Mobile",
+    "route": "/admin/inventory/receiving",
+    "note": "Bottom sheet; cuộn nội dung bên trong, action luôn thấy.",
+    "width": 390,
+    "height": 1000,
+    "full": false
+  },
+  {
+    "file": "39-readonly-orders.png",
+    "key": "readonly-orders",
+    "title": "Đơn hàng · Chỉ xem",
+    "route": "/admin/orders",
+    "note": "Không có thao tác tạo, sửa hoặc xóa.",
+    "width": 1440,
+    "height": 1186,
+    "full": true
+  },
+  {
+    "file": "40-partial-dashboard.png",
+    "key": "partial-dashboard",
+    "title": "Tổng quan · Lỗi một phần",
+    "route": "/admin/dashboard",
+    "note": "Danh sách và lịch giao vẫn dùng được; biểu đồ có Thử lại.",
+    "width": 1440,
+    "height": 1433,
+    "full": true
+  }
+]

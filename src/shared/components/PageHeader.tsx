@@ -1,18 +1,24 @@
 import React from 'react';
 
 interface PageHeaderProps {
+  eyebrow?: string;
   title: string;
   description?: string;
   subtitle?: string;
   actions?: React.ReactNode;
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ title, description, subtitle, actions }) => {
+export const PageHeader: React.FC<PageHeaderProps> = ({ eyebrow, title, description, subtitle, actions }) => {
   const supportingText = description ?? subtitle;
 
   return (
     <header className="mb-6 flex min-w-0 flex-col gap-4 sm:mb-7 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
+        {eyebrow ? (
+          <p className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-admin-text-muted">
+            {eyebrow}
+          </p>
+        ) : null}
         <h1 className="text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-admin-text-primary sm:text-[1.75rem]">
           {title}
         </h1>

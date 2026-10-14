@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Plus, RefreshCw, Trash2 } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { ConfirmationPanel, SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { SettingsShell } from '@/features/settings/components/SettingsShell';

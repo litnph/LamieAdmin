@@ -8,7 +8,7 @@ import {
   RefreshCw,
   SearchX,
   Trash2,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { Link } from 'react-router-dom';
 import { nextOrderStatuses, orderStatusLabel } from '../constants/orderLabels';
 import type { OrderListItemDto } from '../types/order.types';
@@ -35,9 +35,10 @@ type OrderListContentProps = {
 };
 
 const QUICK_ACTION_LABEL: Partial<Record<OrderStatus, string>> = {
-  [OrderStatus.Producing]: 'Chuẩn bị',
-  [OrderStatus.Shipping]: 'Bắt đầu giao',
-  [OrderStatus.Completed]: 'Hoàn tất',
+  [OrderStatus.Producing]: 'Chuẩn bị đơn',
+  [OrderStatus.Ready]: 'Đã làm xong',
+  [OrderStatus.Shipping]: 'Giao hàng',
+  [OrderStatus.Delivered]: 'Giao thành công',
 };
 
 const LoadingState: React.FC = () => (
@@ -231,16 +232,13 @@ export const OrderListContent: React.FC<OrderListContentProps> = ({
 
   return (
     <>
-      <div className="space-y-3 p-3 md:hidden">
+      <div className="divide-y divide-admin-border md:hidden">
         {orders.map((order) => {
           const urgency = getDeliveryUrgency(order.deliveryAt, order.orderStatus, now);
           return (
             <article
               key={order.id}
-              className={[
-                'rounded-admin-panel border bg-admin-surface p-4',
-                urgency === 'late' ? 'border-admin-status-error/35' : 'border-admin-border',
-              ].join(' ')}
+              className="bg-admin-surface p-4"
               aria-labelledby={`mobile-order-${order.id}`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -319,7 +317,7 @@ export const OrderListContent: React.FC<OrderListContentProps> = ({
       </div>
 
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[1320px] text-left text-sm">
+        <table className="w-full min-w-[1120px] text-left text-sm">
           <caption className="sr-only">
             Danh sách đơn hàng gồm mã đơn, ảnh, thời gian giao, người nhận, ghi chú, số tiền, thanh toán, trạng thái và hành động
           </caption>
@@ -386,7 +384,7 @@ export const OrderListContent: React.FC<OrderListContentProps> = ({
                   </td>
                   <td className="px-4 py-3.5">
                     <p className="line-clamp-2 max-w-52 text-xs leading-5 text-admin-text-secondary" title={order.contentNote ?? undefined}>
-                      {order.contentNote?.trim() || '—'}
+                      {order.contentNote?.trim() || 'Không có ghi chú'}
                     </p>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums text-admin-text-primary">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,7 +11,9 @@ import {
   LoaderCircle,
   MapPin,
   PackageOpen,
+  PauseCircle,
   Phone,
+  PlayCircle,
   RefreshCw,
   RotateCcw,
   ShoppingBag,
@@ -19,7 +21,7 @@ import {
   UserRound,
   WalletCards,
   XCircle,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
@@ -36,7 +38,7 @@ import {
   paymentStatusLabel,
 } from '../constants/orderLabels';
 import type { OrderChangeLogDto, OrderDetailDto, OrderImageDto, OrderItemDto } from '../types/order.types';
-import { OrderStatus, PaymentStatus } from '../types/order.types';
+import { OrderStatus, PaymentMethod, PaymentStatus } from '../types/order.types';
 import {
   formatOrderCurrency,
   formatOrderDateTime,
@@ -45,9 +47,12 @@ import {
 } from '../utils/orderListFormatters';
 
 const PRIMARY_STATUS_ACTION: Partial<Record<OrderStatus, string>> = {
-  [OrderStatus.Producing]: 'Bắt đầu chuẩn bị',
-  [OrderStatus.Shipping]: 'Bắt đầu giao',
-  [OrderStatus.Completed]: 'Hoàn tất đơn',
+  [OrderStatus.Confirmed]: 'Chuẩn bị đơn',
+  [OrderStatus.Producing]: 'Chuẩn bị đơn',
+  [OrderStatus.Ready]: 'Đã làm xong',
+  [OrderStatus.Shipping]: 'Giao hàng',
+  [OrderStatus.Delivered]: 'Giao thành công',
+  [OrderStatus.DeliveryFailed]: 'Giao chưa thành công',
 };
 
 const navigationSuccessMessage = (state: unknown): string | null => {
@@ -62,6 +67,10 @@ const isOrderStatus = (value: number): value is OrderStatus =>
     OrderStatus.Producing,
     OrderStatus.Shipping,
     OrderStatus.Completed,
+    OrderStatus.Confirmed,
+    OrderStatus.Ready,
+    OrderStatus.Delivered,
+    OrderStatus.DeliveryFailed,
     OrderStatus.Cancelled,
   ].includes(value as OrderStatus);
 
@@ -155,10 +164,22 @@ const ProductVisual: React.FC<{ item: OrderItemDto; illustrations: OrderImageDto
   );
 };
 
+const WORKFLOW_ACTION: Partial<Record<OrderStatus, Parameters<typeof ordersApi.runWorkflowAction>[1]>> = {
+  [OrderStatus.Confirmed]: 'confirm',
+  [OrderStatus.Producing]: 'start-preparation',
+  [OrderStatus.Ready]: 'ready',
+  [OrderStatus.Shipping]: 'dispatch',
+  [OrderStatus.Delivered]: 'delivered',
+  [OrderStatus.DeliveryFailed]: 'delivery-failed',
+  [OrderStatus.Cancelled]: 'cancel',
+};
+
 const previousOrderStatus = (status: OrderStatus): OrderStatus | null => {
+  if (status === OrderStatus.Confirmed) return OrderStatus.Created;
   if (status === OrderStatus.Producing) return OrderStatus.Created;
-  if (status === OrderStatus.Shipping) return OrderStatus.Producing;
-  if (status === OrderStatus.Completed) return OrderStatus.Shipping;
+  if (status === OrderStatus.Ready) return OrderStatus.Producing;
+  if (status === OrderStatus.Shipping) return OrderStatus.Ready;
+  if (status === OrderStatus.DeliveryFailed) return OrderStatus.Shipping;
   return null;
 };
 
@@ -168,7 +189,7 @@ const OrderItemIngredients: React.FC<{ item: OrderItemDto }> = ({ item }) => (
       <p className="flex items-center gap-1.5 text-xs font-semibold text-admin-text-primary">
         <Leaf size={14} className="text-admin-primary" aria-hidden="true" /> Nguyên liệu cần chuẩn bị
       </p>
-      <span className="text-[11px] tabular-nums text-admin-text-muted">{item.ingredientSnapshots?.length ?? 0} loại</span>
+      <span className="text-xs tabular-nums text-admin-text-muted">{item.ingredientSnapshots?.length ?? 0} loại</span>
     </div>
     {item.ingredientSnapshots?.length ? (
       <ul className="mt-2 space-y-1.5">
@@ -256,10 +277,12 @@ const DetailLoadingState: React.FC = () => (
 export const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canManageOrder = hasPermission(Permission.OrdersManage);
   const canCancelOrder = hasPermission(Permission.OrdersCancel);
   const canReverseOrderStatus = hasPermission(Permission.OrdersReverseStatus);
+  const canChangeOrderStatus = hasPermission(Permission.OrdersChangeStatus);
   const [order, setOrder] = useState<OrderDetailDto | null>(null);
   const [channels, setChannels] = useState<ChannelDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -268,8 +291,25 @@ export const OrderDetailPage: React.FC = () => {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
   const [reverseDialogOpen, setReverseDialogOpen] = useState(false);
+  const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
+  const [overrideStatus, setOverrideStatus] = useState<OrderStatus>(OrderStatus.Created);
+  const [overrideReason, setOverrideReason] = useState('');
   const [shippingFeeDialogOpen, setShippingFeeDialogOpen] = useState(false);
   const [shippingFeeActualInput, setShippingFeeActualInput] = useState('');
+  const [shippingFeeIncurredAt, setShippingFeeIncurredAt] = useState('');
+  const [shippingFeePaid, setShippingFeePaid] = useState(false);
+  const [shippingFeePaidAt, setShippingFeePaidAt] = useState('');
+  const [shippingFeeMethod, setShippingFeeMethod] = useState<PaymentMethod>(PaymentMethod.Cash);
+  const [paymentDialogStatus, setPaymentDialogStatus] = useState<PaymentStatus | null>(null);
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
+  const [paymentReceivedAt, setPaymentReceivedAt] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [holdDialogOpen, setHoldDialogOpen] = useState(false);
+  const [holdReason, setHoldReason] = useState('');
+  const [recipientDialogOpen, setRecipientDialogOpen] = useState(false);
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientAddress, setRecipientAddress] = useState('');
   const actionLockRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -299,16 +339,24 @@ export const OrderDetailPage: React.FC = () => {
   const channelName = channels.find((channel) => channel.id === order?.channelId)?.name ?? order?.channelId;
   const orderTransitions = order ? nextOrderStatuses(order.orderStatus) : [];
   const paymentTransitions = order ? nextPaymentStatuses(order.paymentStatus) : [];
-  const primaryStatus = orderTransitions.find((status) => status !== OrderStatus.Cancelled);
+  const primaryStatus = order
+    ? order.orderStatus === OrderStatus.Ready
+      ? order.pickupAtShop ? OrderStatus.Delivered : OrderStatus.Shipping
+      : orderTransitions.find((nextStatus) => nextStatus !== OrderStatus.Cancelled)
+    : undefined;
   const canCancel = orderTransitions.includes(OrderStatus.Cancelled);
   const previousStatus = order ? previousOrderStatus(order.orderStatus) : null;
   const canEditShippingFeeActual = Boolean(
     order
     && canManageOrder
     && !order.pickupAtShop
-    && [OrderStatus.Created, OrderStatus.Producing, OrderStatus.Shipping].includes(order.orderStatus),
+    && order.orderStatus !== OrderStatus.Cancelled,
   );
   const deliveryUrgency = order ? getDeliveryUrgency(order.deliveryAt, order.orderStatus) : null;
+  const returnTo = typeof location.state === 'object' && location.state !== null && 'from' in location.state
+    && typeof location.state.from === 'string'
+    ? location.state.from
+    : '/admin/orders';
 
   const sortedLogs = useMemo(
     () =>
@@ -322,12 +370,11 @@ export const OrderDetailPage: React.FC = () => {
 
   const paymentAmounts = useMemo(() => {
     if (!order) return { paid: 0, remaining: 0 };
-    const paid =
-      order.paymentStatus === PaymentStatus.Paid
-        ? order.totalAmount
-        : order.paymentStatus === PaymentStatus.Deposited
-          ? Math.min(Math.max(order.depositAmount, 0), Math.max(order.totalAmount, 0))
-          : 0;
+    const paid = order.paidAmount ?? (order.paymentStatus === PaymentStatus.Paid
+      ? order.totalAmount
+      : order.paymentStatus === PaymentStatus.Deposited
+        ? Math.min(Math.max(order.depositAmount, 0), Math.max(order.totalAmount, 0))
+        : 0);
     return { paid, remaining: Math.max(order.totalAmount - paid, 0) };
   }, [order]);
 
@@ -355,9 +402,18 @@ export const OrderDetailPage: React.FC = () => {
     setError(null);
     setActionMessage(null);
     try {
-      await ordersApi.changeStatus(id, status);
-      await refreshOrder();
+      const action = order.orderStatus === OrderStatus.Created && status === OrderStatus.Producing
+        ? 'prepare-order'
+        : WORKFLOW_ACTION[status];
+      if (!action) throw new Error('Thao tác trạng thái không được hỗ trợ.');
+      const updated = await ordersApi.runWorkflowAction(id, action, {
+        rowVersion: order.rowVersion,
+        reason: status === OrderStatus.Cancelled ? cancelReason.trim() : undefined,
+        idempotencyKey: globalThis.crypto?.randomUUID?.() ?? `${action}-${id}-${Date.now()}`,
+      });
+      setOrder(updated);
       setPendingStatus(null);
+      setCancelReason('');
       setActionMessage(`Đã cập nhật trạng thái đơn thành ${orderStatusLabel[status].toLocaleLowerCase('vi')}.`);
     } catch (updateError) {
       setError(getApiErrorMessage(updateError));
@@ -368,15 +424,84 @@ export const OrderDetailPage: React.FC = () => {
   };
 
   const requestStatusChange = (status: OrderStatus) => {
-    if (status === OrderStatus.Cancelled || status === OrderStatus.Completed) {
+    if (status === OrderStatus.Cancelled) {
       setPendingStatus(status);
       return;
     }
     void changeStatus(status);
   };
 
-  const changePaymentStatus = async (status: PaymentStatus) => {
+  const openPaymentDialog = (status: PaymentStatus) => {
+    if (!order) return;
+    const nowParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+    const part = (type: string) => nowParts.find(item => item.type === type)?.value ?? '';
+    setPaymentDialogStatus(status);
+    setPaymentAmountInput(String(status === PaymentStatus.Paid ? (order.remainingAmount ?? paymentAmounts.remaining) : Math.min(order.depositAmount, paymentAmounts.remaining)));
+    setPaymentReceivedAt(`${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`);
+  };
+
+  const openRecipientDialog = () => {
+    if (!order) return;
+    setRecipientName(order.recipientName ?? '');
+    setRecipientPhone(order.recipientPhone ?? '');
+    setRecipientAddress(order.deliveryAddress ?? '');
+    setRecipientDialogOpen(true);
+  };
+
+  const saveRecipient = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!id || !order || busyAction || actionLockRef.current) return;
+    actionLockRef.current = true;
+    setBusyAction('recipient');
+    setError(null);
+    try {
+      const updated = await ordersApi.updateRecipient(id, {
+        recipientName: recipientName.trim() || null,
+        recipientPhone: recipientPhone.trim() || null,
+        deliveryAddress: recipientAddress.trim() || null,
+        rowVersion: order.rowVersion,
+      });
+      setOrder(updated);
+      setRecipientDialogOpen(false);
+      setActionMessage('Đã cập nhật thông tin người nhận.');
+    } catch (updateError) {
+      setError(getApiErrorMessage(updateError));
+    } finally {
+      actionLockRef.current = false;
+      setBusyAction(null);
+    }
+  };
+
+  const holdOrResume = async () => {
+    if (!id || !order || busyAction || actionLockRef.current) return;
+    if (!order.holdReason && !holdReason.trim()) {
+      setError('Vui lòng nhập lý do tạm dừng.');
+      return;
+    }
+    actionLockRef.current = true;
+    setBusyAction(order.holdReason ? 'resume' : 'hold');
+    setError(null);
+    try {
+      const updated = order.holdReason
+        ? await ordersApi.resume(id, order.rowVersion)
+        : await ordersApi.hold(id, holdReason.trim(), order.rowVersion);
+      setOrder(updated);
+      setHoldDialogOpen(false);
+      setHoldReason('');
+      setActionMessage(order.holdReason ? 'Đã tiếp tục xử lý đơn.' : 'Đã tạm dừng xử lý đơn.');
+    } catch (updateError) {
+      setError(getApiErrorMessage(updateError));
+    } finally {
+      actionLockRef.current = false;
+      setBusyAction(null);
+    }
+  };
+
+  const changePaymentStatus = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const status = paymentDialogStatus;
     if (
+      status == null ||
       !id ||
       !order ||
       busyAction ||
@@ -388,8 +513,16 @@ export const OrderDetailPage: React.FC = () => {
     setError(null);
     setActionMessage(null);
     try {
-      await ordersApi.changePaymentStatus(id, status);
+      const amount = Number(paymentAmountInput.replace(/\D/g, ''));
+      if (!amount || !paymentReceivedAt) throw new Error('Vui lòng nhập số tiền và thời điểm thực nhận.');
+      await ordersApi.changePaymentStatus(id, status, {
+        amount,
+        paidAt: `${paymentReceivedAt}:00+07:00`,
+        method: PaymentMethod.Other,
+        idempotencyKey: globalThis.crypto?.randomUUID?.() ?? `payment-${id}-${Date.now()}`,
+      });
       await refreshOrder();
+      setPaymentDialogStatus(null);
       setActionMessage(`Đã cập nhật thanh toán thành ${paymentStatusLabel[status].toLocaleLowerCase('vi')}.`);
     } catch (updateError) {
       setError(getApiErrorMessage(updateError));
@@ -406,7 +539,7 @@ export const OrderDetailPage: React.FC = () => {
     setError(null);
     setActionMessage(null);
     try {
-      await ordersApi.returnToPreviousStatus(id);
+      await ordersApi.returnToPreviousStatus(id, order.rowVersion);
       await refreshOrder();
       setReverseDialogOpen(false);
       setActionMessage(`Đã trả đơn về trạng thái ${orderStatusLabel[previousStatus].toLocaleLowerCase('vi')}.`);
@@ -418,9 +551,55 @@ export const OrderDetailPage: React.FC = () => {
     }
   };
 
+  const openOverrideStatusDialog = () => {
+    if (!order) return;
+    const firstAvailable = [
+      OrderStatus.Created,
+      OrderStatus.Producing,
+      OrderStatus.Ready,
+      OrderStatus.Shipping,
+      OrderStatus.Delivered,
+      OrderStatus.DeliveryFailed,
+    ].find(status => status !== order.orderStatus);
+    if (firstAvailable == null) return;
+    setOverrideStatus(firstAvailable);
+    setOverrideReason('');
+    setOverrideDialogOpen(true);
+  };
+
+  const overrideOrderStatus = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!id || !order || !canChangeOrderStatus || busyAction || actionLockRef.current) return;
+    actionLockRef.current = true;
+    setBusyAction('override-status');
+    setError(null);
+    setActionMessage(null);
+    try {
+      const updated = await ordersApi.overrideStatus(
+        id,
+        overrideStatus,
+        order.rowVersion,
+        overrideReason.trim() || undefined,
+      );
+      setOrder(updated);
+      setOverrideDialogOpen(false);
+      setActionMessage(`Đã chuyển trạng thái đơn thành ${orderStatusLabel[updated.orderStatus].toLocaleLowerCase('vi')}.`);
+    } catch (updateError) {
+      setError(getApiErrorMessage(updateError));
+    } finally {
+      actionLockRef.current = false;
+      setBusyAction(null);
+    }
+  };
+
   const openShippingFeeDialog = () => {
     if (!order) return;
+    const toLocalInput = (value?: string | null) => value ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)).replace(' ', 'T') : '';
     setShippingFeeActualInput(order.shippingFeeActual == null ? '' : String(order.shippingFeeActual));
+    setShippingFeeIncurredAt(toLocalInput(order.shippingFeeIncurredAt ?? order.completedAt));
+    setShippingFeePaid(Boolean(order.shippingFeePaidAt));
+    setShippingFeePaidAt(toLocalInput(order.shippingFeePaidAt));
+    setShippingFeeMethod(order.shippingFeePaymentMethod ?? PaymentMethod.Cash);
     setShippingFeeDialogOpen(true);
   };
 
@@ -434,7 +613,13 @@ export const OrderDetailPage: React.FC = () => {
     setError(null);
     setActionMessage(null);
     try {
-      await ordersApi.updateShippingFeeActual(id, value);
+      await ordersApi.updateShippingFeeActual(id, value, {
+        rowVersion: order?.rowVersion,
+        incurredAt: value != null && shippingFeeIncurredAt ? `${shippingFeeIncurredAt}:00+07:00` : undefined,
+        paidAt: value != null && shippingFeePaid && shippingFeePaidAt ? `${shippingFeePaidAt}:00+07:00` : undefined,
+        method: value != null && shippingFeePaid ? shippingFeeMethod : undefined,
+        idempotencyKey: value != null && shippingFeePaid ? (order?.shippingFeePaidAt ? undefined : (globalThis.crypto?.randomUUID?.() ?? `shipping-${id}-${Date.now()}`)) : undefined,
+      });
       await refreshOrder();
       setShippingFeeDialogOpen(false);
       setActionMessage(value == null ? 'Đã xóa phí giao hàng thực tế.' : 'Đã cập nhật phí giao hàng thực tế.');
@@ -484,7 +669,6 @@ export const OrderDetailPage: React.FC = () => {
     );
   }
 
-  const pendingStatusIsCancel = pendingStatus === OrderStatus.Cancelled;
   const statusDialogBusy = pendingStatus != null && busyAction === `status-${pendingStatus}`;
   const attachmentGallery: ImagePreviewItem[] = order.images.map((image, index) => {
     const item = order.items.find((orderItem) => orderItem.id === image.orderItemId);
@@ -500,19 +684,20 @@ export const OrderDetailPage: React.FC = () => {
 
   return (
     <div className="min-w-0 pb-4">
-      <Link
-        to="/admin/orders"
+      <button
+        type="button"
+        onClick={() => navigate(returnTo, { state: { restoreScrollY: typeof location.state === 'object' && location.state !== null && 'scrollY' in location.state ? location.state.scrollY : 0 } })}
         className="mb-4 inline-flex min-h-9 items-center gap-1.5 rounded-admin-control text-sm font-medium text-admin-text-secondary transition-colors hover:text-admin-primary"
       >
         <ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />
         Danh sách đơn
-      </Link>
+      </button>
 
       <header className="mb-5 border-b border-admin-border pb-5 sm:mb-6 sm:pb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="break-words font-mono text-2xl font-semibold tracking-[-0.02em] text-admin-text-primary sm:text-[1.75rem]">
+              <h1 className="break-words font-mono text-2xl font-semibold tracking-[-0.02em] text-admin-text-primary sm:text-3xl">
                 {order.orderCode}
               </h1>
               <OrderStatusBadge status={order.orderStatus} />
@@ -625,6 +810,36 @@ export const OrderDetailPage: React.FC = () => {
                   Trả về {orderStatusLabel[previousStatus]}
                 </button>
               ) : null}
+              {canChangeOrderStatus && ![OrderStatus.Completed, OrderStatus.Cancelled].includes(order.orderStatus) ? (
+                <button
+                  type="button"
+                  onClick={openOverrideStatusDialog}
+                  disabled={busyAction !== null}
+                  className="btn-press mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-primary/35 bg-admin-primary/5 px-3 text-sm font-semibold text-admin-primary transition-colors hover:bg-admin-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RefreshCw size={17} strokeWidth={1.8} aria-hidden="true" />
+                  Chuyển trạng thái
+                </button>
+              ) : null}
+              {canManageOrder && ![OrderStatus.Completed, OrderStatus.Cancelled].includes(order.orderStatus) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (order.holdReason) void holdOrResume();
+                    else setHoldDialogOpen(true);
+                  }}
+                  disabled={busyAction !== null}
+                  className="btn-press mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control border border-admin-border bg-admin-surface px-3 text-sm font-semibold text-admin-text-secondary transition-colors hover:border-admin-primary/45 hover:bg-admin-primary/5 hover:text-admin-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {order.holdReason ? <PlayCircle size={17} aria-hidden="true" /> : <PauseCircle size={17} aria-hidden="true" />}
+                  {busyAction === 'hold' || busyAction === 'resume' ? 'Đang cập nhật' : order.holdReason ? 'Tiếp tục xử lý' : 'Tạm dừng xử lý'}
+                </button>
+              ) : null}
+              {order.holdReason ? (
+                <p className="mt-2 rounded-admin-control border border-admin-status-warning/25 bg-admin-status-warning/8 px-3 py-2 text-xs leading-5 text-admin-text-secondary">
+                  <strong className="text-admin-status-warning">Đang tạm dừng:</strong> {order.holdReason}
+                </p>
+              ) : null}
             </section>
 
             <section className="border-t border-admin-border pt-5" aria-labelledby="payment-action-title">
@@ -640,7 +855,7 @@ export const OrderDetailPage: React.FC = () => {
                       <button
                         key={status}
                         type="button"
-                        onClick={() => void changePaymentStatus(status)}
+                        onClick={() => openPaymentDialog(status)}
                         disabled={busyAction !== null}
                         className={[
                           'btn-press inline-flex min-h-11 items-center justify-center gap-2 rounded-admin-control px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
@@ -662,6 +877,12 @@ export const OrderDetailPage: React.FC = () => {
               ) : (
                 <p className="mt-3 text-sm text-admin-text-secondary">Thanh toán đã hoàn tất.</p>
               )}
+              <dl className="mt-4 grid grid-cols-2 gap-3 rounded-admin-control bg-admin-muted/60 p-3 text-xs">
+                <div><dt className="text-admin-text-muted">Đã thu thực tế</dt><dd className="mt-1 font-semibold tabular-nums">{formatOrderCurrency(paymentAmounts.paid)}</dd></div>
+                <div><dt className="text-admin-text-muted">Còn phải thu</dt><dd className="mt-1 font-semibold tabular-nums">{formatOrderCurrency(paymentAmounts.remaining)}</dd></div>
+              </dl>
+              {order.paymentHistoryIncomplete ? <p className="mt-3 text-xs font-medium text-admin-status-warning">Trạng thái cũ chưa có ngày thu tiền. Cần bổ sung lịch sử, hệ thống không tự suy từ ngày cập nhật.</p> : null}
+              {order.payments?.length ? <ol className="mt-4 space-y-2 border-t border-admin-border pt-3">{order.payments.map(payment => <li key={payment.id} className="flex items-start justify-between gap-3 text-xs"><span><strong>{payment.kind === 1 ? 'Nhận cọc' : payment.kind === 2 ? 'Thu còn lại' : payment.kind === 3 ? 'Thu toàn bộ' : 'Hoàn khách'}</strong><span className="mt-0.5 block text-admin-text-muted">{formatOrderDateTime(payment.paidAt)}</span></span><strong className="tabular-nums">{formatOrderCurrency(payment.amount)}</strong></li>)}</ol> : null}
             </section>
 
             </div>
@@ -710,7 +931,12 @@ export const OrderDetailPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
               <div className="px-4 py-4 sm:px-5">
-                <h3 className="text-sm font-semibold text-admin-text-primary">Người nhận</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-admin-text-primary">Người nhận</h3>
+                  {canManageOrder && ![OrderStatus.Completed, OrderStatus.Cancelled].includes(order.orderStatus) ? (
+                    <button type="button" onClick={openRecipientDialog} className="min-h-9 rounded-admin-control px-2 text-xs font-semibold text-admin-primary hover:bg-admin-primary/8">Cập nhật</button>
+                  ) : null}
+                </div>
                 <div className="mt-3 flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-admin-control bg-admin-muted text-admin-text-secondary">
                     <UserRound size={19} strokeWidth={1.8} aria-hidden="true" />
@@ -1018,34 +1244,84 @@ export const OrderDetailPage: React.FC = () => {
 
       <SettingsDialog
         open={pendingStatus != null}
-        title={pendingStatusIsCancel ? `Hủy đơn ${order.orderCode}` : `Hoàn tất đơn ${order.orderCode}`}
-        description={
-          pendingStatusIsCancel
-            ? 'Đơn đã hủy không thể chuyển sang trạng thái xử lý khác.'
-            : 'Sau khi hoàn tất, đơn sẽ không còn bước trạng thái tiếp theo.'
-        }
+        title={`Hủy đơn ${order.orderCode}`}
+        description="Đơn đã hủy không thể chuyển sang trạng thái xử lý khác; các khoản đã nhận vẫn được giữ trong lịch sử để xử lý hoàn tiền đúng quy trình."
         onRequestClose={() => {
           if (!statusDialogBusy) setPendingStatus(null);
         }}
         closeLabel="Đóng xác nhận cập nhật trạng thái"
       >
-        <ConfirmationPanel
-          title={pendingStatusIsCancel ? 'Xác nhận hủy đơn' : 'Xác nhận hoàn tất đơn'}
-          description={
-            pendingStatusIsCancel
-              ? 'Hãy kiểm tra với khách hàng trước khi hủy. Thao tác này chỉ đổi trạng thái đơn, không xóa dữ liệu.'
-              : 'Hãy chắc chắn đơn đã được giao hoặc bàn giao đầy đủ trước khi hoàn tất.'
-          }
-          confirmLabel={pendingStatusIsCancel ? 'Hủy đơn' : 'Hoàn tất đơn'}
-          tone={pendingStatusIsCancel ? 'danger' : 'warning'}
-          busy={statusDialogBusy}
-          onCancel={() => {
-            if (!statusDialogBusy) setPendingStatus(null);
-          }}
-          onConfirm={() => {
-            if (pendingStatus != null) void changeStatus(pendingStatus);
-          }}
-        />
+        <div className="space-y-4">
+          <label className="block text-sm font-semibold text-admin-text-primary">Lý do hủy <span className="text-admin-status-error">*</span>
+            <textarea autoFocus value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} rows={3} className="mt-1.5 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 py-2 text-sm" placeholder="Ví dụ: khách đổi kế hoạch, trùng đơn…" />
+          </label>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setPendingStatus(null)} disabled={statusDialogBusy} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Quay lại</button>
+            <button type="button" onClick={() => { if (!cancelReason.trim()) { setError('Vui lòng nhập lý do hủy đơn.'); return; } void changeStatus(OrderStatus.Cancelled); }} disabled={statusDialogBusy || !cancelReason.trim()} className="inline-flex h-11 items-center justify-center gap-2 rounded-admin-control bg-admin-status-error px-4 text-sm font-semibold text-white disabled:opacity-50">{statusDialogBusy ? <LoaderCircle size={16} className="animate-spin" /> : <XCircle size={16} />}Xác nhận hủy đơn</button>
+          </div>
+        </div>
+      </SettingsDialog>
+
+      <SettingsDialog open={holdDialogOpen} title={`Tạm dừng đơn ${order.orderCode}`} description="Đơn giữ nguyên bước hiện tại và không thể chuyển tiếp cho đến khi được tiếp tục." onRequestClose={() => { if (busyAction !== 'hold') setHoldDialogOpen(false); }} closeLabel="Đóng tạm dừng đơn">
+        <div className="space-y-4">
+          <label className="block text-sm font-semibold text-admin-text-primary">Lý do tạm dừng <span className="text-admin-status-error">*</span><textarea autoFocus value={holdReason} onChange={(event) => setHoldReason(event.target.value)} rows={3} className="mt-1.5 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 py-2 text-sm" placeholder="Ví dụ: chờ khách xác nhận mẫu…" /></label>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setHoldDialogOpen(false)} disabled={busyAction === 'hold'} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Hủy</button><button type="button" onClick={() => void holdOrResume()} disabled={busyAction === 'hold' || !holdReason.trim()} className="inline-flex h-11 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground disabled:opacity-50">{busyAction === 'hold' ? <LoaderCircle size={16} className="animate-spin" /> : <PauseCircle size={16} />}Tạm dừng</button></div>
+        </div>
+      </SettingsDialog>
+
+      <SettingsDialog open={recipientDialogOpen} title="Cập nhật người nhận" description="Có thể để trống khi chưa có thông tin; đơn ship chỉ yêu cầu đủ người nhận trước lúc bàn giao." onRequestClose={() => { if (busyAction !== 'recipient') setRecipientDialogOpen(false); }} closeLabel="Đóng cập nhật người nhận">
+        <form className="space-y-4" onSubmit={(event) => void saveRecipient(event)}>
+          <label className="block text-sm font-semibold text-admin-text-primary">Tên người nhận<input autoFocus value={recipientName} onChange={(event) => setRecipientName(event.target.value)} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm" /></label>
+          <label className="block text-sm font-semibold text-admin-text-primary">Số điện thoại<input value={recipientPhone} onChange={(event) => setRecipientPhone(event.target.value)} inputMode="tel" className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm" /></label>
+          {!order.pickupAtShop ? <label className="block text-sm font-semibold text-admin-text-primary">Địa chỉ nhận<textarea value={recipientAddress} onChange={(event) => setRecipientAddress(event.target.value)} rows={3} className="mt-1.5 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 py-2 text-sm" /></label> : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setRecipientDialogOpen(false)} disabled={busyAction === 'recipient'} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Hủy</button><button type="submit" disabled={busyAction === 'recipient'} className="inline-flex h-11 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground disabled:opacity-50">{busyAction === 'recipient' ? <LoaderCircle size={16} className="animate-spin" /> : null}Lưu người nhận</button></div>
+        </form>
+      </SettingsDialog>
+
+      <SettingsDialog
+        open={paymentDialogStatus != null}
+        title={paymentDialogStatus === PaymentStatus.Paid ? 'Xác nhận khoản nhận còn lại' : 'Ghi nhận tiền cọc'}
+        description="Chỉ khoản tiền thực nhận lần này được thêm vào dòng tiền; doanh thu vẫn chờ đơn giao hoàn tất."
+        onRequestClose={() => { if (!busyAction?.startsWith('payment-')) setPaymentDialogStatus(null); }}
+        closeLabel="Đóng xác nhận thanh toán"
+      >
+        <form className="space-y-4" onSubmit={(event) => void changePaymentStatus(event)}>
+          <label className="block text-sm font-semibold text-admin-text-primary">Số tiền thực nhận
+            <input autoFocus inputMode="numeric" value={paymentAmountInput === '' ? '' : Number(paymentAmountInput.replace(/\D/g, '')).toLocaleString('vi-VN')} onChange={event => setPaymentAmountInput(event.target.value.replace(/\D/g, ''))} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-right text-sm tabular-nums" />
+          </label>
+          <label className="block text-sm font-semibold text-admin-text-primary">Thời điểm thực nhận
+            <input type="datetime-local" value={paymentReceivedAt} onChange={event => setPaymentReceivedAt(event.target.value)} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm" />
+          </label>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setPaymentDialogStatus(null)} disabled={Boolean(busyAction?.startsWith('payment-'))} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Hủy</button><button type="submit" disabled={Boolean(busyAction?.startsWith('payment-'))} className="inline-flex h-11 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-white">{busyAction?.startsWith('payment-') ? <LoaderCircle size={16} className="animate-spin" /> : null}Xác nhận đã nhận</button></div>
+        </form>
+      </SettingsDialog>
+
+      <SettingsDialog
+        open={overrideDialogOpen}
+        title={`Chuyển trạng thái đơn ${order.orderCode}`}
+        description="Thao tác quản trị có phân quyền và được lưu vào lịch sử. Trạng thái hoàn tất vẫn chỉ được hệ thống xác lập khi đã giao và đã thanh toán đủ."
+        onRequestClose={() => { if (busyAction !== 'override-status') setOverrideDialogOpen(false); }}
+        closeLabel="Đóng chuyển trạng thái"
+      >
+        <form className="space-y-4" onSubmit={(event) => void overrideOrderStatus(event)}>
+          <label className="block text-sm font-semibold text-admin-text-primary">Trạng thái đích
+            <select autoFocus value={overrideStatus} onChange={event => setOverrideStatus(Number(event.target.value) as OrderStatus)} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm">
+              {[
+                OrderStatus.Created,
+                OrderStatus.Producing,
+                OrderStatus.Ready,
+                OrderStatus.Shipping,
+                OrderStatus.Delivered,
+                OrderStatus.DeliveryFailed,
+              ].filter(status => status !== order.orderStatus).map(status => <option key={status} value={status}>{orderStatusLabel[status]}</option>)}
+            </select>
+          </label>
+          <label className="block text-sm font-semibold text-admin-text-primary">Lý do / ghi chú
+            <textarea value={overrideReason} onChange={event => setOverrideReason(event.target.value)} rows={3} maxLength={1000} className="mt-1.5 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 py-2 text-sm" placeholder="Ví dụ: điều chỉnh theo tình trạng thực tế" />
+          </label>
+          <div className="rounded-admin-control border border-admin-status-warning/30 bg-admin-status-warning/8 px-3 py-2 text-xs leading-5 text-admin-text-secondary">Đơn ship vẫn cần đủ thông tin người nhận trước khi chuyển sang Đang giao hàng. Xác nhận giao thành công sẽ chuyển đơn chưa đủ tiền sang Công nợ, hoặc tự Hoàn tất nếu đã thanh toán đủ.</div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setOverrideDialogOpen(false)} disabled={busyAction === 'override-status'} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Hủy</button><button type="submit" disabled={busyAction === 'override-status'} className="inline-flex h-11 items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-white disabled:opacity-50">{busyAction === 'override-status' ? <LoaderCircle size={16} className="animate-spin" /> : <RefreshCw size={16} />}Xác nhận chuyển</button></div>
+        </form>
       </SettingsDialog>
 
       <SettingsDialog
@@ -1102,6 +1378,11 @@ export const OrderDetailPage: React.FC = () => {
               <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-admin-text-muted">₫</span>
             </div>
           </div>
+          <label className="block text-sm font-semibold text-admin-text-primary">Ngày phát sinh phí
+            <input type="datetime-local" value={shippingFeeIncurredAt} onChange={event => setShippingFeeIncurredAt(event.target.value)} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm" />
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-admin-text-primary"><input type="checkbox" checked={shippingFeePaid} onChange={event => setShippingFeePaid(event.target.checked)} className="h-4 w-4 rounded border-admin-input-border text-admin-primary" />Đã thực trả phí ship</label>
+          {shippingFeePaid ? <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-admin-text-primary">Thời điểm thực trả<input type="datetime-local" value={shippingFeePaidAt} onChange={event => setShippingFeePaidAt(event.target.value)} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm" /></label><label className="text-sm font-semibold text-admin-text-primary">Phương thức<select value={shippingFeeMethod} onChange={event => setShippingFeeMethod(Number(event.target.value) as PaymentMethod)} className="mt-1.5 h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-surface px-3 text-sm"><option value={PaymentMethod.Cash}>Tiền mặt</option><option value={PaymentMethod.BankTransfer}>Chuyển khoản</option><option value={PaymentMethod.Card}>Thẻ</option><option value={PaymentMethod.Other}>Khác</option></select></label></div> : null}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"

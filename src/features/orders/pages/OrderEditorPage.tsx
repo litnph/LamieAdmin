@@ -12,7 +12,7 @@ import {
   MessageSquareText,
   PackageOpen,
   Search,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { channelsApi, type ChannelDto } from '@/features/settings/channels/api/channelsApi';
@@ -39,7 +39,7 @@ import {
   type ProductLineValidationError,
 } from '../components/OrderProductLinesEditor';
 import type { AddressResolutionDto } from '../types/administrativeAddress.types';
-import { AdministrativeScheme, OrderStatus, PaymentStatus, type OrderImageUpload, type OrderMaterialDto, type SaveOrderMaterialItem } from '../types/order.types';
+import { AdministrativeScheme, OrderStatus, PaymentMethod, PaymentStatus, type OrderImageUpload, type OrderMaterialDto, type SaveOrderMaterialItem } from '../types/order.types';
 import { nominatimReverse, nominatimSearch } from '../utils/geocode';
 import { calculateDefaultDeposit } from '../utils/deposit';
 
@@ -293,6 +293,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   const [deliveryMode, setDeliveryMode] = useState<'exact' | 'range'>('exact');
   const [depositAmount, setDepositAmount] = useState(100_000);
   const [isPaid, setIsPaid] = useState(false);
+  const [confirmPaymentReceived, setConfirmPaymentReceived] = useState(false);
+  const [paymentReceivedAt, setPaymentReceivedAt] = useState(() => {
+    const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date());
+    return parts.replace(' ', 'T');
+  });
+  const paymentIdempotencyKeyRef = useRef(globalThis.crypto?.randomUUID?.() ?? `create-payment-${Date.now()}`);
   const [depositWasManuallyEdited, setDepositWasManuallyEdited] = useState(isEdit);
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingFeeActual, setShippingFeeActual] = useState('');
@@ -703,7 +709,9 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       if (!firstField) firstField = fieldId;
     };
 
-    requireValue(channelId, 'Chưa chọn kênh bán.', 'order-channel');
+    requireValue(ordererName, 'Chưa nhập tên người đặt.', 'orderer-name');
+    requireValue(ordererPhone, 'Chưa nhập số điện thoại người đặt.', 'orderer-phone');
+    requireValue(channelId, 'Chưa chọn kênh đặt hàng.', 'order-channel');
     requireValue(deliveryAt, 'Chưa chọn thời gian nhận hàng.', 'delivery-at');
     if (deliveryMode === 'range') {
       requireValue(deliveryTo, 'Chưa chọn thời gian kết thúc khoảng nhận hàng.', 'delivery-to');
@@ -813,6 +821,14 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
       problems.push(message);
       if (!firstField) firstField = 'order-inventory-materials';
     }
+    if (depositAmount > orderValue) {
+      problems.push('Số tiền đã thanh toán hoặc cọc không được lớn hơn tổng đơn.');
+      if (!firstField) firstField = 'deposit-amount';
+    }
+    if (!isEdit && (isPaid || confirmPaymentReceived) && !paymentReceivedAt) {
+      problems.push('Chưa nhập thời điểm thực nhận tiền.');
+      if (!firstField) firstField = 'payment-received-at';
+    }
 
     if (Object.keys(nextLineErrors).length > 0) problems.push('Kiểm tra lại các dòng sản phẩm được đánh dấu.');
     setLineErrors(nextLineErrors);
@@ -917,6 +933,10 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         deliveryTo: deliveryToIso,
         depositAmount,
         isPaid,
+        confirmPaymentReceived: !isEdit && (isPaid || confirmPaymentReceived),
+        paymentReceivedAt: !isEdit && (isPaid || confirmPaymentReceived) ? `${paymentReceivedAt}:00+07:00` : undefined,
+        paymentMethod: !isEdit && (isPaid || confirmPaymentReceived) ? PaymentMethod.Other : undefined,
+        paymentIdempotencyKey: !isEdit && (isPaid || confirmPaymentReceived) ? paymentIdempotencyKeyRef.current : undefined,
         shippingFee: pickupAtShop ? 0 : shippingFee,
         shippingFeeActual: pickupAtShop || shippingFeeActual.trim() === ''
           ? null
@@ -995,8 +1015,9 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
   return (
     <div className="min-w-0 pb-2">
       <PageHeader
+        eyebrow={isEdit ? 'Bán hàng / Chỉnh sửa' : 'Bán hàng / Đơn mới'}
         title={isEdit ? 'Sửa đơn hàng' : 'Tạo đơn hàng'}
-        description="Thông tin chính, sản phẩm và giao nhận được gom trong một màn hình."
+        description="Thông tin rõ ràng để mỗi bó hoa được trao đúng hẹn."
         actions={(
           <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             {!isEdit ? (
@@ -1007,7 +1028,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="btn-press inline-flex min-h-10 shrink-0 items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted"
+              className="btn-press hidden min-h-10 shrink-0 items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-text-primary transition-colors hover:bg-admin-muted sm:inline-flex"
             >
               <ArrowLeft size={16} aria-hidden="true" /> Quay lại
             </button>
@@ -1046,66 +1067,22 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
         <div className="grid min-w-0 gap-4 wide:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
           <div className="min-w-0 space-y-4">
             <section className={panelClass} aria-labelledby="customer-section-title">
-              <h2 id="customer-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Khách hàng</h2>
-              <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-12">
-                <div className="sm:col-span-5">
-                  <label htmlFor="recipient-name" className={labelClass}>Người nhận <span aria-hidden="true" className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
-                  <input
-                    id="recipient-name"
-                    aria-label="Người nhận"
-                    className={inputClass}
-                    value={recipientName}
-                    onChange={(event) => {
-                      setRecipientName(event.target.value);
-                      if (recipientIsOrderer) setOrdererName(event.target.value);
-                    }}
-                    autoComplete="shipping name"
-                  />
+              <div className="mb-4 border-b border-admin-border pb-3">
+                <h2 id="customer-section-title" className="text-sm font-semibold text-admin-text-primary"><span aria-hidden="true">01 · </span>Thông tin người đặt</h2>
+                <p className="mt-1 text-xs text-admin-text-muted">Thông tin chính để xác nhận và liên hệ về đơn hàng.</p>
+              </div>
+              <div className="grid gap-x-3 gap-y-3 sm:grid-cols-12">
+                <div className="sm:col-span-4">
+                  <label htmlFor="orderer-name" className={labelClass}>Tên người đặt <span className="text-admin-status-error" aria-hidden="true">*</span></label>
+                  <input id="orderer-name" aria-label="Tên người đặt" required className={inputClass} value={ordererName} onChange={(event) => { setOrdererName(event.target.value); if (recipientIsOrderer) setRecipientName(event.target.value); }} autoComplete="name" />
                 </div>
                 <div className="sm:col-span-4">
-                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận <span aria-hidden="true" className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
-                  <input
-                    id="recipient-phone"
-                    aria-label="SĐT người nhận"
-                    type="tel"
-                    className={inputClass}
-                    value={recipientPhone}
-                    onChange={(event) => {
-                      setRecipientPhone(event.target.value);
-                      if (recipientIsOrderer) setOrdererPhone(event.target.value);
-                    }}
-                    autoComplete="shipping tel"
-                  />
-                </div>
-                <div className="flex items-end sm:col-span-3">
-                  <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-admin-text-primary">
-                    <input
-                      type="checkbox"
-                      checked={recipientIsOrderer}
-                      onChange={(event) => {
-                        const checked = event.target.checked;
-                        setRecipientIsOrderer(checked);
-                        if (checked) {
-                          setOrdererName(recipientName);
-                          setOrdererPhone(recipientPhone);
-                        }
-                      }}
-                      className="h-4 w-4 accent-admin-primary"
-                    />
-                    Người nhận là người đặt
-                  </label>
+                  <label htmlFor="orderer-phone" className={labelClass}>SĐT người đặt <span className="text-admin-status-error" aria-hidden="true">*</span></label>
+                  <input id="orderer-phone" aria-label="SĐT người đặt" required type="tel" className={inputClass} value={ordererPhone} onChange={(event) => { setOrdererPhone(event.target.value); if (recipientIsOrderer) setRecipientPhone(event.target.value); }} autoComplete="tel" />
                 </div>
                 <div className="sm:col-span-4">
-                  <label htmlFor="orderer-name" className={labelClass}>Người đặt <span aria-hidden="true" className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
-                  <input id="orderer-name" aria-label="Người đặt" className={inputClass} value={ordererName} onChange={(event) => setOrdererName(event.target.value)} autoComplete="name" disabled={recipientIsOrderer} />
-                </div>
-                <div className="sm:col-span-4">
-                  <label htmlFor="orderer-phone" className={labelClass}>SĐT người đặt <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
-                  <input id="orderer-phone" aria-label="SĐT người đặt" type="tel" className={inputClass} value={ordererPhone} onChange={(event) => setOrdererPhone(event.target.value)} autoComplete="tel" disabled={recipientIsOrderer} />
-                </div>
-                <div className="sm:col-span-4">
-                  <label htmlFor="order-channel" className={labelClass}>Kênh bán</label>
-                  <select id="order-channel" className={inputClass} value={channelId} onChange={(event) => setChannelId(event.target.value)}>
+                  <label htmlFor="order-channel" className={labelClass}>Kênh đặt hàng <span className="text-admin-status-error" aria-hidden="true">*</span></label>
+                  <select id="order-channel" required className={inputClass} value={channelId} onChange={(event) => setChannelId(event.target.value)}>
                     <option value="">Chọn kênh</option>
                     {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
                   </select>
@@ -1149,6 +1126,23 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                     />
                   </div>
                 </div>
+                <div className="sm:col-span-12">
+                  <div className="mt-1 flex flex-col gap-3 border-t border-admin-border pt-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div><h3 className="text-sm font-semibold text-admin-text-primary">Thông tin người nhận</h3><p className="mt-1 text-xs text-admin-text-muted">Có thể để trống khi tạo. Đơn ship chỉ cần đủ thông tin trước khi bàn giao.</p></div>
+                    <button type="button" onClick={() => { setRecipientIsOrderer(true); setRecipientName(ordererName); setRecipientPhone(ordererPhone); }} className="min-h-10 shrink-0 rounded-admin-control border border-admin-border bg-admin-card px-3 text-xs font-semibold text-admin-primary hover:bg-admin-muted">Người nhận là người đặt</button>
+                  </div>
+                </div>
+                <div className="sm:col-span-5">
+                  <label htmlFor="recipient-name" className={labelClass}>Tên người nhận <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
+                  <input id="recipient-name" aria-label="Tên người nhận" className={inputClass} value={recipientName} onChange={(event) => { setRecipientIsOrderer(false); setRecipientName(event.target.value); }} autoComplete="shipping name" />
+                </div>
+                <div className="sm:col-span-4">
+                  <label htmlFor="recipient-phone" className={labelClass}>SĐT người nhận <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
+                  <input id="recipient-phone" aria-label="SĐT người nhận" type="tel" className={inputClass} value={recipientPhone} onChange={(event) => { setRecipientIsOrderer(false); setRecipientPhone(event.target.value); }} autoComplete="shipping tel" />
+                </div>
+                <div className="flex items-end sm:col-span-3">
+                  <p className="pb-3 text-xs text-admin-text-muted" aria-live="polite">{recipientIsOrderer ? 'Đã sao chép từ người đặt. Bạn vẫn có thể sửa riêng.' : 'Không tự động sao chép.'}</p>
+                </div>
               </div>
             </section>
 
@@ -1176,7 +1170,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             <section id="order-inventory-materials" className={panelClass} aria-labelledby="order-materials-title" tabIndex={-1}>
               <div className="border-b border-admin-border pb-3">
                 <h2 id="order-materials-title" className="flex items-center gap-2 text-sm font-semibold text-admin-text-primary">
-                  <PackageOpen size={17} aria-hidden="true" /> Nguyên liệu &amp; vật tư
+                  <span aria-hidden="true">03 · </span><PackageOpen size={17} aria-hidden="true" /> Nguyên liệu &amp; vật tư
                 </h2>
                 <p className="mt-1 max-w-[70ch] text-xs leading-5 text-admin-text-secondary">
                   Quản lý thành phần sử dụng cho từng sản phẩm trong đơn. Vật tư kho sẽ ảnh hưởng tồn kho, nguyên liệu thì không.
@@ -1225,7 +1219,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             </section>
 
             <section className={panelClass} aria-labelledby="order-note-section-title">
-              <h2 id="order-note-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary">Ghi chú đơn hàng</h2>
+              <h2 id="order-note-section-title" className="mb-3 text-sm font-semibold text-admin-text-primary"><span aria-hidden="true">04 · </span>Ghi chú đơn hàng</h2>
               <label htmlFor="order-content-note" className={labelClass}>Nội dung ghi chú <span className="font-normal text-admin-text-muted">(không bắt buộc)</span></label>
               <textarea id="order-content-note" className={`${inputClass} min-h-20 resize-y`} value={contentNote} onChange={(event) => setContentNote(event.target.value)} placeholder="Nội dung cần lưu ý (không bắt buộc)" />
             </section>
@@ -1244,13 +1238,13 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                       <input
                         type="checkbox"
                         checked={isPaid}
-                        onChange={(event) => setIsPaid(event.target.checked)}
+                        onChange={(event) => { setIsPaid(event.target.checked); if (event.target.checked) setConfirmPaymentReceived(true); }}
                         className="h-4 w-4 accent-admin-primary"
                       />
                       Đã thanh toán
                     </label>
                     <span data-testid="payment-status-preview" className={isPaid ? 'text-xs font-semibold text-admin-status-success' : 'text-xs text-admin-text-muted'} aria-live="polite">
-                      {isPaid ? 'Đã thanh toán' : depositAmount > 0 ? 'Đã cọc' : 'Chưa cọc'}
+                      {isPaid ? 'Đã thanh toán' : `Chưa thanh toán đủ · Còn ${formatVndInput(Math.max(0, orderValue - depositAmount))}đ`}
                     </span>
                   </div>
                   {!isPaid ? (
@@ -1260,13 +1254,17 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                         <input id="deposit-amount" type="text" inputMode="numeric" className={`${inputClass} pr-8 text-right tabular-nums`} value={formatVndInput(depositAmount)} onChange={(event) => { setDepositAmount(parseVndInput(event.target.value)); setDepositWasManuallyEdited(true); }} />
                         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-admin-text-muted">₫</span>
                       </div>
-                      <button type="button" onClick={() => { setDepositAmount(calculateDefaultDeposit(orderValue)); setDepositWasManuallyEdited(false); }} className="mt-1 text-[11px] font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
+                      <button type="button" onClick={() => { setDepositAmount(calculateDefaultDeposit(orderValue)); setDepositWasManuallyEdited(false); }} className="mt-1 text-xs font-semibold text-admin-primary hover:underline">Áp dụng cọc mặc định</button>
                     </div>
                   ) : (
                     <p className="rounded-admin-control bg-admin-primary/6 px-3 py-2 text-xs leading-5 text-admin-text-secondary sm:col-span-2 wide:col-span-1" data-testid="paid-deposit-note">
                       Đơn hàng đã thanh toán, không cần nhập tiền cọc.
                     </p>
                   )}
+                  {!isEdit ? <div className="space-y-3 rounded-admin-control border border-admin-border bg-admin-surface p-3 sm:col-span-2 wide:col-span-1">
+                    {!isPaid ? <label className="flex min-h-9 items-center gap-2 text-xs font-semibold text-admin-text-primary"><input type="checkbox" checked={confirmPaymentReceived} onChange={event => setConfirmPaymentReceived(event.target.checked)} className="h-4 w-4 rounded border-admin-input-border text-admin-primary" />Đã thực nhận khoản cọc này</label> : null}
+                    {isPaid || confirmPaymentReceived ? <label className="block text-xs font-medium text-admin-text-secondary">Thời điểm thực nhận<input id="payment-received-at" type="datetime-local" value={paymentReceivedAt} onChange={event => setPaymentReceivedAt(event.target.value)} className={`${inputClass} mt-1.5`} /></label> : <p className="text-xs leading-5 text-admin-text-muted">Số tiền cọc là thỏa thuận của đơn; chỉ xuất hiện trong dòng tiền sau khi xác nhận đã nhận.</p>}
+                  </div> : null}
                   <div>
                     <label htmlFor="shipping-fee" className={labelClass}>Phí giao dự kiến</label>
                     <div className="relative">
@@ -1344,12 +1342,12 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                 <div className={`grid gap-2.5 ${deliveryMode === 'range' ? 'sm:grid-cols-2' : ''}`}>
                   <div>
                     <label htmlFor="delivery-at" className="sr-only">{deliveryMode === 'range' ? (provinceShipping ? 'Gửi từ' : 'Nhận từ') : (provinceShipping ? 'Thời gian gửi đơn vị vận chuyển' : 'Thời gian nhận')}</label>
-                    {deliveryMode === 'range' ? <p className="mb-1 text-[11px] text-admin-text-muted">Từ</p> : null}
+                    {deliveryMode === 'range' ? <p className="mb-1 text-xs text-admin-text-muted">Từ</p> : null}
                     <input id="delivery-at" type="datetime-local" className={inputClass} value={deliveryAt} onChange={(event) => setDeliveryAt(event.target.value)} />
                   </div>
                   {deliveryMode === 'range' ? (
                     <div>
-                      <label htmlFor="delivery-to" className="mb-1 block text-[11px] text-admin-text-muted">Đến</label>
+                      <label htmlFor="delivery-to" className="mb-1 block text-xs text-admin-text-muted">Đến</label>
                       <input id="delivery-to" type="datetime-local" min={deliveryAt || undefined} className={inputClass} value={deliveryTo} onChange={(event) => setDeliveryTo(event.target.value)} />
                     </div>
                   ) : null}
@@ -1412,7 +1410,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                         onChange={(event) => setDeliveryAddressDescription(event.target.value)}
                         placeholder="Ví dụ: hẻm bên cạnh số 25, cổng màu xanh, gọi khách khi tới"
                       />
-                      <p className="mt-1 text-[11px] leading-4 text-admin-text-muted">Dùng khi địa chỉ thực tế không có hoặc chưa chính xác trên bản đồ.</p>
+                      <p className="mt-1 text-xs leading-4 text-admin-text-muted">Dùng khi địa chỉ thực tế không có hoặc chưa chính xác trên bản đồ.</p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -1424,7 +1422,7 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
                         {showMap ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
                       </button>
                       {deliveryLatitude != null && deliveryLongitude != null ? (
-                        <span className="text-[11px] text-admin-status-success">Đã ghim vị trí</span>
+                        <span className="text-xs text-admin-status-success">Đã ghim vị trí</span>
                       ) : null}
                     </div>
 
@@ -1464,6 +1462,17 @@ const OrderEditor: React.FC<EditorProps> = ({ orderId }) => {
             </section>
             </div>
           </aside>
+        </div>
+
+        <div className="sticky bottom-3 z-20 mt-5 rounded-admin-panel border border-admin-border bg-admin-card/95 p-2 shadow-admin-panel backdrop-blur md:hidden">
+          <button
+            type="submit"
+            disabled={saving || addressImporting || Boolean(loadError)}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {saving ? <LoaderCircle size={17} className="animate-spin" aria-hidden="true" /> : null}
+            {saving ? 'Đang lưu đơn' : isEdit ? 'Cập nhật đơn' : 'Tạo đơn'}
+          </button>
         </div>
 
       </form>

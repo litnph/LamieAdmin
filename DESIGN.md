@@ -2,38 +2,38 @@
 name: Lamie Admin
 description: Hệ thống quản trị vận hành ấm áp, gọn và chính xác cho cửa hàng hoa Lamie.
 colors:
-  botanical-primary: "#6B7B8B"
-  warm-canvas: "#F7F6F3"
-  warm-sidebar: "#F1EFEB"
-  paper-surface: "#FFFFFF"
-  warm-muted: "#F1EFEB"
-  warm-border: "#DED8D1"
-  ink-primary: "#292623"
-  ink-secondary: "#625D57"
-  ink-muted: "#756F69"
+  botanical-primary: "#435C46"
+  warm-canvas: "#F7F7F2"
+  warm-sidebar: "#EEEEE5"
+  paper-surface: "#FFFEFA"
+  warm-muted: "#F2F3EB"
+  warm-border: "#DEDFD4"
+  ink-primary: "#26362D"
+  ink-secondary: "#55645A"
+  ink-muted: "#677268"
   success: "#356342"
   warning: "#7A5D22"
   error: "#A23E3E"
   info: "#41677A"
 typography:
   title:
-    fontFamily: "Segoe UI Variable, Segoe UI, Helvetica Neue, Arial, sans-serif"
+    fontFamily: "Inter Variable, Inter, Segoe UI, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: 1.3
   body:
-    fontFamily: "Segoe UI Variable, Segoe UI, Helvetica Neue, Arial, sans-serif"
+    fontFamily: "Inter Variable, Inter, Segoe UI, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: "Segoe UI Variable, Segoe UI, Helvetica Neue, Arial, sans-serif"
+    fontFamily: "Inter Variable, Inter, Segoe UI, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 600
     lineHeight: 1.4
 rounded:
-  control: "0.5rem"
-  panel: "0.75rem"
+  control: "0.375rem"
+  panel: "0.5625rem"
 spacing:
   xs: "0.25rem"
   sm: "0.5rem"
@@ -79,11 +79,11 @@ Palette hiện hữu kết hợp canvas trắng ngà với ink nâu đen và mà
 
 ### Neutral
 
-- **Warm Canvas** (`#F7F6F3`): nền ứng dụng.
-- **Warm Sidebar** (`#F1EFEB`): lớp điều hướng tách nhẹ khỏi nội dung.
-- **Paper Surface** (`#FFFFFF`): bề mặt nội dung và popover.
-- **Warm Border** (`#DED8D1`): divider và ranh giới điều khiển.
-- **Warm Ink** (`#292623`): nội dung chính; `#625D57` cho nội dung phụ; `#756F69` cho metadata đủ tương phản.
+- **Warm Canvas** (`#F7F7F2`): nền ứng dụng.
+- **Warm Sidebar** (`#EEEEE5`): lớp điều hướng tách nhẹ khỏi nội dung.
+- **Paper Surface** (`#FFFEFA`): bề mặt nội dung và popover.
+- **Warm Border** (`#DEDFD4`): divider và ranh giới điều khiển.
+- **Warm Ink** (`#26362D`): nội dung chính; `#55645A` cho nội dung phụ; `#677268` cho metadata đủ tương phản.
 
 ### Named Rules
 
@@ -91,8 +91,8 @@ Palette hiện hữu kết hợp canvas trắng ngà với ink nâu đen và mà
 
 ## Typography
 
-**Display Font:** Segoe UI Variable (với Segoe UI, Helvetica Neue, Arial fallback)  
-**Body Font:** Segoe UI Variable (với cùng fallback)
+**Display Font:** Inter Variable (với Inter, Segoe UI, sans-serif fallback)
+**Body Font:** Inter Variable (với cùng fallback)
 
 **Character:** Trung tính, rõ tiếng Việt, quen thuộc với ứng dụng nghiệp vụ. Sidebar, nút, label và dữ liệu dùng cùng một family để giữ nhịp đọc ổn định.
 
@@ -114,25 +114,25 @@ Hệ thống gần như phẳng. Tonal layering và border là cách phân lớp
 
 ## Shapes
 
-Controls dùng bán kính 8px; panel dùng 12px. Pill chỉ dành cho badge/chip nhỏ. Icon không nằm trong ô vuông trang trí nếu không phải avatar, status hoặc một điều khiển thật.
+Controls dùng bán kính 6px; panel dùng 8–9px. Pill chỉ dành cho badge/chip nhỏ. Icon không nằm trong ô vuông trang trí nếu không phải avatar, status hoặc một điều khiển thật.
 
 ## Components
 
 ### Buttons
 
-- **Shape:** control radius 8px, min-height 44px cho hành động chính.
+- **Shape:** control radius 6px, min-height 44px cho hành động chính.
 - **Primary:** màu primary và chữ trắng; hover dùng primary-hover.
 - **Focus:** focus-visible 2px với outline offset 2px.
 
 ### Cards / Containers
 
-- **Corner Style:** 12px ở panel; không lồng card trong card.
+- **Corner Style:** 8–9px ở panel; không lồng card trong card.
 - **Background:** trắng trên canvas ấm.
 - **Shadow Strategy:** panel rất nhẹ, popover mới dùng elevation rõ.
 
 ### Inputs / Fields
 
-- **Style:** nền trắng, border `#D8D2CB`, radius 8px, chiều cao 44px.
+- **Style:** nền trắng ngà, border `#D4D8CE`, radius 6px, chiều cao 44px.
 - **Focus:** đổi border sang primary và ring tint nhẹ.
 - **Disabled:** nền warm-muted với chữ đủ tương phản.
 

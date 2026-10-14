@@ -18,6 +18,18 @@ export const manifest = defineAdminModuleManifest({
         'FinancialReportPage',
       ),
     },
+    {
+      pageKey: 'finance.purchases',
+      defaultPath: '/admin/finance/purchases',
+      requiredPermission: Permission.ReportsView,
+      lazyComponent: lazyNamedComponent(() => import('@/features/reports/pages/MaterialPurchasesPage'), 'MaterialPurchasesPage'),
+    },
+    {
+      pageKey: 'finance.period-close',
+      defaultPath: '/admin/finance/period-close',
+      requiredPermission: Permission.ExpensesManage,
+      lazyComponent: lazyNamedComponent(() => import('@/features/reports/pages/FinancePeriodClosePage'), 'FinancePeriodClosePage'),
+    },
   ],
   defaultNavigation: [
     {
@@ -33,6 +45,16 @@ export const manifest = defineAdminModuleManifest({
       isVisible: true,
       isEnabled: true,
       isSystem: true,
+    },
+    {
+      key: 'finance.purchases', parentKey: 'group.finance', moduleKey: 'reports', pageKey: 'finance.purchases',
+      label: 'Mua nguyên liệu', defaultPath: '/admin/finance/purchases', iconKey: 'package-plus',
+      permissionCode: Permission.ReportsView, sortOrder: 30, isVisible: true, isEnabled: true, isSystem: true,
+    },
+    {
+      key: 'finance.period-close', parentKey: 'group.finance', moduleKey: 'reports', pageKey: 'finance.period-close',
+      label: 'Kiểm kê & chốt kỳ', defaultPath: '/admin/finance/period-close', iconKey: 'list-checks',
+      permissionCode: Permission.ExpensesManage, sortOrder: 40, isVisible: true, isEnabled: true, isSystem: true,
     },
   ],
 });

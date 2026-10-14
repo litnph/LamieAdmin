@@ -168,10 +168,13 @@ test('capture sidebar states', async ({ page }) => {
   await installApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/admin/dashboard');
-  await expect(page.getByRole('heading', { name: 'Tổng quan', level: 1 })).toBeVisible();
-  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '256px');
+  await expect(page.getByRole('heading', { name: 'Một ngày mới ở Lamie', level: 1 })).toBeVisible();
+  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '224px');
   await expect(page.getByRole('link', { name: 'Tạo đơn hàng' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page');
+  const accountBounds = await page.getByRole('button', { name: /Tài khoản Nguyễn Minh Anh/ }).boundingBox();
+  const createOrderBounds = await page.getByRole('link', { name: 'Tạo đơn hàng' }).boundingBox();
+  expect(accountBounds?.y).toBeLessThan(createOrderBounds?.y ?? 0);
   await page.screenshot({ path: path.join(screenshotDirectory, 'desktop-expanded-1440x900.png'), fullPage: false });
 
   await page.getByRole('button', { name: 'Thu gọn menu điều hướng' }).click();
@@ -186,27 +189,43 @@ test('capture sidebar states', async ({ page }) => {
   await page.getByRole('button', { name: 'Mở rộng menu điều hướng' }).click();
 
   await page.setViewportSize({ width: 1366, height: 768 });
-  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '256px');
-  await expect(page.getByRole('heading', { name: 'Tổng quan vận hành', level: 1 })).toBeVisible();
+  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '224px');
+  await expect(page.getByRole('heading', { name: 'Một ngày mới ở Lamie', level: 1 })).toBeVisible();
   await page.screenshot({ path: path.join(screenshotDirectory, 'desktop-expanded-1366x768.png'), fullPage: false });
 
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.getByRole('button', { name: 'Mở menu điều hướng' }).click();
-  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '256px');
+  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '224px');
   await expectDrawerSettled(page);
   await page.screenshot({ path: path.join(screenshotDirectory, 'tablet-drawer-768x1024.png'), fullPage: false });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Mở menu điều hướng' })).toBeFocused();
 
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '224px');
+  await expect(page.getByRole('button', { name: 'Thu gọn menu điều hướng' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  await page.screenshot({ path: path.join(screenshotDirectory, 'desktop-expanded-1024x768.png'), fullPage: false });
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Mở menu điều hướng' }).click();
-  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '256px');
+  await expect(page.locator('#admin-sidebar')).toHaveCSS('width', '224px');
   await expectDrawerSettled(page);
   await expect(page.getByRole('button', { name: 'Đóng menu điều hướng' })).toBeFocused();
   const targetHeights = await page.locator('#admin-sidebar a:visible, #admin-sidebar button:visible')
     .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
   expect(Math.min(...targetHeights)).toBeGreaterThanOrEqual(44);
   await page.screenshot({ path: path.join(screenshotDirectory, 'mobile-drawer-390x844.png'), fullPage: false });
+  await page.keyboard.press('Escape');
+
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.getByRole('button', { name: 'Mở menu điều hướng' }).click();
+  await expectDrawerSettled(page);
+  const mobileAccountBounds = await page.getByRole('button', { name: /Tài khoản Nguyễn Minh Anh/ }).boundingBox();
+  const mobileCreateOrderBounds = await page.getByRole('link', { name: 'Tạo đơn hàng' }).boundingBox();
+  expect(mobileAccountBounds?.y).toBeLessThan(mobileCreateOrderBounds?.y ?? 0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  await page.screenshot({ path: path.join(screenshotDirectory, 'mobile-drawer-360x800.png'), fullPage: false });
   expect(browserErrors).toEqual([]);
 });
 
@@ -220,7 +239,7 @@ test('mobile drawer traps focus and closes after navigation', async ({ page }) =
   const closeButton = page.getByRole('button', { name: 'Đóng menu điều hướng' });
   await expect(closeButton).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await expect(page.locator('#admin-sidebar')).toContainText('Nguyễn Minh Anh');
+  await expect(page.locator('#admin-sidebar')).toContainText('Lamie Admin');
   expect(await page.locator('#admin-sidebar').evaluate((sidebar) => sidebar.contains(document.activeElement))).toBe(true);
   await page.keyboard.press('Escape');
   await expect(menuButton).toBeFocused();

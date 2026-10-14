@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { KeyRound, Pencil, Plus, RefreshCw, UserRound } from 'lucide-react';
+import { KeyRound, Pencil, Plus, RefreshCw, UserRound } from '@/shared/icons/lucideAnimated';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { usersApi } from '../api/usersApi';

@@ -19,6 +19,13 @@ export type Expense = {
   createdAt: string;
   updatedAt: string;
   stockReceiptId?: string | null;
+  paidAt?: string | null;
+  paymentMethod?: number | null;
+  vendor?: string | null;
+  paymentHistoryIncomplete: boolean;
+  paidAmount: number;
+  outstandingAmount: number;
+  payments: Array<{ id: string; amount: number; paidAt: string; method: number; status: number; note: string | null }>;
 };
 
 export type ExpensePayload = {
@@ -27,6 +34,10 @@ export type ExpensePayload = {
   amount: number;
   description: string;
   notes?: string | null;
+  paidAt?: string | null;
+  paymentMethod?: number | null;
+  vendor?: string | null;
+  paymentIdempotencyKey?: string | null;
 };
 
 export type ExpenseCategoryPayload = {

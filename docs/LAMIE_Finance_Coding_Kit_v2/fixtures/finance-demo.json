@@ -1,0 +1,1752 @@
+{
+  "metadata": {
+    "kind": "demo-only",
+    "period": "2026-09",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "currency": "VND",
+    "moneyUnit": "integer-VND",
+    "note": "Not production data. No tax, returns, personal use or capital movements in this fixture."
+  },
+  "categories": [
+    {
+      "id": 0,
+      "name": "Bó hoa"
+    },
+    {
+      "id": 1,
+      "name": "Giỏ hoa"
+    },
+    {
+      "id": 2,
+      "name": "Bình & hộp hoa"
+    },
+    {
+      "id": 3,
+      "name": "Kệ hoa"
+    }
+  ],
+  "orders": [
+    {
+      "id": "LM-1001",
+      "day": 1,
+      "product": 270000,
+      "shipping": 30000,
+      "actual": 25000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-01"
+    },
+    {
+      "id": "LM-1002",
+      "day": 1,
+      "product": 360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-01"
+    },
+    {
+      "id": "LM-1003",
+      "day": 2,
+      "product": 360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-02"
+    },
+    {
+      "id": "LM-1004",
+      "day": 2,
+      "product": 480000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-02"
+    },
+    {
+      "id": "LM-1005",
+      "day": 3,
+      "product": 540000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-03"
+    },
+    {
+      "id": "LM-1006",
+      "day": 3,
+      "product": 720000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 1,
+      "time": "14:00",
+      "deliveryDate": "2026-09-03"
+    },
+    {
+      "id": "LM-1007",
+      "day": 4,
+      "product": 410000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 2,
+      "time": "09:30",
+      "deliveryDate": "2026-09-04"
+    },
+    {
+      "id": "LM-1008",
+      "day": 4,
+      "product": 540000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 45000,
+      "category": 3,
+      "time": "14:00",
+      "deliveryDate": "2026-09-04"
+    },
+    {
+      "id": "LM-1009",
+      "day": 5,
+      "product": 270000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-05"
+    },
+    {
+      "id": "LM-1010",
+      "day": 5,
+      "product": 360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-05"
+    },
+    {
+      "id": "LM-1011",
+      "day": 6,
+      "product": 470000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-06"
+    },
+    {
+      "id": "LM-1012",
+      "day": 6,
+      "product": 630000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-06"
+    },
+    {
+      "id": "LM-1013",
+      "day": 6,
+      "product": 790000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 1,
+      "time": "17:30",
+      "deliveryDate": "2026-09-06"
+    },
+    {
+      "id": "LM-1014",
+      "day": 7,
+      "product": 450000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-07"
+    },
+    {
+      "id": "LM-1015",
+      "day": 7,
+      "product": 600000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 2,
+      "time": "14:00",
+      "deliveryDate": "2026-09-07"
+    },
+    {
+      "id": "LM-1016",
+      "day": 7,
+      "product": 740000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 45000,
+      "category": 3,
+      "time": "17:30",
+      "deliveryDate": "2026-09-07"
+    },
+    {
+      "id": "LM-1017",
+      "day": 8,
+      "product": 410000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-08"
+    },
+    {
+      "id": "LM-1018",
+      "day": 8,
+      "product": 540000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-08"
+    },
+    {
+      "id": "LM-1019",
+      "day": 9,
+      "product": 590000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-09"
+    },
+    {
+      "id": "LM-1020",
+      "day": 9,
+      "product": 780000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 35000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-09"
+    },
+    {
+      "id": "LM-1021",
+      "day": 10,
+      "product": 450000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-10"
+    },
+    {
+      "id": "LM-1022",
+      "day": 10,
+      "product": 600000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "14:00",
+      "deliveryDate": "2026-09-10"
+    },
+    {
+      "id": "LM-1023",
+      "day": 11,
+      "product": 270000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 2,
+      "time": "09:30",
+      "deliveryDate": "2026-09-11"
+    },
+    {
+      "id": "LM-1024",
+      "day": 11,
+      "product": 360000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 40000,
+      "category": 3,
+      "time": "14:00",
+      "deliveryDate": "2026-09-11"
+    },
+    {
+      "id": "LM-1025",
+      "day": 12,
+      "product": 860000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-12"
+    },
+    {
+      "id": "LM-1026",
+      "day": 12,
+      "product": 1140000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-12"
+    },
+    {
+      "id": "LM-1027",
+      "day": 13,
+      "product": 600000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-13"
+    },
+    {
+      "id": "LM-1028",
+      "day": 13,
+      "product": 810000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-13"
+    },
+    {
+      "id": "LM-1029",
+      "day": 13,
+      "product": 1010000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "17:30",
+      "deliveryDate": "2026-09-13"
+    },
+    {
+      "id": "LM-1030",
+      "day": 14,
+      "product": 270000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-14"
+    },
+    {
+      "id": "LM-1031",
+      "day": 14,
+      "product": 360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 2,
+      "time": "14:00",
+      "deliveryDate": "2026-09-14"
+    },
+    {
+      "id": "LM-1032",
+      "day": 15,
+      "product": 500000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 40000,
+      "category": 3,
+      "time": "09:30",
+      "deliveryDate": "2026-09-15"
+    },
+    {
+      "id": "LM-1033",
+      "day": 15,
+      "product": 660000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-15"
+    },
+    {
+      "id": "LM-1034",
+      "day": 16,
+      "product": 400000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-16"
+    },
+    {
+      "id": "LM-1035",
+      "day": 16,
+      "product": 540000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-16"
+    },
+    {
+      "id": "LM-1036",
+      "day": 18,
+      "product": 360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-18"
+    },
+    {
+      "id": "LM-1037",
+      "day": 18,
+      "product": 480000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "14:00",
+      "deliveryDate": "2026-09-18"
+    },
+    {
+      "id": "LM-1038",
+      "day": 19,
+      "product": 860000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-19"
+    },
+    {
+      "id": "LM-1039",
+      "day": 19,
+      "product": 1140000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 2,
+      "time": "14:00",
+      "deliveryDate": "2026-09-19"
+    },
+    {
+      "id": "LM-1040",
+      "day": 20,
+      "product": 840000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 40000,
+      "category": 3,
+      "time": "09:30",
+      "deliveryDate": "2026-09-20"
+    },
+    {
+      "id": "LM-1041",
+      "day": 20,
+      "product": 1120000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-20"
+    },
+    {
+      "id": "LM-1042",
+      "day": 20,
+      "product": 1400000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "17:30",
+      "deliveryDate": "2026-09-20"
+    },
+    {
+      "id": "LM-1043",
+      "day": 21,
+      "product": 450000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-21"
+    },
+    {
+      "id": "LM-1044",
+      "day": 21,
+      "product": 600000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-21"
+    },
+    {
+      "id": "LM-1045",
+      "day": 22,
+      "product": 310000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-22"
+    },
+    {
+      "id": "LM-1046",
+      "day": 22,
+      "product": 420000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "14:00",
+      "deliveryDate": "2026-09-22"
+    },
+    {
+      "id": "LM-1047",
+      "day": 23,
+      "product": 500000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 2,
+      "time": "09:30",
+      "deliveryDate": "2026-09-23"
+    },
+    {
+      "id": "LM-1048",
+      "day": 23,
+      "product": 660000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 40000,
+      "category": 3,
+      "time": "14:00",
+      "deliveryDate": "2026-09-23"
+    },
+    {
+      "id": "LM-1049",
+      "day": 24,
+      "product": 380000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-24"
+    },
+    {
+      "id": "LM-1050",
+      "day": 24,
+      "product": 510000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-24"
+    },
+    {
+      "id": "LM-1051",
+      "day": 25,
+      "product": 590000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-25"
+    },
+    {
+      "id": "LM-1052",
+      "day": 25,
+      "product": 780000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-25"
+    },
+    {
+      "id": "LM-1053",
+      "day": 26,
+      "product": 1130000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-26"
+    },
+    {
+      "id": "LM-1054",
+      "day": 26,
+      "product": 1500000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "14:00",
+      "deliveryDate": "2026-09-26"
+    },
+    {
+      "id": "LM-1055",
+      "day": 27,
+      "product": 810000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 2,
+      "time": "09:30",
+      "deliveryDate": "2026-09-27"
+    },
+    {
+      "id": "LM-1056",
+      "day": 27,
+      "product": 1090000,
+      "shipping": 40000,
+      "actual": 45000,
+      "estimated": 40000,
+      "category": 3,
+      "time": "14:00",
+      "deliveryDate": "2026-09-27"
+    },
+    {
+      "id": "LM-1057",
+      "day": 27,
+      "product": 1360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "17:30",
+      "deliveryDate": "2026-09-27"
+    },
+    {
+      "id": "LM-1058",
+      "day": 28,
+      "product": 370000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "09:30",
+      "deliveryDate": "2026-09-28"
+    },
+    {
+      "id": "LM-1059",
+      "day": 28,
+      "product": 490000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "14:00",
+      "deliveryDate": "2026-09-28"
+    },
+    {
+      "id": "LM-1060",
+      "day": 28,
+      "product": 610000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 0,
+      "time": "17:30",
+      "deliveryDate": "2026-09-28"
+    },
+    {
+      "id": "LM-1061",
+      "day": 29,
+      "product": 360000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "09:30",
+      "deliveryDate": "2026-09-29"
+    },
+    {
+      "id": "LM-1062",
+      "day": 29,
+      "product": 480000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 1,
+      "time": "14:00",
+      "deliveryDate": "2026-09-29"
+    },
+    {
+      "id": "LM-1063",
+      "day": 30,
+      "product": 540000,
+      "shipping": 30000,
+      "actual": 35000,
+      "estimated": 30000,
+      "category": 2,
+      "time": "09:30",
+      "deliveryDate": "2026-09-30"
+    },
+    {
+      "id": "LM-1064",
+      "day": 30,
+      "product": 720000,
+      "shipping": 40000,
+      "actual": 35000,
+      "estimated": 40000,
+      "category": 3,
+      "time": "14:00",
+      "deliveryDate": "2026-09-30"
+    }
+  ],
+  "daily": [
+    {
+      "day": 1,
+      "orders": [
+        {
+          "id": "LM-1001",
+          "day": 1,
+          "product": 270000,
+          "shipping": 30000,
+          "actual": 25000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1002",
+          "day": 1,
+          "product": 360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 630000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 2
+    },
+    {
+      "day": 2,
+      "orders": [
+        {
+          "id": "LM-1003",
+          "day": 2,
+          "product": 360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1004",
+          "day": 2,
+          "product": 480000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 840000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 3
+    },
+    {
+      "day": 3,
+      "orders": [
+        {
+          "id": "LM-1005",
+          "day": 3,
+          "product": 540000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1006",
+          "day": 3,
+          "product": 720000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 1,
+          "time": "14:00"
+        }
+      ],
+      "product": 1260000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 4
+    },
+    {
+      "day": 4,
+      "orders": [
+        {
+          "id": "LM-1007",
+          "day": 4,
+          "product": 410000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 2,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1008",
+          "day": 4,
+          "product": 540000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 45000,
+          "category": 3,
+          "time": "14:00"
+        }
+      ],
+      "product": 950000,
+      "shipping": 70000,
+      "count": 2,
+      "weekday": 5
+    },
+    {
+      "day": 5,
+      "orders": [
+        {
+          "id": "LM-1009",
+          "day": 5,
+          "product": 270000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1010",
+          "day": 5,
+          "product": 360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 630000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 6
+    },
+    {
+      "day": 6,
+      "orders": [
+        {
+          "id": "LM-1011",
+          "day": 6,
+          "product": 470000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1012",
+          "day": 6,
+          "product": 630000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "14:00"
+        },
+        {
+          "id": "LM-1013",
+          "day": 6,
+          "product": 790000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 1,
+          "time": "17:30"
+        }
+      ],
+      "product": 1890000,
+      "shipping": 90000,
+      "count": 3,
+      "weekday": 0
+    },
+    {
+      "day": 7,
+      "orders": [
+        {
+          "id": "LM-1014",
+          "day": 7,
+          "product": 450000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1015",
+          "day": 7,
+          "product": 600000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 2,
+          "time": "14:00"
+        },
+        {
+          "id": "LM-1016",
+          "day": 7,
+          "product": 740000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 45000,
+          "category": 3,
+          "time": "17:30"
+        }
+      ],
+      "product": 1790000,
+      "shipping": 100000,
+      "count": 3,
+      "weekday": 1
+    },
+    {
+      "day": 8,
+      "orders": [
+        {
+          "id": "LM-1017",
+          "day": 8,
+          "product": 410000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1018",
+          "day": 8,
+          "product": 540000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 950000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 2
+    },
+    {
+      "day": 9,
+      "orders": [
+        {
+          "id": "LM-1019",
+          "day": 9,
+          "product": 590000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1020",
+          "day": 9,
+          "product": 780000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 35000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 1370000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 3
+    },
+    {
+      "day": 10,
+      "orders": [
+        {
+          "id": "LM-1021",
+          "day": 10,
+          "product": 450000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1022",
+          "day": 10,
+          "product": 600000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "14:00"
+        }
+      ],
+      "product": 1050000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 4
+    },
+    {
+      "day": 11,
+      "orders": [
+        {
+          "id": "LM-1023",
+          "day": 11,
+          "product": 270000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 2,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1024",
+          "day": 11,
+          "product": 360000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 40000,
+          "category": 3,
+          "time": "14:00"
+        }
+      ],
+      "product": 630000,
+      "shipping": 70000,
+      "count": 2,
+      "weekday": 5
+    },
+    {
+      "day": 12,
+      "orders": [
+        {
+          "id": "LM-1025",
+          "day": 12,
+          "product": 860000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1026",
+          "day": 12,
+          "product": 1140000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 2000000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 6
+    },
+    {
+      "day": 13,
+      "orders": [
+        {
+          "id": "LM-1027",
+          "day": 13,
+          "product": 600000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1028",
+          "day": 13,
+          "product": 810000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        },
+        {
+          "id": "LM-1029",
+          "day": 13,
+          "product": 1010000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "17:30"
+        }
+      ],
+      "product": 2420000,
+      "shipping": 90000,
+      "count": 3,
+      "weekday": 0
+    },
+    {
+      "day": 14,
+      "orders": [
+        {
+          "id": "LM-1030",
+          "day": 14,
+          "product": 270000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1031",
+          "day": 14,
+          "product": 360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 2,
+          "time": "14:00"
+        }
+      ],
+      "product": 630000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 1
+    },
+    {
+      "day": 15,
+      "orders": [
+        {
+          "id": "LM-1032",
+          "day": 15,
+          "product": 500000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 40000,
+          "category": 3,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1033",
+          "day": 15,
+          "product": 660000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 1160000,
+      "shipping": 70000,
+      "count": 2,
+      "weekday": 2
+    },
+    {
+      "day": 16,
+      "orders": [
+        {
+          "id": "LM-1034",
+          "day": 16,
+          "product": 400000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1035",
+          "day": 16,
+          "product": 540000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 940000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 3
+    },
+    {
+      "day": 17,
+      "orders": [],
+      "product": 0,
+      "shipping": 0,
+      "count": 0,
+      "weekday": 4
+    },
+    {
+      "day": 18,
+      "orders": [
+        {
+          "id": "LM-1036",
+          "day": 18,
+          "product": 360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1037",
+          "day": 18,
+          "product": 480000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "14:00"
+        }
+      ],
+      "product": 840000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 5
+    },
+    {
+      "day": 19,
+      "orders": [
+        {
+          "id": "LM-1038",
+          "day": 19,
+          "product": 860000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1039",
+          "day": 19,
+          "product": 1140000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 2,
+          "time": "14:00"
+        }
+      ],
+      "product": 2000000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 6
+    },
+    {
+      "day": 20,
+      "orders": [
+        {
+          "id": "LM-1040",
+          "day": 20,
+          "product": 840000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 40000,
+          "category": 3,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1041",
+          "day": 20,
+          "product": 1120000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        },
+        {
+          "id": "LM-1042",
+          "day": 20,
+          "product": 1400000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "17:30"
+        }
+      ],
+      "product": 3360000,
+      "shipping": 100000,
+      "count": 3,
+      "weekday": 0
+    },
+    {
+      "day": 21,
+      "orders": [
+        {
+          "id": "LM-1043",
+          "day": 21,
+          "product": 450000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1044",
+          "day": 21,
+          "product": 600000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 1050000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 1
+    },
+    {
+      "day": 22,
+      "orders": [
+        {
+          "id": "LM-1045",
+          "day": 22,
+          "product": 310000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1046",
+          "day": 22,
+          "product": 420000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "14:00"
+        }
+      ],
+      "product": 730000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 2
+    },
+    {
+      "day": 23,
+      "orders": [
+        {
+          "id": "LM-1047",
+          "day": 23,
+          "product": 500000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 2,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1048",
+          "day": 23,
+          "product": 660000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 40000,
+          "category": 3,
+          "time": "14:00"
+        }
+      ],
+      "product": 1160000,
+      "shipping": 70000,
+      "count": 2,
+      "weekday": 3
+    },
+    {
+      "day": 24,
+      "orders": [
+        {
+          "id": "LM-1049",
+          "day": 24,
+          "product": 380000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1050",
+          "day": 24,
+          "product": 510000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 890000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 4
+    },
+    {
+      "day": 25,
+      "orders": [
+        {
+          "id": "LM-1051",
+          "day": 25,
+          "product": 590000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1052",
+          "day": 25,
+          "product": 780000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        }
+      ],
+      "product": 1370000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 5
+    },
+    {
+      "day": 26,
+      "orders": [
+        {
+          "id": "LM-1053",
+          "day": 26,
+          "product": 1130000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1054",
+          "day": 26,
+          "product": 1500000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "14:00"
+        }
+      ],
+      "product": 2630000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 6
+    },
+    {
+      "day": 27,
+      "orders": [
+        {
+          "id": "LM-1055",
+          "day": 27,
+          "product": 810000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 2,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1056",
+          "day": 27,
+          "product": 1090000,
+          "shipping": 40000,
+          "actual": 45000,
+          "estimated": 40000,
+          "category": 3,
+          "time": "14:00"
+        },
+        {
+          "id": "LM-1057",
+          "day": 27,
+          "product": 1360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "17:30"
+        }
+      ],
+      "product": 3260000,
+      "shipping": 100000,
+      "count": 3,
+      "weekday": 0
+    },
+    {
+      "day": 28,
+      "orders": [
+        {
+          "id": "LM-1058",
+          "day": 28,
+          "product": 370000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1059",
+          "day": 28,
+          "product": 490000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "14:00"
+        },
+        {
+          "id": "LM-1060",
+          "day": 28,
+          "product": 610000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 0,
+          "time": "17:30"
+        }
+      ],
+      "product": 1470000,
+      "shipping": 90000,
+      "count": 3,
+      "weekday": 1
+    },
+    {
+      "day": 29,
+      "orders": [
+        {
+          "id": "LM-1061",
+          "day": 29,
+          "product": 360000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1062",
+          "day": 29,
+          "product": 480000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 1,
+          "time": "14:00"
+        }
+      ],
+      "product": 840000,
+      "shipping": 60000,
+      "count": 2,
+      "weekday": 2
+    },
+    {
+      "day": 30,
+      "orders": [
+        {
+          "id": "LM-1063",
+          "day": 30,
+          "product": 540000,
+          "shipping": 30000,
+          "actual": 35000,
+          "estimated": 30000,
+          "category": 2,
+          "time": "09:30"
+        },
+        {
+          "id": "LM-1064",
+          "day": 30,
+          "product": 720000,
+          "shipping": 40000,
+          "actual": 35000,
+          "estimated": 40000,
+          "category": 3,
+          "time": "14:00"
+        }
+      ],
+      "product": 1260000,
+      "shipping": 70000,
+      "count": 2,
+      "weekday": 3
+    }
+  ],
+  "initialState": {
+    "theme": "mint",
+    "motion": true,
+    "closed": false,
+    "checks": {
+      "stock": false,
+      "ship": false,
+      "expenses": false
+    },
+    "end": [
+      800000,
+      1800000,
+      1400000
+    ],
+    "waste": 1000000,
+    "purchases": [
+      {
+        "id": "MH-026",
+        "date": "2026-09-28",
+        "vendor": "Sạp hoa chợ Hồ Thị Kỷ",
+        "group": 0,
+        "amount": 12000000,
+        "paid": 10000000,
+        "doc": "Thiếu chứng từ"
+      },
+      {
+        "id": "MH-019",
+        "date": "2026-09-16",
+        "vendor": "Phụ liệu An Nhiên",
+        "group": 1,
+        "amount": 5000000,
+        "paid": 5000000,
+        "doc": "Cần kiểm tra"
+      },
+      {
+        "id": "MH-011",
+        "date": "2026-09-05",
+        "vendor": "Giỏ mây Thanh",
+        "group": 2,
+        "amount": 3000000,
+        "paid": 3000000,
+        "doc": "Cần kiểm tra"
+      }
+    ],
+    "expenses": [
+      {
+        "id": "CP-001",
+        "name": "Mặt bằng tháng 09",
+        "type": "Mặt bằng",
+        "amount": 5000000,
+        "paid": 5000000
+      },
+      {
+        "id": "CP-002",
+        "name": "Lương tháng 09",
+        "type": "Nhân công",
+        "amount": 3000000,
+        "paid": 3000000
+      },
+      {
+        "id": "CP-003",
+        "name": "Quảng cáo tháng 09",
+        "type": "Marketing",
+        "amount": 1200000,
+        "paid": 1000000
+      },
+      {
+        "id": "CP-004",
+        "name": "Điện, nước tháng 09",
+        "type": "Điện nước",
+        "amount": 800000,
+        "paid": 0
+      }
+    ],
+    "log": []
+  },
+  "openingInventoryByGroup": [
+    500000,
+    1500000,
+    1000000
+  ],
+  "inventoryGroups": [
+    "Hoa tươi",
+    "Phụ liệu",
+    "Giỏ, bình & phụ kiện"
+  ],
+  "expected": {
+    "buys": 20000000,
+    "end": 4000000,
+    "use": 19000000,
+    "cogs": 18000000,
+    "opex": 10000000,
+    "profit": 10700000,
+    "paid": 18000000,
+    "expensePaid": 9000000,
+    "cash": 12900000,
+    "orderCount": 64,
+    "productRevenue": 40000000,
+    "shippingRevenue": 2000000,
+    "carrierEstimated": 2100000,
+    "carrierActual": 2300000,
+    "cashOpening": 4000000,
+    "cashReceipts": 38000000,
+    "carrierPaid": 2100000,
+    "shippingMargin": -300000,
+    "shippingBudgetVariance": -200000
+  }
+}

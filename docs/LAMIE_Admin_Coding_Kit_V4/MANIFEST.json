@@ -1,0 +1,48 @@
+{
+  "title": "Lamie Admin — FE first, BE completion handoff",
+  "version": "v5",
+  "created_date": "2026-10-12",
+  "reference_html_sha256": "9fcebfe3f08bbc657a9ee292c00652cbb0ac268d1f19c5d6e13bcaad0270b103",
+  "files": [
+    {
+      "path": "00_PROMPT_AGENT_CODING.md",
+      "bytes": 11717,
+      "sha256": "ca995368f6d01c94ffb3d0f6ae499813f0a667bd6a332ee6f58a0e4a689488f0"
+    },
+    {
+      "path": "01_UI_UX_SPEC.md",
+      "bytes": 8682,
+      "sha256": "62931d48ccb6c777f3f32c2c152226390ecc4574acd77277d1d39a6df00b422f"
+    },
+    {
+      "path": "02_BACKEND_RULES_AND_API.md",
+      "bytes": 13482,
+      "sha256": "b597b8866381fbe6bfe008dcd601580a67de9fd2221e1ff07eebdf1506f2227a"
+    },
+    {
+      "path": "03_ACCEPTANCE_CHECKLIST.md",
+      "bytes": 8849,
+      "sha256": "2e442ff65d27cc532e0c68c6d834697a1a76f324af1d872d82fcee7dfbf17b60"
+    },
+    {
+      "path": "README_VN.md",
+      "bytes": 3575,
+      "sha256": "770b9e943a063ed3f464eeea74143752153bd89b8998fe743621b340a6b5ce15"
+    },
+    {
+      "path": "mockup.html",
+      "bytes": 514470,
+      "sha256": "9fcebfe3f08bbc657a9ee292c00652cbb0ac268d1f19c5d6e13bcaad0270b103"
+    },
+    {
+      "path": "reference/mockup-interactions.js",
+      "bytes": 59052,
+      "sha256": "d0754d556ee54889aeff156496f1539293b8e71e1077d9ded87f824d4a46d6f8"
+    },
+    {
+      "path": "reference/orders.fixture.json",
+      "bytes": 16365,
+      "sha256": "37863b9dbe50d7cd442e2cef52b98eb3c61d7826705f700a0147f107270f9284"
+    }
+  ]
+}

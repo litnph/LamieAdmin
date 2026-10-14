@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, Percent } from 'lucide-react';
+import { CheckCircle2, Loader2, Percent } from '@/shared/icons/lucideAnimated';
 import { ProductApi } from '@/features/product/api/productApi';
 import { SettingsShell, SettingsStatus } from '@/features/settings/components/SettingsShell';
 import { getApiErrorMessage } from '@/shared/utils/apiError';

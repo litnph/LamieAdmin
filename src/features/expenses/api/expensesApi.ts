@@ -9,6 +9,20 @@ import type {
   PagedExpenses,
 } from '../types/expense.types';
 
+type ExpenseWire = Omit<Expense, 'paidAmount' | 'outstandingAmount' | 'payments'>
+  & Partial<Pick<Expense, 'paidAmount' | 'outstandingAmount' | 'payments'>>;
+
+const normalizeExpense = (expense: ExpenseWire): Expense => {
+  const legacyPaidAmount = expense.paidAt ? expense.amount : 0;
+  const paidAmount = expense.paidAmount ?? legacyPaidAmount;
+  return {
+    ...expense,
+    paidAmount,
+    outstandingAmount: expense.outstandingAmount ?? Math.max(0, expense.amount - paidAmount),
+    payments: expense.payments ?? [],
+  };
+};
+
 export const expenseCategoriesApi = {
   list: async (includeInactive = false): Promise<ExpenseCategory[]> => {
     const { data } = await apiClient.get<ExpenseCategory[]>('/api/expense-categories', {
@@ -38,8 +52,8 @@ export const expenseCategoriesApi = {
 
 export const expensesApi = {
   list: async (params: ExpenseListParams): Promise<PagedExpenses> => {
-    const { data } = await apiClient.get<PagedExpenses>('/api/expenses', { params });
-    return data;
+    const { data } = await apiClient.get<Omit<PagedExpenses, 'items'> & { items: ExpenseWire[] }>('/api/expenses', { params });
+    return { ...data, items: data.items.map(normalizeExpense) };
   },
 
   summary: async (from: string, to: string): Promise<ExpenseSummary> => {
@@ -50,8 +64,8 @@ export const expensesApi = {
   },
 
   getById: async (id: string): Promise<Expense> => {
-    const { data } = await apiClient.get<Expense>(`/api/expenses/${id}`);
-    return data;
+    const { data } = await apiClient.get<ExpenseWire>(`/api/expenses/${id}`);
+    return normalizeExpense(data);
   },
 
   create: async (payload: ExpensePayload): Promise<string> => {
@@ -65,5 +79,9 @@ export const expensesApi = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/expenses/${id}`);
+  },
+
+  addPayment: async (id: string, payload: { amount: number; paidAt: string; method: number; idempotencyKey: string; note: string | null }): Promise<void> => {
+    await apiClient.post(`/api/finance/expenses/${id}/payments`, payload);
   },
 };

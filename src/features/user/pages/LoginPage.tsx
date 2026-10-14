@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Flower2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Flower2 } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 
@@ -29,59 +29,58 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-[#FAF8F5] via-[#FDF9F5] to-[#F0E8DE] p-4 font-sans text-admin-text-primary">
-      <div className="absolute left-20 top-20 h-72 w-72 rounded-full bg-admin-primary/8 blur-3xl animate-fade-in" aria-hidden="true" />
-      <div className="absolute bottom-20 right-20 h-96 w-96 rounded-full bg-admin-accent/8 blur-3xl animate-fade-in" aria-hidden="true" />
-
-      <div className="glass-strong relative z-10 grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-3xl border border-white/50 shadow-2xl shadow-black/8 animate-scale-in md:grid-cols-2">
-        <section className="relative hidden flex-col justify-between border-r border-white/30 bg-gradient-to-br from-admin-primary/5 via-admin-muted/50 to-admin-accent-light/30 p-10 md:flex" aria-label="Giới thiệu Lamie Admin">
-          <div className="animate-fade-in-up">
-            <div className="w-12 h-12 rounded-2xl bg-admin-primary/10 flex items-center justify-center mb-6">
-              <Flower2 size={24} className="text-admin-primary" strokeWidth={1.5} aria-hidden="true" />
-            </div>
-            <p className="mb-3 font-serif text-2xl font-bold tracking-tight text-admin-text-primary">
-              Lamie Flower Shop
-            </p>
-            <p className="text-admin-text-secondary text-sm leading-relaxed max-w-xs">
-              Quản trị đơn hàng, kênh bán và sản phẩm. Đăng nhập bằng email hoặc tên đăng nhập theo API Lamie.
-            </p>
-          </div>
-          <p className="text-[11px] text-admin-text-muted animate-fade-in" style={{ animationDelay: '0.4s' }}>
-            Công cụ vận hành dành cho đội ngũ cửa hàng hoa.
+    <main className="grid min-h-dvh bg-admin-bg font-sans text-admin-text-primary md:grid-cols-[1.05fr_1fr]">
+      <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden bg-admin-primary p-12 text-admin-primary-foreground md:flex lg:p-16" aria-label="Giới thiệu Lamie Admin">
+        <div>
+          <p className="font-serif text-5xl font-normal tracking-[-0.055em]">Lamie</p>
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-75">Flower shop</p>
+        </div>
+        <div className="max-w-md">
+          <Flower2 size={70} strokeWidth={0.9} className="mb-8 opacity-55" aria-hidden="true" />
+          <h2 className="font-serif text-[clamp(2.25rem,4vw,3.25rem)] font-normal leading-[1.12] tracking-[-0.035em]">
+            Bàn điều phối cho mỗi ngày ở Lamie.
+          </h2>
+          <p className="mt-6 max-w-sm text-sm leading-7 opacity-80">
+            Theo dõi đơn hàng, lịch giao, sản phẩm và tồn kho trong một không gian làm việc thống nhất.
           </p>
-        </section>
+        </div>
+        <p className="text-xs opacity-70">Công cụ vận hành dành cho đội ngũ cửa hàng hoa.</p>
+      </section>
 
-        <section className="p-8 md:p-10" aria-labelledby="login-title">
-          <div className="mb-8 animate-fade-in-up">
-            <p className="text-[11px] font-medium tracking-[0.2em] uppercase text-admin-text-muted mb-2">
-              Lamie Admin
-            </p>
-            <h1 id="login-title" className="text-2xl font-serif font-semibold text-admin-text-primary tracking-tight">
+      <section className="flex min-h-dvh items-start justify-center bg-admin-card px-6 py-10 sm:px-10 md:items-center md:px-12" aria-labelledby="login-title">
+        <div className="w-full max-w-[23rem]">
+          <div className="mb-14 md:hidden">
+            <p className="font-serif text-4xl tracking-[-0.05em] text-admin-text-primary">Lamie</p>
+            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-admin-text-muted">Quản trị cửa hàng</p>
+          </div>
+          <div className="mb-8">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-admin-text-muted">Lamie Admin</p>
+            <h1 id="login-title" className="mt-3 text-[1.75rem] font-semibold leading-tight tracking-[-0.025em] text-admin-text-primary">
               Đăng nhập
             </h1>
-            <p className="text-admin-text-secondary text-sm mt-1.5">
+            <p className="mt-2 text-sm leading-6 text-admin-text-secondary">
               Đăng nhập để tiếp tục phiên làm việc.
             </p>
           </div>
 
           {error && (
-            <div id="login-error" className="mb-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm px-4 py-3" role="alert">
+            <div id="login-error" className="mb-5 rounded-admin-control border border-admin-status-error/30 bg-red-50 px-4 py-3 text-sm text-admin-status-error" role="alert">
               {error}
             </div>
           )}
 
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
             <div>
-              <label htmlFor="admin-login" className="block text-xs font-medium text-admin-text-secondary mb-2">Email hoặc tên đăng nhập</label>
+              <label htmlFor="admin-login" className="mb-2 block text-xs font-semibold text-admin-text-primary">Email hoặc tên đăng nhập</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-admin-text-muted group-focus-within:text-admin-primary transition-colors" size={18} aria-hidden="true" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-admin-text-muted transition-colors group-focus-within:text-admin-primary" size={17} aria-hidden="true" />
                 <input
                   id="admin-login"
                   type="text"
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
-                  placeholder="admin@lamie.com"
-                  className="w-full pl-12 pr-4 py-3 bg-white/50 border border-admin-input-border/80 rounded-xl text-admin-text-primary placeholder-admin-text-muted focus:outline-none focus:ring-2 focus:ring-admin-primary/15 focus:border-admin-primary/40 focus:bg-white/70 transition-all duration-200"
+                  placeholder="Nhập email hoặc tên đăng nhập"
+                  className="h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card pl-11 pr-3 text-sm text-admin-text-primary placeholder:text-admin-text-muted focus:border-admin-primary/55 focus:outline-none focus:ring-2 focus:ring-admin-primary/15"
                   required
                   autoComplete="username"
                   aria-describedby={error ? 'login-error' : undefined}
@@ -90,18 +89,16 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <div className="flex justify-between items-center mb-2">
-                <label htmlFor="admin-password" className="block text-xs font-medium text-admin-text-secondary">Mật khẩu</label>
-              </div>
+              <label htmlFor="admin-password" className="mb-2 block text-xs font-semibold text-admin-text-primary">Mật khẩu</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-admin-text-muted group-focus-within:text-admin-primary transition-colors" size={18} aria-hidden="true" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-admin-text-muted transition-colors group-focus-within:text-admin-primary" size={17} aria-hidden="true" />
                 <input
                   id="admin-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3 bg-white/50 border border-admin-input-border/80 rounded-xl text-admin-text-primary placeholder-admin-text-muted focus:outline-none focus:ring-2 focus:ring-admin-primary/15 focus:border-admin-primary/40 focus:bg-white/70 transition-all duration-200"
+                  placeholder="Nhập mật khẩu"
+                  className="h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card pl-11 pr-3 text-sm text-admin-text-primary placeholder:text-admin-text-muted focus:border-admin-primary/55 focus:outline-none focus:ring-2 focus:ring-admin-primary/15"
                   required
                   autoComplete="current-password"
                   aria-describedby={error ? 'login-error' : undefined}
@@ -113,18 +110,18 @@ export const LoginPage: React.FC = () => {
               type="submit"
               disabled={submitting}
               aria-busy={submitting}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-admin-primary hover:bg-admin-primary-hover text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-admin-primary/15 btn-press mt-2 disabled:opacity-60"
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-admin-control bg-admin-primary px-4 py-2.5 text-sm font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span>{submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}</span>
-              <ArrowRight size={16} aria-hidden="true" />
+              <ArrowRight size={17} aria-hidden="true" />
             </button>
           </form>
 
-          <p className="text-center text-xs text-admin-text-muted mt-8 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+          <p className="mt-8 text-center text-xs leading-5 text-admin-text-muted">
             Cần quyền truy cập? Liên hệ quản trị hệ thống.
           </p>
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   );
 };

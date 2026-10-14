@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X } from '@/shared/icons/lucideAnimated';
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',

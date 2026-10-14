@@ -1,14 +1,27 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-theme="mint" data-motion="on">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7f6f3" />
+    <meta name="theme-color" content="#F0F7ED" />
     <meta
       name="description"
       content="Trang quản trị cửa hàng hoa Lamie"
     />
     <title>Lamie Admin</title>
+    <script>
+      (() => {
+        const validThemes = ['violet', 'grove', 'glass', 'mint', 'cobalt', 'noir'];
+        try {
+          const storedTheme = localStorage.getItem('lamie-theme-v3');
+          document.documentElement.dataset.theme = validThemes.includes(storedTheme) ? storedTheme : 'mint';
+          document.documentElement.dataset.motion = localStorage.getItem('lamie-motion-v3') === 'off' ? 'off' : 'on';
+        } catch {
+          document.documentElement.dataset.theme = 'mint';
+          document.documentElement.dataset.motion = 'on';
+        }
+      })();
+    </script>
   </head>
   <body class="bg-admin-bg text-admin-text-primary antialiased">
     <div id="root"></div>

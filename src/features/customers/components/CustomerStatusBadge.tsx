@@ -7,6 +7,10 @@ const statusClass: Record<OrderStatus, string> = {
   [OrderStatus.Producing]: 'bg-admin-status-info/12 text-admin-status-info',
   [OrderStatus.Shipping]: 'bg-admin-primary/12 text-admin-primary',
   [OrderStatus.Completed]: 'bg-admin-status-success/12 text-admin-status-success',
+  [OrderStatus.Confirmed]: 'bg-admin-status-info/12 text-admin-status-info',
+  [OrderStatus.Ready]: 'bg-admin-primary/12 text-admin-primary',
+  [OrderStatus.Delivered]: 'bg-admin-status-warning/12 text-admin-status-warning',
+  [OrderStatus.DeliveryFailed]: 'bg-admin-status-error/12 text-admin-status-error',
   [OrderStatus.Cancelled]: 'bg-admin-status-error/12 text-admin-status-error',
 };
 

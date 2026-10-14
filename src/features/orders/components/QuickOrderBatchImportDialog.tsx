@@ -8,7 +8,7 @@ import {
   Save,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import type { ProductDto } from '@/features/product/api/productApi';
 import type { ChannelDto } from '@/features/settings/channels/api/channelsApi';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
@@ -179,6 +179,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
   const [saving, setSaving] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const applyLockRef = useRef(false);
   const saveLockRef = useRef(false);
   const queuedFingerprintsRef = useRef(new Set<string>());
@@ -207,6 +208,45 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [confirmClose, requestClose]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((element) => element.offsetParent !== null && element.getAttribute('aria-hidden') !== 'true');
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      document.removeEventListener('keydown', trapFocus);
+      document.body.style.overflow = previousOverflow;
+      window.requestAnimationFrame(() => previousFocus?.focus());
+    };
+  }, []);
 
   useEffect(() => () => {
     analysisRequestRef.current += 1;
@@ -517,13 +557,15 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="quick-import-title"
       onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}
     >
-      <div className="flex max-h-[96dvh] min-h-0 w-full max-w-[94rem] flex-col overflow-hidden rounded-t-admin-panel border border-admin-border bg-admin-card shadow-xl sm:max-h-[92dvh] sm:rounded-admin-panel">
+      <div className="flex max-h-[96dvh] min-h-0 w-full max-w-[94rem] flex-col overflow-hidden rounded-t-admin-panel border border-admin-border bg-admin-card shadow-admin-popover sm:max-h-[92dvh] sm:rounded-admin-panel">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-admin-border px-4 py-3 sm:px-5">
           <div>
             <h2 id="quick-import-title" className="text-base font-semibold text-admin-text-primary">Nhập nhiều đơn hàng</h2>
@@ -828,7 +870,7 @@ export const QuickOrderBatchImportDialog: React.FC<QuickOrderBatchImportDialogPr
 
       {confirmClose ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/35 p-4" role="alertdialog" aria-modal="true" aria-labelledby="quick-close-title">
-          <div className="w-full max-w-md rounded-admin-panel border border-admin-border bg-admin-card p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-admin-panel border border-admin-border bg-admin-card p-5 shadow-admin-popover">
             <h3 id="quick-close-title" className="text-base font-semibold text-admin-text-primary">Bỏ {queue.length} đơn chưa lưu?</h3>
             <p className="mt-2 text-sm leading-6 text-admin-text-secondary">Đóng cửa sổ sẽ làm mất toàn bộ danh sách đơn chờ.</p>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

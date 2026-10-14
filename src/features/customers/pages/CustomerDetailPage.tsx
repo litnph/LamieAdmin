@@ -13,7 +13,7 @@ import {
   ShoppingBag,
   StickyNote,
   UserRound,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';

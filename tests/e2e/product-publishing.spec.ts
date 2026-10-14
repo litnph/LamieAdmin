@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { captureResponsivePage } from './visualQa';
 
 const user = {
   id: '30000000-0000-0000-0000-000000000093',
@@ -240,6 +241,8 @@ test('FE visibility rolls back on failure and FE Data export rejects double subm
   const state: MockState = { visibilityCalls: 0, visibilityFails: true, exportCalls: 0 };
   await installMocks(page, state);
   await page.goto('/admin/products');
+  await expect(page.getByRole('heading', { name: 'Sản phẩm', level: 1 })).toBeVisible();
+  await captureResponsivePage(page, 'products');
 
   const toggle = page.getByRole('switch', { name: 'Hiện Bó hồng Lamie trên FE' });
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
@@ -372,12 +375,12 @@ test('image recognition and separated product settings persist safely', async ({
   await page.getByRole('switch', { name: /Đang bật/ }).uncheck();
   await expect(page.getByText('Watermark đang tắt; ảnh sản phẩm sẽ được lưu nguyên bản.')).toBeVisible();
   await page.getByRole('switch', { name: /Đang tắt/ }).check();
-  await page.getByRole('radio', { name: /Logo shop/ }).check();
+  await page.getByLabel('Nguồn watermark').selectOption('2');
   await expect(page.getByText(/Chưa có logo shop/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Lưu logo & watermark' })).toBeEnabled();
   await page.getByRole('button', { name: 'Lưu logo & watermark' }).click();
   await expect(page.getByText('Đã lưu logo & watermark.')).toBeVisible();
-  if (visualQaDirectory) await page.screenshot({ path: `${visualQaDirectory}/branding-desktop.png`, fullPage: true });
+  await captureResponsivePage(page, 'settings-branding');
   expect(state.watermarkSource).toBe(2);
   await page.locator('#shop-logo-file').setInputFiles({
     name: 'logo.png',
@@ -387,7 +390,7 @@ test('image recognition and separated product settings persist safely', async ({
   await expect(page.getByAltText('Xem trước logo shop')).toBeVisible();
   await page.getByRole('button', { name: 'Lưu logo & watermark' }).click();
   await expect(page.getByText('Đã lưu logo & watermark.')).toBeVisible();
-  await page.getByRole('radio', { name: /Ảnh tải lên/ }).check();
+  await page.getByLabel('Nguồn watermark').selectOption('3');
   await expect(page.getByText(/Chưa có ảnh watermark/)).toBeVisible();
   await page.locator('#watermark-image-file').setInputFiles({
     name: 'watermark.png',
@@ -401,5 +404,5 @@ test('image recognition and separated product settings persist safely', async ({
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Logo & watermark' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  if (visualQaDirectory) await page.screenshot({ path: `${visualQaDirectory}/branding-mobile.png`, fullPage: true });
+  if (visualQaDirectory) await page.screenshot({ path: `${visualQaDirectory}/branding-mobile-full.png`, fullPage: true });
 });

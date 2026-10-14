@@ -21,7 +21,7 @@ import {
   ShoppingBag,
   Users,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 
 const icons = {
   boxes: Boxes,

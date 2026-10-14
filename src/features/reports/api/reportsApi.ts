@@ -1,5 +1,5 @@
 import { apiClient } from '@/services/apiClient';
-import type { FinancialReport, FinancialReportParams } from '../types/financialReport.types';
+import type { CashFlowReport, FinancialReport, FinancialReportParams, ManagerialFinanceSummary } from '../types/financialReport.types';
 
 const createObjectUrl = (blob: Blob): string => window.URL.createObjectURL(blob);
 
@@ -10,6 +10,16 @@ const scheduleRevoke = (url: string) => {
 export const reportsApi = {
   financial: async (params: FinancialReportParams): Promise<FinancialReport> => {
     const { data } = await apiClient.get<FinancialReport>('/api/reports/financial', { params });
+    return data;
+  },
+
+  cashFlow: async (params: FinancialReportParams): Promise<CashFlowReport> => {
+    const { data } = await apiClient.get<CashFlowReport>('/api/reports/cash-flow', { params });
+    return data;
+  },
+
+  managerial: async (params: Pick<FinancialReportParams, 'from' | 'to'>): Promise<ManagerialFinanceSummary> => {
+    const { data } = await apiClient.get<ManagerialFinanceSummary>('/api/finance/summary', { params });
     return data;
   },
 

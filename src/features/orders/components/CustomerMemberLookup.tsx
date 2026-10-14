@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, LoaderCircle, Search, X } from 'lucide-react';
+import { AlertCircle, Check, LoaderCircle, Search, X } from '@/shared/icons/lucideAnimated';
 import { customersApi } from '@/features/customers/api/customersApi';
 import type { CustomerSummary } from '@/features/customers/types/customer.types';
 import { getApiErrorMessage } from '@/shared/utils/apiError';

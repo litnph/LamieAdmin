@@ -4,17 +4,19 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
   LogOut,
+  Palette,
   PanelLeftClose,
   Plus,
   RefreshCw,
   UserRound,
   X,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { getIconDefinition } from '@/app/modules/iconRegistry';
 import type { ResolvedDynamicRoute } from '@/app/router/dynamicRouteBuilder';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { useNavigation } from '@/features/navigation/context/NavigationContext';
 import type { CurrentNavigationItem } from '@/features/navigation/types/navigation.types';
+import { AnimatedLucideIcon } from '@/shared/components/AnimatedLucideIcon';
 
 type SidebarProps = {
   collapsed?: boolean;
@@ -138,7 +140,12 @@ const NavigationNode: React.FC<NavigationNodeProps> = ({
 
   const iconAndLabel = (
     <>
-      <Icon size={19} strokeWidth={1.8} className={`shrink-0 ${isActive ? 'text-admin-primary' : ''}`} aria-hidden="true" />
+      <AnimatedLucideIcon
+        iconKey={item.iconKey}
+        fallback={Icon}
+        size={18}
+        className={isActive ? 'text-admin-sidebar-active-text' : undefined}
+      />
       <span className={collapsed ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{item.label}</span>
     </>
   );
@@ -146,8 +153,8 @@ const NavigationNode: React.FC<NavigationNodeProps> = ({
     'group relative flex min-h-11 w-full items-center rounded-admin-control text-sm font-medium transition-colors duration-150 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary focus-visible:ring-offset-1 focus-visible:ring-offset-admin-sidebar-bg',
     collapsed ? 'justify-center px-0' : `gap-3 pr-3 ${depth > 0 ? 'pl-3' : 'pl-3'}`,
     isActive
-      ? 'bg-admin-primary/10 font-semibold text-admin-text-primary'
-      : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover hover:text-admin-text-primary active:bg-admin-sidebar-active',
+      ? 'bg-admin-sidebar-active font-semibold text-admin-sidebar-active-text'
+      : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover hover:text-admin-sidebar-text active:bg-admin-sidebar-hover',
   ].join(' ');
   const tooltipHandlers = collapsed ? {
     onMouseEnter: (event: React.MouseEvent<HTMLElement>) => onShowTooltip(event.currentTarget, item.label),
@@ -160,11 +167,12 @@ const NavigationNode: React.FC<NavigationNodeProps> = ({
     <li className={isTopLevelGroup && item.key === 'group.settings' ? 'border-t border-admin-border pt-3' : undefined}>
       {item.path && hasChildren ? (
         <div
+          data-animated-icon-trigger
           className={[
             'flex min-h-11 w-full items-center rounded-admin-control transition-colors duration-150',
             isActive
-              ? 'bg-admin-primary/10 text-admin-text-primary'
-              : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover hover:text-admin-text-primary',
+              ? 'bg-admin-sidebar-active text-admin-sidebar-active-text'
+              : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover hover:text-admin-sidebar-text',
           ].join(' ')}
         >
           <Link
@@ -194,6 +202,7 @@ const NavigationNode: React.FC<NavigationNodeProps> = ({
         </div>
       ) : item.path ? (
         <Link
+          data-animated-icon-trigger
           to={item.path}
           target={item.openInNewTab ? '_blank' : undefined}
           rel={item.openInNewTab ? 'noreferrer' : undefined}
@@ -211,7 +220,7 @@ const NavigationNode: React.FC<NavigationNodeProps> = ({
           onClick={() => setExpanded((current) => !current)}
           aria-expanded={expanded}
           aria-controls={childrenId}
-          className="flex min-h-11 w-full items-center gap-2 rounded-admin-control px-3 pt-1 text-left text-[11px] font-bold tracking-[0.045em] text-admin-text-secondary transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
+          className="flex min-h-11 w-full items-center gap-2 rounded-admin-control px-3 pt-1 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-admin-sidebar-muted transition-colors hover:bg-admin-sidebar-hover hover:text-admin-sidebar-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
         >
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
           <ChevronDown size={15} strokeWidth={1.8} className={`shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
@@ -303,13 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     [routes],
   );
 
-  const initials = (user?.fullName ?? 'LM')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = 'LA';
   const roleLabel = getRoleLabel(user?.roleCode, user?.roleName);
 
   useEffect(() => {
@@ -351,61 +354,88 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       id="admin-sidebar"
-      className={`relative flex h-full w-full min-w-0 flex-col border-r border-admin-border bg-admin-sidebar-bg ${collapsed ? 'px-2' : ''}`}
+      className={`relative flex h-full w-full min-w-0 flex-col border-r border-admin-sidebar-border bg-admin-sidebar-bg text-admin-sidebar-text ${collapsed ? 'px-2' : ''}`}
       aria-label="Điều hướng quản trị"
       data-collapsed={collapsed || undefined}
     >
-      <div className={`flex h-admin-header shrink-0 items-center border-b border-admin-border ${collapsed ? 'justify-center px-0' : 'gap-3 px-4'}`}>
-        {collapsed ? (
+      <div ref={accountWrapRef} className={`relative shrink-0 border-b border-admin-sidebar-border ${collapsed ? 'px-0 py-2' : 'flex items-center gap-1 px-2 py-2'}`}>
+        {accountOpen ? (
+          <div
+            id={accountMenuId}
+            role="dialog"
+            aria-label="Tài khoản"
+            className={[
+              'absolute z-admin-popover w-60 rounded-admin-panel border border-admin-border bg-admin-card p-2 shadow-admin-popover',
+              collapsed ? 'left-[calc(100%+0.75rem)] top-2' : 'left-2 top-[calc(100%+0.5rem)]',
+            ].join(' ')}
+          >
+            <div className="border-b border-admin-border px-2.5 py-2">
+              <p className="truncate text-sm font-semibold text-admin-text-primary" title={user?.fullName}>{user?.fullName ?? 'Tài khoản'}</p>
+              <p className="mt-0.5 truncate text-xs text-admin-text-muted" title={user?.email}>{user?.email ?? roleLabel}</p>
+            </div>
+            <button
+              ref={accountMenuActionRef}
+              type="button"
+              onClick={() => void handleLogout()}
+              className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-admin-control px-2.5 text-sm font-medium text-admin-text-secondary transition-colors hover:bg-admin-status-error/10 hover:text-admin-status-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
+            >
+              <LogOut size={18} strokeWidth={1.8} aria-hidden="true" />
+              Đăng xuất
+            </button>
+          </div>
+        ) : null}
+        <button
+          ref={accountButtonRef}
+          type="button"
+          onClick={() => setAccountOpen((current) => !current)}
+          onMouseEnter={collapsed ? (event) => showTooltip(event.currentTarget, 'Tài khoản') : undefined}
+          onMouseLeave={collapsed ? () => setTooltip(null) : undefined}
+          onFocus={collapsed ? (event) => showTooltip(event.currentTarget, 'Tài khoản') : undefined}
+          onBlur={collapsed ? () => setTooltip(null) : undefined}
+          aria-expanded={accountOpen}
+          aria-controls={accountMenuId}
+          aria-haspopup="dialog"
+          aria-label={`Tài khoản ${user?.fullName ?? ''}`.trim()}
+          className={`flex min-h-12 min-w-0 items-center rounded-admin-control text-left transition-colors hover:bg-admin-sidebar-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary ${collapsed ? 'mx-auto w-12 justify-center' : 'flex-1 gap-2 px-2'}`}
+        >
+          <span className="flex h-[1.875rem] w-[1.875rem] shrink-0 items-center justify-center rounded-admin-control bg-admin-sidebar-active text-[11px] font-semibold text-admin-sidebar-active-text" aria-hidden="true">
+            {initials || <UserRound size={17} strokeWidth={1.8} />}
+          </span>
+          {!collapsed ? (
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold leading-5 text-admin-sidebar-text">Lamie Admin</span>
+              <span className="block truncate text-[10px] uppercase tracking-[0.1em] text-admin-sidebar-muted">{roleLabel}</span>
+            </span>
+          ) : null}
+          {!collapsed ? <ChevronDown size={13} strokeWidth={1.8} className={`shrink-0 text-admin-sidebar-muted transition-transform ${accountOpen ? 'rotate-180' : ''}`} aria-hidden="true" /> : null}
+        </button>
+        {!collapsed && (isDesktop ? (
           <button
             type="button"
             onClick={onToggleCollapsed}
-            onMouseEnter={(event) => showTooltip(event.currentTarget, 'Mở rộng menu')}
-            onMouseLeave={() => setTooltip(null)}
-            onFocus={(event) => showTooltip(event.currentTarget, 'Mở rộng menu')}
-            onBlur={() => setTooltip(null)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control bg-admin-primary/10 text-sm font-bold text-admin-primary transition-colors hover:bg-admin-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
-            aria-label="Mở rộng menu điều hướng"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-admin-control text-admin-text-muted transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
+            aria-label="Thu gọn menu điều hướng"
+            title="Thu gọn menu điều hướng"
           >
-            L
+            <PanelLeftClose size={18} strokeWidth={1.8} aria-hidden="true" />
           </button>
         ) : (
-          <>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-admin-control bg-admin-primary/10 text-sm font-bold text-admin-primary" aria-hidden="true">
-              L
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold leading-tight text-admin-text-primary">Lamie</p>
-              <p className="truncate text-[11px] text-admin-text-secondary">Quản trị cửa hàng</p>
-            </div>
-            {isDesktop ? (
-              <button
-                type="button"
-                onClick={onToggleCollapsed}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
-                aria-label="Thu gọn menu điều hướng"
-                title="Thu gọn menu điều hướng"
-              >
-                <PanelLeftClose size={19} strokeWidth={1.8} aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                ref={closeButtonRef}
-                type="button"
-                onClick={onClose}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control text-admin-text-secondary transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
-                aria-label="Đóng menu điều hướng"
-              >
-                <X size={20} strokeWidth={1.8} aria-hidden="true" />
-              </button>
-            )}
-          </>
-        )}
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control text-admin-text-muted transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
+            aria-label="Đóng menu điều hướng"
+          >
+            <X size={19} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        ))}
       </div>
 
       {createOrderRoute ? (
         <div className={`shrink-0 ${collapsed ? 'px-0 py-3' : 'px-3 py-3'}`}>
           <Link
+            data-animated-icon-trigger
             to={createOrderRoute.path}
             onClick={onNavigate}
             aria-label={collapsed ? 'Tạo đơn hàng' : undefined}
@@ -415,7 +445,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onBlur={collapsed ? () => setTooltip(null) : undefined}
             className={`flex min-h-11 items-center rounded-admin-control bg-admin-primary font-semibold text-admin-primary-foreground transition-colors hover:bg-admin-primary-hover active:bg-admin-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-text-primary/80 focus-visible:ring-offset-2 focus-visible:ring-offset-admin-sidebar-bg ${collapsed ? 'mx-auto w-11 justify-center' : 'w-full gap-2.5 px-3 text-sm'}`}
           >
-            <Plus size={19} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+            <AnimatedLucideIcon iconKey="plus" fallback={Plus} size={18} />
             <span className={collapsed ? 'sr-only' : ''}>Tạo đơn hàng</span>
           </Link>
         </div>
@@ -462,60 +492,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onHideTooltip={() => setTooltip(null)}
           />
         ) : null}
+        <div className="mt-3 border-t border-admin-sidebar-border pt-3">
+          {!collapsed ? <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-admin-sidebar-muted">Giao diện</p> : null}
+          <Link
+            data-animated-icon-trigger
+            to="/admin/appearance"
+            onClick={onNavigate}
+            aria-current={location.pathname === '/admin/appearance' ? 'page' : undefined}
+            aria-label={collapsed ? 'Chủ đề giao diện' : undefined}
+            onMouseEnter={collapsed ? (event) => showTooltip(event.currentTarget, 'Chủ đề giao diện') : undefined}
+            onMouseLeave={collapsed ? () => setTooltip(null) : undefined}
+            onFocus={collapsed ? (event) => showTooltip(event.currentTarget, 'Chủ đề giao diện') : undefined}
+            onBlur={collapsed ? () => setTooltip(null) : undefined}
+            className={`flex min-h-11 w-full items-center rounded-admin-control text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary ${collapsed ? 'justify-center' : 'gap-3 px-3'} ${location.pathname === '/admin/appearance' ? 'bg-admin-sidebar-active font-semibold text-admin-sidebar-active-text' : 'text-admin-sidebar-text hover:bg-admin-sidebar-hover'}`}
+          >
+            <AnimatedLucideIcon iconKey="palette" fallback={Palette} size={18} />
+            <span className={collapsed ? 'sr-only' : ''}>Chủ đề giao diện</span>
+          </Link>
+        </div>
       </nav>
 
-      <div ref={accountWrapRef} className={`relative shrink-0 border-t border-admin-border py-3 ${collapsed ? 'px-0' : 'px-3'}`}>
-        {accountOpen ? (
-          <div
-            id={accountMenuId}
-            role="dialog"
-            aria-label="Tài khoản"
-            className={[
-              'absolute z-admin-popover w-60 rounded-admin-panel border border-admin-border bg-admin-card p-2 shadow-admin-popover',
-              collapsed ? 'bottom-3 left-[calc(100%+0.75rem)]' : 'bottom-[calc(100%+0.5rem)] left-3',
-            ].join(' ')}
+      {collapsed && isDesktop ? (
+        <div className="shrink-0 border-t border-admin-sidebar-border py-2">
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            onMouseEnter={(event) => showTooltip(event.currentTarget, 'Mở rộng menu')}
+            onMouseLeave={() => setTooltip(null)}
+            onFocus={(event) => showTooltip(event.currentTarget, 'Mở rộng menu')}
+            onBlur={() => setTooltip(null)}
+            className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-text-muted transition-colors hover:bg-admin-sidebar-hover hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
+            aria-label="Mở rộng menu điều hướng"
           >
-            <div className="border-b border-admin-border px-2.5 py-2">
-              <p className="truncate text-sm font-semibold text-admin-text-primary" title={user?.fullName}>{user?.fullName ?? 'Tài khoản'}</p>
-              <p className="mt-0.5 truncate text-xs text-admin-text-muted" title={user?.email}>{user?.email ?? roleLabel}</p>
-            </div>
-            <button
-              ref={accountMenuActionRef}
-              type="button"
-              onClick={() => void handleLogout()}
-              className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-admin-control px-2.5 text-sm font-medium text-admin-text-secondary transition-colors hover:bg-admin-status-error/10 hover:text-admin-status-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
-            >
-              <LogOut size={18} strokeWidth={1.8} aria-hidden="true" />
-              Đăng xuất
-            </button>
-          </div>
-        ) : null}
-        <button
-          ref={accountButtonRef}
-          type="button"
-          onClick={() => setAccountOpen((current) => !current)}
-          onMouseEnter={collapsed ? (event) => showTooltip(event.currentTarget, 'Tài khoản') : undefined}
-          onMouseLeave={collapsed ? () => setTooltip(null) : undefined}
-          onFocus={collapsed ? (event) => showTooltip(event.currentTarget, 'Tài khoản') : undefined}
-          onBlur={collapsed ? () => setTooltip(null) : undefined}
-          aria-expanded={accountOpen}
-          aria-controls={accountMenuId}
-          aria-haspopup="dialog"
-          aria-label={collapsed ? `Tài khoản ${user?.fullName ?? ''}`.trim() : undefined}
-          className={`flex min-h-11 items-center rounded-admin-control text-left transition-colors hover:bg-admin-sidebar-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary ${collapsed ? 'mx-auto w-11 justify-center' : 'w-full gap-3 px-2'}`}
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-admin-primary/10 text-xs font-bold text-admin-primary" aria-hidden="true">
-            {initials || <UserRound size={18} strokeWidth={1.8} />}
-          </span>
-          {!collapsed ? (
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-admin-text-primary">{user?.fullName ?? 'Tài khoản'}</span>
-              <span className="mt-0.5 block truncate text-[11px] text-admin-text-secondary">{roleLabel}</span>
-            </span>
-          ) : null}
-          {!collapsed ? <ChevronDown size={16} strokeWidth={1.8} className={`shrink-0 text-admin-text-muted transition-transform ${accountOpen ? 'rotate-180' : ''}`} aria-hidden="true" /> : null}
-        </button>
-      </div>
+            <PanelLeftClose size={18} strokeWidth={1.8} aria-hidden="true" className="rotate-180" />
+          </button>
+        </div>
+      ) : null}
 
       {collapsed && tooltip && typeof document !== 'undefined' ? createPortal(
         <div

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Image, Loader2, ShieldCheck, UploadCloud } from 'lucide-react';
+import { CheckCircle2, Flower2, Loader2 } from '@/shared/icons/lucideAnimated';
 import {
   ProductApi,
   ProductWatermarkSource,
@@ -109,68 +109,42 @@ export const ShopBrandingSettingsPage: React.FC = () => {
     <SettingsShell
       title="Logo & watermark"
       description="Quản lý nhận diện của shop và cách đóng dấu lên ảnh sản phẩm mới."
+      hideContentHeader
     >
       <form onSubmit={save} className="overflow-hidden rounded-admin-panel border border-admin-border bg-admin-card">
-        <section className="p-5 sm:p-7" aria-labelledby="logo-settings-title">
-          <div className="flex items-start gap-4">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control bg-admin-muted text-admin-text-secondary">
-              <Image size={20} aria-hidden="true" />
-            </span>
-            <div>
-              <h3 id="logo-settings-title" className="text-base font-semibold text-admin-text-primary">Logo shop</h3>
-              <p className="mt-1 max-w-[65ch] text-sm leading-6 text-admin-text-secondary">
-                Logo được lưu trong kho ảnh hiện tại và có thể dùng làm nguồn watermark.
-              </p>
-            </div>
-          </div>
+        <header className="border-b border-admin-border px-5 py-4">
+          <h3 className="text-base font-semibold text-admin-text-primary">Logo & watermark</h3>
+        </header>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-[9rem_1fr] sm:items-center">
-            <div className="flex aspect-square items-center justify-center overflow-hidden rounded-admin-control border border-admin-border bg-admin-muted/40">
+        <div className="grid gap-6 p-5 lg:grid-cols-2 lg:gap-5">
+          <section aria-labelledby="logo-settings-title">
+            <h4 id="logo-settings-title" className="text-sm font-semibold text-admin-text-primary">Logo cửa hàng</h4>
+            <div className="mt-4 flex min-h-36 items-center justify-center overflow-hidden rounded-admin-control border border-admin-border bg-admin-card">
               {logoPreview ? (
-                <img src={logoPreview} alt="Xem trước logo shop" className="h-full w-full object-contain p-3" />
+                <img src={logoPreview} alt="Xem trước logo shop" className="max-h-28 max-w-[75%] object-contain" />
               ) : (
-                <span className="px-3 text-center text-xs text-admin-text-muted">Chưa có logo</span>
+                <div className="text-center">
+                  <p className="font-serif text-4xl tracking-[-0.04em] text-admin-text-primary">lamie.</p>
+                  <p className="mt-2 text-xs text-admin-text-muted">Logo minh họa</p>
+                </div>
               )}
             </div>
-            <div>
-              <label htmlFor="shop-logo-file" className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-primary hover:bg-admin-muted">
-                <UploadCloud size={16} aria-hidden="true" /> {logoPreview ? 'Thay logo' : 'Tải logo lên'}
-              </label>
-              <input
-                id="shop-logo-file"
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
-                className="sr-only"
-                disabled={saving}
-                onChange={(event) => {
-                  chooseImage(event.target.files?.[0], 'logo');
-                  event.target.value = '';
-                }}
-              />
-              <p className="mt-2 text-xs leading-5 text-admin-text-muted">
-                JPG, PNG, WebP hoặc GIF; tối đa 10 MB. File mới chỉ được tải lên khi lưu.
-              </p>
-            </div>
-          </div>
-        </section>
 
-        <section className="border-t border-admin-border p-5 sm:p-7" aria-labelledby="watermark-settings-title">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-admin-control bg-admin-muted text-admin-text-secondary">
-                <ShieldCheck size={20} aria-hidden="true" />
-              </span>
-              <div>
-                <h3 id="watermark-settings-title" className="text-base font-semibold text-admin-text-primary">Watermark ảnh sản phẩm</h3>
-                <p className="mt-1 max-w-[65ch] text-sm leading-6 text-admin-text-secondary">
-                  Tắt watermark không xóa logo, ảnh đã tải lên hoặc lựa chọn nguồn hiện tại.
-                </p>
-              </div>
-            </div>
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-3 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-text-primary">
+            <label htmlFor="shop-logo-file" className="mb-1.5 mt-5 block text-sm font-medium text-admin-text-primary">Tải logo mới</label>
+            <input
+              id="shop-logo-file"
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
+              disabled={saving}
+              onChange={(event) => chooseImage(event.target.files?.[0], 'logo')}
+              className="block min-h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 py-2 text-sm file:mr-3 file:rounded-admin-control file:border file:border-admin-border file:bg-admin-card file:px-3 file:py-1 file:text-xs file:font-semibold"
+            />
+
+            <label className="mt-5 flex min-h-10 cursor-pointer items-center gap-3 text-sm text-admin-text-secondary">
               <input
                 type="checkbox"
                 role="switch"
+                aria-label={watermarkEnabled ? 'Đang bật watermark ảnh sản phẩm' : 'Đang tắt watermark ảnh sản phẩm'}
                 checked={watermarkEnabled}
                 onChange={(event) => {
                   setWatermarkEnabled(event.target.checked);
@@ -178,81 +152,61 @@ export const ShopBrandingSettingsPage: React.FC = () => {
                 }}
                 className="h-4 w-4 accent-admin-primary"
               />
-              {watermarkEnabled ? 'Đang bật' : 'Đang tắt'}
+              Bật watermark ảnh sản phẩm
             </label>
-          </div>
 
-          <fieldset className="mt-5" disabled={!watermarkEnabled || saving}>
-            <legend className="text-sm font-medium text-admin-text-primary">Nguồn watermark</legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {watermarkSources.map((source) => (
-                <label
-                  key={source.value}
-                  className={`cursor-pointer rounded-admin-control border p-3 transition-colors ${watermarkSource === source.value ? 'border-admin-primary bg-admin-primary/5' : 'border-admin-border hover:bg-admin-muted/50'}`}
-                >
-                  <span className="flex items-center gap-2 text-sm font-semibold text-admin-text-primary">
-                    <input
-                      type="radio"
-                      name="watermark-source"
-                      value={source.value}
-                      checked={watermarkSource === source.value}
-                      onChange={() => {
-                        setWatermarkSource(source.value);
-                        setSaved(false);
-                      }}
-                      className="accent-admin-primary"
-                    />
-                    {source.label}
-                  </span>
-                  <span className="mt-1 block pl-6 text-xs leading-5 text-admin-text-muted">{source.description}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+            <label htmlFor="watermark-source" className="mb-1.5 mt-4 block text-sm font-medium text-admin-text-primary">Nguồn watermark</label>
+            <select
+              id="watermark-source"
+              value={watermarkSource}
+              disabled={!watermarkEnabled || saving}
+              onChange={(event) => {
+                setWatermarkSource(Number(event.target.value) as ProductWatermarkSource);
+                setSaved(false);
+              }}
+              className="h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 text-sm outline-none focus:border-admin-primary focus:ring-2 focus:ring-admin-primary/15 disabled:bg-admin-disabled-bg"
+            >
+              {watermarkSources.map((source) => <option key={source.value} value={source.value}>{source.label}</option>)}
+            </select>
 
-          {watermarkSource === ProductWatermarkSource.UploadedImage ? (
-            <div className="mt-4">
-              <label htmlFor="watermark-image-file" className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-admin-control border border-admin-border px-3 text-sm font-semibold text-admin-primary hover:bg-admin-muted">
-                <UploadCloud size={16} aria-hidden="true" /> {uploadedPreview ? 'Thay ảnh watermark' : 'Tải ảnh watermark lên'}
-              </label>
-              <input
-                id="watermark-image-file"
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
-                className="sr-only"
-                disabled={saving}
-                onChange={(event) => {
-                  chooseImage(event.target.files?.[0], 'watermark');
-                  event.target.value = '';
-                }}
-              />
-            </div>
-          ) : null}
+            {watermarkSource === ProductWatermarkSource.UploadedImage ? (
+              <div className="mt-4">
+                <label htmlFor="watermark-image-file" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Ảnh watermark riêng</label>
+                <input
+                  id="watermark-image-file"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
+                  disabled={saving}
+                  onChange={(event) => chooseImage(event.target.files?.[0], 'watermark')}
+                  className="block min-h-11 w-full rounded-admin-control border border-admin-input-border bg-admin-card px-3 py-2 text-sm"
+                />
+              </div>
+            ) : null}
+          </section>
 
-          <div className="mt-5">
-            <p className="mb-2 text-xs font-semibold text-admin-text-muted">Xem trước</p>
-            <div className="relative aspect-[16/9] w-full max-w-xl overflow-hidden rounded-admin-control border border-admin-border bg-admin-muted/60">
-              <div className="absolute inset-0 grid place-items-center text-sm text-admin-text-muted">Ảnh sản phẩm</div>
+          <section aria-labelledby="watermark-preview-title">
+            <h4 id="watermark-preview-title" className="text-sm font-semibold text-admin-text-primary">Xem trước watermark</h4>
+            <div className="relative mt-4 aspect-[16/6] w-full overflow-hidden rounded-admin-control bg-[#ead8d1]">
+              <div className="absolute inset-0 grid place-items-center text-admin-text-secondary/70">
+                <Flower2 size={48} strokeWidth={1.5} aria-hidden="true" />
+              </div>
               {watermarkEnabled && watermarkSource === ProductWatermarkSource.Sku ? (
-                <div className="absolute bottom-[5%] right-[4%] flex min-h-9 min-w-24 max-w-[55%] items-center justify-center rounded bg-white/80 px-3 py-2 text-center font-mono text-sm font-bold text-slate-900 shadow-sm">
-                  LAMI-2026
-                </div>
+                <div className="absolute bottom-[7%] right-[4%] font-serif text-xl text-admin-text-secondary">LAMI-2026</div>
               ) : watermarkEnabled && watermarkAsset ? (
-                <img src={watermarkAsset} alt="Xem trước watermark" className="absolute bottom-[5%] right-[4%] max-h-[20%] max-w-[28%] object-contain opacity-75" />
+                <img src={watermarkAsset} alt="Xem trước watermark" className="absolute bottom-[7%] right-[4%] max-h-[22%] max-w-[30%] object-contain opacity-75" />
               ) : null}
             </div>
-            {!watermarkEnabled ? (
-              <p className="mt-2 text-xs text-admin-text-muted">Watermark đang tắt; ảnh sản phẩm sẽ được lưu nguyên bản.</p>
-            ) : null}
+            <p className="mt-3 text-xs leading-5 text-admin-text-secondary">Tắt watermark không xóa logo hoặc ảnh nguồn.</p>
+            {!watermarkEnabled ? <p className="mt-2 text-xs text-admin-text-muted">Watermark đang tắt; ảnh sản phẩm sẽ được lưu nguyên bản.</p> : null}
             {missingSelectedAsset ? (
-              <p className="mt-2 text-sm font-medium text-admin-status-warning" role="status">
-                Chưa có {watermarkSource === ProductWatermarkSource.ShopLogo ? 'logo shop' : 'ảnh watermark'}. Bạn vẫn có thể lưu; ảnh sản phẩm sẽ được giữ nguyên cho đến khi bổ sung ảnh nguồn.
+              <p className="mt-3 rounded-admin-control bg-admin-status-warning/10 px-3 py-2 text-xs leading-5 text-admin-status-warning" role="status">
+                Chưa có {watermarkSource === ProductWatermarkSource.ShopLogo ? 'logo shop' : 'ảnh watermark'}. Ảnh sản phẩm sẽ được giữ nguyên cho đến khi bổ sung ảnh nguồn.
               </p>
             ) : null}
-          </div>
-        </section>
+          </section>
+        </div>
 
-        <div className="border-t border-admin-border px-5 py-4 sm:px-7">
+        <div className="border-t border-admin-border px-5 py-4">
           {assetError ? <div className="mb-3"><SettingsStatus kind="error">{assetError}</SettingsStatus></div> : null}
           {error ? <div className="mb-3"><SettingsStatus kind="error">{error}</SettingsStatus></div> : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -263,11 +217,12 @@ export const ShopBrandingSettingsPage: React.FC = () => {
             ) : <span />}
             <button
               type="submit"
+              aria-label="Lưu logo & watermark"
               disabled={loading || saving || !settings || Boolean(assetError)}
               className="btn-press inline-flex min-h-11 items-center gap-2 rounded-admin-control bg-admin-primary px-5 text-sm font-semibold text-admin-primary-foreground hover:bg-admin-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? <Loader2 size={17} className="animate-spin" aria-hidden="true" /> : null}
-              {saving ? 'Đang lưu...' : 'Lưu logo & watermark'}
+              {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, LoaderCircle, Map as MapIcon, RefreshCw } from 'lucide-react';
+import { Calendar, LoaderCircle, Map as MapIcon, RefreshCw } from '@/shared/icons/lucideAnimated';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { ordersApi } from '../api/ordersApi';
 import type { OrderCalendarItemDto, OrderDeliveryLocationDto } from '../types/order.types';
@@ -56,8 +56,8 @@ export const OrdersCalendarPage: React.FC = () => {
   return (
     <div className="min-w-0 space-y-6" aria-busy={loading}>
       <PageHeader
-        title="Lịch giao trong ngày"
-        subtitle="Theo dõi đơn theo giờ nhận hàng và vị trí giao trong ngày đã chọn."
+        title="Lịch giao và chuẩn bị"
+        subtitle="Điều phối theo giờ giao, đồng thời nhận biết các đơn cần chuẩn bị trong ngày đã chọn."
         actions={
           <button
             type="button"
@@ -141,7 +141,7 @@ export const OrdersCalendarPage: React.FC = () => {
       {!error ? (
         <section className="overflow-hidden rounded-admin-panel border border-admin-border bg-admin-card shadow-admin-panel" aria-labelledby="delivery-list-title">
           <header className="flex min-h-12 items-center justify-between border-b border-admin-border bg-admin-muted/45 px-4">
-            <h2 id="delivery-list-title" className="text-sm font-semibold text-admin-text-primary">Danh sách giao hàng</h2>
+            <h2 id="delivery-list-title" className="text-sm font-semibold text-admin-text-primary">Danh sách điều phối</h2>
             <span className="text-xs tabular-nums text-admin-text-muted" aria-live="polite">
               {loading ? 'Đang tải' : `${sorted.length} đơn`}
             </span>
@@ -170,12 +170,13 @@ export const OrdersCalendarPage: React.FC = () => {
                       <Link to={`/admin/orders/${order.id}`} className="inline-flex min-h-11 items-center font-mono font-semibold text-admin-primary hover:underline">
                         {order.orderCode}
                       </Link>
-                      <span className="min-w-0 break-words font-semibold text-admin-text-primary">{order.recipientName}</span>
+                      <span className="min-w-0 break-words font-semibold text-admin-text-primary">{order.recipientName || 'Chưa có người nhận'}</span>
                     </div>
                     <p className="break-words text-xs leading-5 text-admin-text-muted">
-                      {order.recipientPhone}
+                      {order.recipientPhone || order.ordererPhone || 'Chưa có số liên hệ'}
                       {order.pickupAtShop ? ' - Lấy tại cửa hàng' : order.provinceShipping ? ' - Gửi đơn vị vận chuyển' : order.deliveryAddress ? ` - ${order.deliveryAddress}` : ''}
                     </p>
+                    {order.preparationDate === date ? <p className="mt-1 text-xs font-semibold text-admin-primary">Cần chuẩn bị hôm nay</p> : null}
                   </div>
                   <p className="text-xs leading-5 text-admin-text-secondary sm:text-right">
                     {orderStatusLabel[order.orderStatus]}<br />

@@ -1,4 +1,5 @@
 import { expect, test, type Route } from '@playwright/test';
+import { captureResponsivePage } from './visualQa';
 
 const json = (route: Route, body: unknown, status = 200) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -60,6 +61,7 @@ test('inventory keeps no-size stock independent and asks for size only on sized 
   await expect(page.getByRole('heading', { name: 'Kho hàng', level: 1 })).toBeVisible();
   await expect(page.locator('span').getByText('Tồn thấp', { exact: true })).toBeVisible();
   await expect(page.locator('span').getByText('Hết hàng', { exact: true })).toBeVisible();
+  await captureResponsivePage(page, 'inventory');
   await page.getByRole('button', { name: 'Tạo phiếu nhập kho' }).click();
   const dialog = page.getByRole('dialog', { name: 'Nhập kho' });
   await dialog.getByLabel('Hàng tồn *').selectOption(boxItemId);

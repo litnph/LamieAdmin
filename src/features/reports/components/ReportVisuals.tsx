@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowDownRight, ArrowUpRight, CircleHelp, Minus } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CircleHelp, Minus } from '@/shared/icons/lucideAnimated';
 import type { CategoryAmount, ReportMetric, ReportSeriesPoint } from '../types/reporting.types';
 import { changeLabel, formatCompactVnd, formatPercent, formatVnd } from '../utils/reportFormatters';
 

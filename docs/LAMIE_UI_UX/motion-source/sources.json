@@ -1,0 +1,122 @@
+[
+  {
+    "name": "layout-grid",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/layout-grid.tsx",
+    "sha256": "11acfb3ab8abe7d47369d9c2bad6ffa97bcd0d2ed0cd2515a5d00c346bbad7e7"
+  },
+  {
+    "name": "cart",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/cart.tsx",
+    "sha256": "07e0471643d79e055fc061b06fe3a8c10081be539bb7ad7e9e2a33a9baa38124"
+  },
+  {
+    "name": "calendar-days",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/calendar-days.tsx",
+    "sha256": "bff536d87f818512cbcc670e457f6334797df514fffe78d919e03f1a92577c0c"
+  },
+  {
+    "name": "users",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/users.tsx",
+    "sha256": "a9d4fd9a4c8b4c6e8aef1f727699281ec32388d5749f9de1c7c0cdce1c684ac7"
+  },
+  {
+    "name": "clipboard-check",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/clipboard-check.tsx",
+    "sha256": "95f687aa3d5f80c86cec9b389e392e89a49898b4e9dc0b5e1e23a95ec9ecfbfb"
+  },
+  {
+    "name": "boxes",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/boxes.tsx",
+    "sha256": "9bc53d7cf27250703b271e8c2fb84b9f6aeef6e0c670f14c54763e544bb56082"
+  },
+  {
+    "name": "chart-line",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/chart-line.tsx",
+    "sha256": "2ea5bff317d97821b62d62bc1b12943ef51231f07c411321a8d810a03a87dc03"
+  },
+  {
+    "name": "wallet",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/wallet.tsx",
+    "sha256": "8928f5d90a35b86609ee29d091d787da45e0f31cc9650d0cce4b4ab2146d58b9"
+  },
+  {
+    "name": "sparkles",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/sparkles.tsx",
+    "sha256": "af95efcbb6a9d3a88495037461fa220969cb68f28ab019a00af153d725a12d54"
+  },
+  {
+    "name": "settings",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/settings.tsx",
+    "sha256": "dccbe307789095c85bd7847c383360e721bd235c42c95c069d6fc28b0fde22bc"
+  },
+  {
+    "name": "user-round-cog",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/user-round-cog.tsx",
+    "sha256": "fab57b76fb4a11ebcf03e1539977328eef5d8ea1d298b1064f4244413fef8aad"
+  },
+  {
+    "name": "shield-check",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/shield-check.tsx",
+    "sha256": "7fe067dfcc345616d5723c35c3a4db3c9793b5e4c82537f30e208b46ba908fc3"
+  },
+  {
+    "name": "key",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/key.tsx",
+    "sha256": "fc893edcea2de9fc88b7854ea80b616bd4bddd373b7c1118f44e1668e0cda350"
+  },
+  {
+    "name": "panel-left-open",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/panel-left-open.tsx",
+    "sha256": "c084e776d07f1ba41a45157fed9910a38267e676b90804bc07e44cf7583fcc01"
+  },
+  {
+    "name": "plus",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/plus.tsx",
+    "sha256": "baa31a4993141486dc53980b89eb49b19525dd388f11ba586dcb7900c676fec0"
+  },
+  {
+    "name": "check",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/check.tsx",
+    "sha256": "59fb298bbff88ab0900d718ec16ee4da46489ad2f75289d59ff2bcb28b7e79bf"
+  },
+  {
+    "name": "search",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/search.tsx",
+    "sha256": "cbe4c3b09a8e5611517a525b38f6136558a59414451e25c77d72376a1115261b"
+  },
+  {
+    "name": "download",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/download.tsx",
+    "sha256": "0ed66e1c4473f8004e6b455d968697fb6250ea51c3943f4d7e09b1364e0d2792"
+  },
+  {
+    "name": "upload",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/upload.tsx",
+    "sha256": "bd897b41a23e7238e63b7d62070a64a7268db3dfcbfcf18f70568ee376139593"
+  },
+  {
+    "name": "circle-check",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/circle-check.tsx",
+    "sha256": "851c10822b523186c08ef29e2971b86a222839f5fdbf354a4af022743847b912"
+  },
+  {
+    "name": "arrow-right",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/arrow-right.tsx",
+    "sha256": "6fe1f98cf37f915dede1523af7e18fc18e4e22640c3660025f9236e32af20154"
+  },
+  {
+    "name": "menu",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/menu.tsx",
+    "sha256": "fbcb1463bb1637a8e735833e7eabbecc34644c6cceb1bded34945e24e61809a5"
+  },
+  {
+    "name": "palette",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/palette.tsx",
+    "sha256": "0a4775cb3330855040672add71281c125eeb9477fa8e375b8a6c217871121756"
+  },
+  {
+    "name": "truck",
+    "url": "https://raw.githubusercontent.com/pqoqubbw/icons/main/icons/truck.tsx",
+    "sha256": "ca725a3e9fa73affdffc503182fd09a2232851cba85f30cd8218a5e52c31b6d7"
+  }
+]

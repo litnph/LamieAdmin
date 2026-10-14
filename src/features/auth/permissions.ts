@@ -7,6 +7,7 @@ export const Permission = {
   OrdersManage: 'orders.manage',
   OrdersCancel: 'orders.cancel',
   OrdersReverseStatus: 'orders.reverse-status',
+  OrdersChangeStatus: 'orders.change-status',
   CustomersView: 'customers.view',
   CustomersManage: 'customers.manage',
   ChannelsView: 'channels.view',
@@ -30,6 +31,7 @@ export const Permission = {
   InventoryManage: 'inventory.manage',
   TasksView: 'tasks.view',
   CatalogSettingsView: 'catalog-settings.view',
+  FinancePeriodsReopen: 'finance-periods.reopen',
 } as const;
 
 export type PermissionName = (typeof Permission)[keyof typeof Permission];

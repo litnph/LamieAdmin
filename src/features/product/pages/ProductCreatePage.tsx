@@ -11,7 +11,7 @@ import {
   Trash2,
   UploadCloud,
   X,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { useNavigate } from 'react-router-dom';
 import {
   ProductApi,

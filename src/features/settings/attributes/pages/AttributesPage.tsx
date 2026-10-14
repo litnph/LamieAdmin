@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, Trash2 } from '@/shared/icons/lucideAnimated';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ConfirmationPanel, SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { SettingsShell, SettingsStatus } from '@/features/settings/components/SettingsShell';

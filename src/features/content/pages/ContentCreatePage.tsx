@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Clipboard, ImagePlus, RefreshCw, Save, Sparkles, Square } from 'lucide-react';
+import { Check, Clipboard, ImagePlus, RefreshCw, Save, Sparkles, Square } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { contentApi } from '../api/contentApi';

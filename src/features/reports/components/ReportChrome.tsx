@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { CalendarRange, Download, Filter, RefreshCw, X } from 'lucide-react';
+import { CalendarRange, Download, Filter, RefreshCw, X } from '@/shared/icons/lucideAnimated';
 import type { ReportFilters, ReportTab } from '../types/reporting.types';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 

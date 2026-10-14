@@ -187,7 +187,7 @@ test('expense can be created with required validation fields', async ({ page }) 
 
   const dialog = page.getByRole('dialog', { name: 'Thêm khoản chi' });
   await dialog.getByLabel('Danh mục').selectOption(CATEGORY_ID);
-  await dialog.getByLabel('Ngày chi').fill('2026-08-03');
+  await dialog.getByLabel('Ngày phát sinh / phân bổ').fill('2026-08-03');
   const amountInput = dialog.getByLabel('Số tiền');
   await amountInput.click();
   for (const digit of '1000000') {

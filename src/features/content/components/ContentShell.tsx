@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, Settings, Sparkles } from 'lucide-react';
+import { History, Settings, Sparkles } from '@/shared/icons/lucideAnimated';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { PageHeader } from '@/shared/components/PageHeader';

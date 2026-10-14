@@ -3,13 +3,40 @@ export enum OrderStatus {
   Producing = 2,
   Shipping = 3,
   Completed = 4,
+  Confirmed = 5,
+  Ready = 6,
+  Delivered = 7,
+  DeliveryFailed = 8,
   Cancelled = 99,
 }
+
+export type FulfillmentType = 'pickup' | 'local-delivery' | 'province-delivery';
+export type OrderTrackingGroup = 'late' | 'today' | 'upcoming' | 'delivered-unpaid' | 'completed' | 'cancelled' | 'needs-schedule';
+export type OrderChecklist = {
+  designConfirmed: boolean;
+  materialsPrepared: boolean;
+  cardPrepared: boolean;
+  qualityChecked: boolean;
+};
 
 export enum PaymentStatus {
   Unpaid = 1,
   Deposited = 2,
   Paid = 3,
+}
+
+export enum PaymentMethod {
+  Cash = 1,
+  BankTransfer = 2,
+  Card = 3,
+  Other = 99,
+}
+
+export enum OrderPaymentKind {
+  Deposit = 1,
+  Remainder = 2,
+  Full = 3,
+  Refund = 4,
 }
 
 export enum OrderSortBy {
@@ -106,8 +133,9 @@ export type OrderListItemDto = {
   ordererName: string;
   ordererPhone: string;
   channelId: string;
-  recipientName: string;
-  recipientPhone: string;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  channelName?: string | null;
   pickupAtShop: boolean;
   provinceShipping: boolean;
   deliveryAddress?: string | null;
@@ -123,6 +151,26 @@ export type OrderListItemDto = {
   createdAt: string;
   contentNote?: string | null;
   imageUrl?: string | null;
+  productSummary: string;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentHistoryIncomplete: boolean;
+  completedAt?: string | null;
+  deliveredAt?: string | null;
+  paidInFullAt?: string | null;
+  preparationDate?: string | null;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  holdReason?: string | null;
+  holdAt?: string | null;
+  fulfillmentType?: FulfillmentType;
+  trackingGroup?: OrderTrackingGroup;
+  quantityTotal?: number;
+  hasCard?: boolean;
+  cardMessage?: string | null;
+  hasBanner?: boolean;
+  bannerMessage?: string | null;
+  rowVersion?: string | null;
 };
 
 export type OrderDetailDto = OrderListItemDto & AdministrativeAddressSnapshot & {
@@ -140,6 +188,42 @@ export type OrderDetailDto = OrderListItemDto & AdministrativeAddressSnapshot & 
   images: OrderImageDto[];
   changeLogs: OrderChangeLogDto[];
   materials?: OrderMaterialDto[] | null;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentHistoryIncomplete: boolean;
+  payments: OrderPaymentDto[];
+  completedAt?: string | null;
+  shippingFeeIncurredAt?: string | null;
+  shippingFeePaidAt?: string | null;
+  shippingFeePaymentMethod?: PaymentMethod | null;
+  checklist?: OrderChecklist;
+  cancelledReason?: string | null;
+};
+
+export type OrderPaymentDto = {
+  id: string;
+  orderId: string;
+  amount: number;
+  kind: OrderPaymentKind;
+  method: PaymentMethod;
+  paidAt: string;
+  status: number;
+  note?: string | null;
+  affectsRecognizedRevenue?: boolean;
+  productRevenueAdjustment?: number;
+  shippingRevenueAdjustment?: number;
+};
+
+export type CreateOrderPaymentPayload = {
+  amount: number;
+  kind: OrderPaymentKind;
+  method: PaymentMethod;
+  paidAt: string;
+  idempotencyKey: string;
+  note?: string;
+  affectsRecognizedRevenue?: boolean;
+  productRevenueAdjustment?: number;
+  shippingRevenueAdjustment?: number;
 };
 
 export type OrderMaterialDto = {
@@ -162,10 +246,13 @@ export type SaveOrderMaterialItem = { id?: string; stockUnitId: string; quantity
 export type OrderCalendarItemDto = {
   id: string;
   orderCode: string;
-  recipientName: string;
-  recipientPhone: string;
+  ordererName?: string | null;
+  ordererPhone?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
   deliveryAt: string;
   deliveryTo?: string | null;
+  preparationDate?: string | null;
   pickupAtShop: boolean;
   provinceShipping: boolean;
   deliveryAddress?: string | null;
@@ -205,6 +292,11 @@ export type OrderListQuery = {
   createdTo?: string;
   phone?: string;
   search?: string;
+  statusGroup?: 'incomplete' | 'all';
+  fulfillmentType?: FulfillmentType;
+  includeBacklog?: boolean;
+  completedFrom?: string;
+  completedTo?: string;
   sortBy?: OrderSortBy;
   sortDirection?: SortDirection;
   page?: number;
@@ -225,6 +317,55 @@ export type CreateOrderLine = {
   hasBanner: boolean;
   bannerMessage?: string | null;
   ingredients?: OrderLineIngredientInput[];
+};
+
+export type OrderDeliveryBoard = {
+  items: OrderListItemDto[];
+  summary: {
+    orderCount: number;
+    todayCount: number;
+    lateTodayCount: number;
+    totalAmount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    overdueBeforeTodayCount: number;
+    lateCount?: number;
+    undeliveredTodayCount?: number;
+    upcomingCount?: number;
+    deliveredUnpaidCount?: number;
+    completedCount?: number;
+    cancelledCount?: number;
+  };
+  generatedAt: string;
+  totalCount?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+};
+
+export type OrderWorkflowCommand = {
+  rowVersion?: string | null;
+  reason?: string;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  preparationDate?: string | null;
+  idempotencyKey?: string;
+};
+
+export type UpdateOrderRecipientPayload = {
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  deliveryAddress?: string | null;
+  rowVersion?: string | null;
+};
+
+export type UpdateOrderChecklistPayload = Partial<OrderChecklist> & { rowVersion?: string | null };
+
+export type UpdateOrderAssignmentPayload = {
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  preparationDate?: string | null;
+  rowVersion?: string | null;
 };
 
 export type OrderLineIngredientInput = {
@@ -248,8 +389,8 @@ export type CreateOrderPayload = AdministrativeAddressSnapshot & {
   customerId?: string | null;
   createMember?: boolean;
   channelId: string;
-  recipientName: string;
-  recipientPhone: string;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
   senderName?: string;
   senderPhone?: string;
   pickupAtShop: boolean;
@@ -262,6 +403,10 @@ export type CreateOrderPayload = AdministrativeAddressSnapshot & {
   deliveryTo?: string;
   depositAmount?: number | null;
   isPaid: boolean;
+  confirmPaymentReceived?: boolean;
+  paymentReceivedAt?: string;
+  paymentMethod?: PaymentMethod;
+  paymentIdempotencyKey?: string;
   shippingFee: number;
   shippingFeeActual?: number | null;
   description?: string;

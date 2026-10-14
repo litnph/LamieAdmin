@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PackageOpen, Pencil, X } from 'lucide-react';
+import { PackageOpen, Pencil, X } from '@/shared/icons/lucideAnimated';
 import { inventoryApi } from '@/features/ingredients/api/inventoryApi';
 import { formatDecimalQuantity } from '@/features/ingredients/components/IngredientShell';
 import {

@@ -1,4 +1,4 @@
-import { PackageOpen, Plus, Trash2 } from 'lucide-react';
+import { PackageOpen, Plus, Trash2 } from '@/shared/icons/lucideAnimated';
 import type { InventoryItem } from '../types/inventory.types';
 import { formatDecimalQuantity } from './IngredientShell';
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, CircleAlert, Eye, EyeOff, ListTree, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CircleAlert, Eye, EyeOff, ListTree, Pencil, Plus, RefreshCw, Trash2 } from '@/shared/icons/lucideAnimated';
 import { getAllPageDefinitions, getPageDefinition, isSafeAdminRoutePath } from '@/app/modules/registry';
 import { getAllIconKeys, getIconDefinition, hasIconDefinition } from '@/app/modules/iconRegistry';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -273,8 +273,8 @@ export const NavigationManagementPage: React.FC = () => {
   return (
     <div className="min-w-0">
       <PageHeader
-        title="Menu & Điều hướng"
-        description="Quản lý cây Sidebar và ánh xạ route tới page đã đăng ký an toàn trong source Admin."
+        title="Menu & điều hướng"
+        description="Sắp xếp menu sidebar và liên kết màn hình quản trị."
         actions={canManage ? <button type="button" onClick={openCreate} className="btn-press inline-flex min-h-11 items-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-white"><Plus size={17} /> Thêm mục</button> : undefined}
       />
       {success ? <div className="mb-4 rounded-admin-control border border-admin-status-success/30 bg-green-50 px-4 py-3 text-sm text-admin-status-success" role="status">{success}</div> : null}
@@ -322,20 +322,20 @@ export const NavigationManagementPage: React.FC = () => {
             </div>
           </section>
 
-          <aside className="rounded-admin-panel border border-admin-border bg-admin-surface p-4 shadow-admin-panel xl:sticky xl:top-0" aria-labelledby="sidebar-preview-title">
+          <aside className="rounded-admin-panel border border-admin-border bg-admin-surface p-4 xl:sticky xl:top-0" aria-labelledby="sidebar-preview-title">
             <h2 id="sidebar-preview-title" className="text-base font-semibold">Xem trước Sidebar</h2>
             <p className="mt-1 text-xs text-admin-text-muted">Mô phỏng mục đang bật và hiển thị; quyền người dùng vẫn được API lọc khi chạy thật.</p>
-            <div className="mt-4 space-y-1 rounded-admin-control bg-slate-950 p-3 text-slate-200">
+            <div className="mt-4 space-y-1 rounded-admin-control border border-admin-border bg-admin-sidebar-bg p-3 text-admin-text-secondary">
               {previewItems.length ? previewItems.map(({ item, depth }) => {
                 const Icon = getIconDefinition(item.iconKey);
-                return <div key={item.id} className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs" style={{ paddingLeft: `${depth * 14 + 8}px` }}><Icon size={14} className="text-slate-400" /><span className="truncate">{item.label}</span></div>;
-              }) : <p className="px-2 py-4 text-center text-xs text-slate-400">Không có mục hiển thị.</p>}
+                return <div key={item.id} className="flex min-h-9 items-center gap-2 rounded-admin-control px-2 text-xs hover:bg-admin-sidebar-hover" style={{ paddingLeft: `${depth * 14 + 8}px` }}><Icon size={14} className="text-admin-text-muted" /><span className="truncate">{item.label}</span></div>;
+              }) : <p className="px-2 py-4 text-center text-xs text-admin-text-muted">Không có mục hiển thị.</p>}
             </div>
           </aside>
         </div>
       )}
 
-      <SettingsDialog open={editorOpen} title={editing ? `Cập nhật ${editing.label}` : 'Thêm mục điều hướng'} description="Chọn page từ Page Registry hoặc để trống page để tạo nhóm chứa menu con." width="wide" onRequestClose={() => !busy && setEditorOpen(false)} footer={<><button type="button" disabled={busy} onClick={() => setEditorOpen(false)} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Hủy</button><button type="button" disabled={busy} onClick={() => void save()} className="h-11 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-white">{busy ? 'Đang lưu…' : 'Lưu mục'}</button></>}>
+      <SettingsDialog open={editorOpen} title={editing ? 'Chỉnh sửa mục điều hướng' : 'Thêm mục điều hướng'} description="Chọn page từ Page Registry hoặc để trống page để tạo nhóm chứa menu con." width="wide" onRequestClose={() => !busy && setEditorOpen(false)} footer={<><button type="button" disabled={busy} onClick={() => setEditorOpen(false)} className="h-11 rounded-admin-control border border-admin-border px-4 text-sm font-semibold">Hủy</button><button type="button" disabled={busy} onClick={() => void save()} className="h-11 rounded-admin-control bg-admin-primary px-4 text-sm font-semibold text-white">{busy ? 'Đang lưu…' : 'Lưu mục menu'}</button></>}>
         <div className="grid gap-4 sm:grid-cols-2">
           <label><span className="mb-1.5 block text-sm font-medium">Key</span><input data-autofocus value={draft.key} disabled={Boolean(editing)} onChange={(event) => setDraft((current) => ({ ...current, key: event.target.value }))} className={inputClass} placeholder="module.page" /></label>
           <label><span className="mb-1.5 block text-sm font-medium">Nhãn</span><input value={draft.label} onChange={(event) => setDraft((current) => ({ ...current, label: event.target.value }))} className={inputClass} /></label>

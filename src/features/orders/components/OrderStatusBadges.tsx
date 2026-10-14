@@ -8,7 +8,7 @@ import {
   PackageOpen,
   Truck,
   XCircle,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { orderStatusLabel, paymentStatusLabel } from '../constants/orderLabels';
 import { OrderStatus, PaymentStatus } from '../types/order.types';
 import type { DeliveryUrgency } from '../utils/orderListFormatters';
@@ -30,6 +30,22 @@ export const OrderStatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) 
     [OrderStatus.Completed]: {
       className: 'bg-admin-status-success/10 text-admin-status-success',
       icon: CheckCircle2,
+    },
+    [OrderStatus.Confirmed]: {
+      className: 'bg-admin-status-info/10 text-admin-status-info',
+      icon: PackageCheck,
+    },
+    [OrderStatus.Ready]: {
+      className: 'bg-admin-primary/10 text-admin-primary',
+      icon: PackageCheck,
+    },
+    [OrderStatus.Delivered]: {
+      className: 'bg-admin-status-warning/10 text-admin-status-warning',
+      icon: CheckCircle2,
+    },
+    [OrderStatus.DeliveryFailed]: {
+      className: 'bg-admin-status-error/10 text-admin-status-error',
+      icon: AlertTriangle,
     },
     [OrderStatus.Cancelled]: {
       className: 'bg-admin-status-error/10 text-admin-status-error',

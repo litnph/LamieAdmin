@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw } from '@/shared/icons/lucideAnimated';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { ProductCreatePage } from '@/features/product/pages/ProductCreatePage';

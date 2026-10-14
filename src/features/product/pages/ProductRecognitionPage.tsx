@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ImagePlus, Loader2, RefreshCw, ScanSearch, UploadCloud } from 'lucide-react';
+import { ArrowLeft, ImagePlus, Loader2, RefreshCw, ScanSearch, UploadCloud } from '@/shared/icons/lucideAnimated';
 import { useNavigate } from 'react-router-dom';
 import {
   ProductApi,

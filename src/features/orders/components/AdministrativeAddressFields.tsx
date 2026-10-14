@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, LoaderCircle } from 'lucide-react';
+import { AlertTriangle, LoaderCircle } from '@/shared/icons/lucideAnimated';
 import { AdminSelect, type AdminSelectOption } from '@/shared/components/AdminSelect';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { administrativeAddressApi } from '../api/administrativeAddressApi';

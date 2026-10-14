@@ -9,7 +9,7 @@ type AttentionOrdersListProps = {
 };
 
 const getAttentionLabel = (status: OrderStatus) =>
-  status === OrderStatus.Created ? 'Chờ xác nhận' : 'Đang chuẩn bị';
+  status === OrderStatus.Created ? 'Đơn mới' : 'Làm hoa';
 
 export const AttentionOrdersList: React.FC<AttentionOrdersListProps> = ({ orders }) => (
   <section
@@ -21,7 +21,7 @@ export const AttentionOrdersList: React.FC<AttentionOrdersListProps> = ({ orders
         <h2 id="attention-orders-title" className="text-base font-semibold text-admin-text-primary">
           Đơn cần xử lý
         </h2>
-        <p className="mt-1 text-xs text-admin-text-muted">Ưu tiên đơn chờ xác nhận trước đơn đang chuẩn bị.</p>
+        <p className="mt-1 text-xs text-admin-text-muted">Ưu tiên đơn mới trước các đơn đang làm hoa.</p>
       </div>
       <Link to="/admin/orders" className="shrink-0 text-sm font-semibold text-admin-primary hover:underline">
         Xem tất cả đơn
@@ -44,7 +44,7 @@ export const AttentionOrdersList: React.FC<AttentionOrdersListProps> = ({ orders
               <div className="min-w-0">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-mono text-sm font-semibold text-admin-text-primary">{order.orderCode}</span>
-                  <span className="rounded-md bg-admin-primary/10 px-2 py-0.5 text-[11px] font-semibold text-admin-primary">
+                  <span className="rounded-md bg-admin-primary/10 px-2 py-0.5 text-xs font-semibold text-admin-primary">
                     {getAttentionLabel(order.orderStatus)}
                   </span>
                 </div>
@@ -56,7 +56,7 @@ export const AttentionOrdersList: React.FC<AttentionOrdersListProps> = ({ orders
                 <p className="whitespace-nowrap text-sm font-semibold text-admin-text-primary tabular-nums">
                   {formatCurrency(order.totalAmount)}
                 </p>
-                <p className="mt-1 whitespace-nowrap text-[11px] text-admin-text-muted">
+                <p className="mt-1 whitespace-nowrap text-xs text-admin-text-muted">
                   Giao {formatDateTime(order.deliveryAt)}
                 </p>
               </div>

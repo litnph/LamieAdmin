@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, ImageOff, LoaderCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImageOff, LoaderCircle } from '@/shared/icons/lucideAnimated';
 import { SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { resolveApiResourceUrl } from '@/services/apiResourceUrl';
 

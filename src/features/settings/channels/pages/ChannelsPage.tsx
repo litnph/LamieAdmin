@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pencil, Plus, RefreshCw } from 'lucide-react';
+import { Pencil, Plus, RefreshCw } from '@/shared/icons/lucideAnimated';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';

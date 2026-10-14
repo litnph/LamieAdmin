@@ -8,6 +8,8 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 
 const LoginPage = lazy(() => import('@/features/user/pages/LoginPage')
   .then((module) => ({ default: module.LoginPage })));
+const ThemePage = lazy(() => import('@/features/theme/pages/ThemePage')
+  .then((module) => ({ default: module.ThemePage })));
 
 const pageComponentCache = new Map<string, LazyExoticComponent<ComponentType>>();
 
@@ -125,6 +127,7 @@ export const AppRouter: React.FC = () => {
           <Route index element={<AdminIndex />} />
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="not-found" element={<NotFoundPage />} />
+          <Route path="appearance" element={<RouteBoundary><ThemePage /></RouteBoundary>} />
 
           <Route path="settings/attributes" element={<Navigate to="/admin/settings/attributes/categories" replace />} />
           <Route path="masterdata/languages" element={<Navigate to="/admin/settings/attributes/languages" replace />} />

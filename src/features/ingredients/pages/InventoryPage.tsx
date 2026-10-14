@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, History, PackageMinus, PackagePlus, Pencil, Plus, Scale, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, History, PackageMinus, PackagePlus, Pencil, Plus, Scale, Search, Trash2 } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';
 import { expenseCategoriesApi } from '@/features/expenses/api/expensesApi';
@@ -33,6 +33,7 @@ type StockUnitDraft = SaveInventoryStockUnit & { key: string; thresholdText: str
 type ItemDraft = { id?: string; code: string; name: string; measurementUnitId: number; note: string; isActive: boolean; usesSizes: boolean; stockUnits: StockUnitDraft[] };
 type ReceiptLine = { key: string; inventoryItemId: string; stockUnitId: string; quantityText: string };
 type MovementMode = 'issue' | 'adjustment';
+type InventorySummary = { total: number; low: number; outOfStock: number };
 
 const newStockUnit = (sizeName = ''): StockUnitDraft => ({ key: `stock-${++rowKey}`, sizeName, lowStockThreshold: 0, thresholdText: '0', isActive: true });
 const emptyItem = (measurementUnitId = 0): ItemDraft => ({ code: '', name: '', measurementUnitId, note: '', isActive: true, usesSizes: false, stockUnits: [newStockUnit()] });
@@ -61,6 +62,7 @@ export const InventoryPage: React.FC<{ mode?: InventoryPageMode; embedded?: bool
   const canManage = hasPermission('inventory.manage');
   const canCreateExpense = hasPermission(Permission.ExpensesManage);
   const [result, setResult] = useState<PagedInventory>(emptyResult);
+  const [summary, setSummary] = useState<InventorySummary>({ total: 0, low: 0, outOfStock: 0 });
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [units, setUnits] = useState<MeasurementUnitDto[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
@@ -105,13 +107,17 @@ export const InventoryPage: React.FC<{ mode?: InventoryPageMode; embedded?: bool
     setLoading(true);
     setError('');
     try {
-      const [stock, inventoryItems, measurementUnits, expenseCategories] = await Promise.all([
+      const [stock, inventoryItems, measurementUnits, expenseCategories, allStock, lowStock, outOfStock] = await Promise.all([
         inventoryApi.list({ search, status: status || undefined, includeInactive, page, pageSize: PAGE_SIZE }),
         inventoryApi.listItems(true),
         measurementUnitsApi.listAll({ includeInactive: true }),
         canCreateExpense ? expenseCategoriesApi.list(false) : Promise.resolve([]),
+        inventoryApi.list({ includeInactive, page: 1, pageSize: 1 }),
+        inventoryApi.list({ status: InventoryStockStatus.Low, includeInactive, page: 1, pageSize: 1 }),
+        inventoryApi.list({ status: InventoryStockStatus.OutOfStock, includeInactive, page: 1, pageSize: 1 }),
       ]);
       setResult(stock);
+      setSummary({ total: allStock.totalCount, low: lowStock.totalCount, outOfStock: outOfStock.totalCount });
       setItems(inventoryItems);
       setUnits(measurementUnits);
       setCategories(expenseCategories);
@@ -260,7 +266,7 @@ export const InventoryPage: React.FC<{ mode?: InventoryPageMode; embedded?: bool
   const pageMeta = {
     stock: {
       title: 'Kho hàng',
-      description: 'Theo dõi tồn kho, tạo phiếu nhập và mở lịch sử giao dịch của từng mặt hàng trong một màn hình.',
+      description: 'Nắm rõ lượng tồn và từng lần nhập, xuất vật tư.',
     },
     receiving: {
       title: 'Nhập kho',
@@ -286,6 +292,42 @@ export const InventoryPage: React.FC<{ mode?: InventoryPageMode; embedded?: bool
     <div className="space-y-4">
       {message ? <IngredientStatus kind="success">{message}</IngredientStatus> : null}
       {error ? <IngredientStatus kind="error">{error}</IngredientStatus> : null}
+      {mode === 'stock' ? (
+        <div className="grid grid-cols-3 gap-3" aria-label="Tổng hợp kho hàng">
+          <article className="rounded-admin-panel border border-admin-border bg-admin-surface p-4">
+            <p className="text-xs leading-5 text-admin-text-secondary">Mặt hàng đang theo dõi</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-admin-text-primary">{summary.total}</p>
+          </article>
+          <article className="rounded-admin-panel border border-admin-border bg-admin-surface p-4">
+            <p className="text-xs leading-5 text-admin-text-secondary">Dưới ngưỡng</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-admin-text-primary">{summary.low}</p>
+          </article>
+          <article className="rounded-admin-panel border border-admin-border bg-admin-surface p-4">
+            <p className="text-xs leading-5 text-admin-text-secondary">Hết hàng</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-admin-text-primary">{summary.outOfStock}</p>
+          </article>
+        </div>
+      ) : null}
+      {mode === 'stock' ? (
+        <div className="flex max-w-full gap-1 overflow-x-auto border-b border-admin-border" role="tablist" aria-label="Trạng thái kho hàng">
+          {([
+            ['', `Tất cả vật tư ${summary.total}`],
+            [InventoryStockStatus.Low, `Tồn thấp ${summary.low}`],
+            [InventoryStockStatus.OutOfStock, `Hết hàng ${summary.outOfStock}`],
+          ] as const).map(([value, label]) => (
+            <button
+              key={String(value)}
+              type="button"
+              role="tab"
+              aria-selected={status === value}
+              onClick={() => { setStatus(value); setPage(1); }}
+              className={`min-h-11 shrink-0 border-b-2 px-3 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${status === value ? 'border-admin-primary text-admin-primary' : 'border-transparent text-admin-text-secondary hover:text-admin-text-primary'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <form onSubmit={(event) => { event.preventDefault(); setPage(1); setSearch(searchText.trim()); }} className="grid gap-3 rounded-admin-panel border border-admin-border bg-admin-surface p-4 md:grid-cols-[minmax(14rem,1fr)_12rem_auto_auto] md:items-end">
         <label><span className="mb-1.5 block text-sm font-medium">Tìm hàng tồn</span><span className="relative block"><Search size={17} className="absolute left-3 top-3 text-admin-text-muted" /><input value={searchText} onChange={(event) => setSearchText(event.target.value)} className={`${inputClass} pl-9`} placeholder="Mã, tên hoặc size" /></span></label>
         <label><span className="mb-1.5 block text-sm font-medium">Trạng thái tồn</span><select value={status} onChange={(event) => { setStatus(event.target.value ? Number(event.target.value) as InventoryStockStatus : ''); setPage(1); }} className={inputClass}><option value="">Tất cả</option><option value={InventoryStockStatus.Normal}>Bình thường</option><option value={InventoryStockStatus.Low}>Tồn thấp</option><option value={InventoryStockStatus.OutOfStock}>Hết hàng</option></select></label>
@@ -294,7 +336,44 @@ export const InventoryPage: React.FC<{ mode?: InventoryPageMode; embedded?: bool
       </form>
       {loading ? <div className="flex min-h-64 items-center justify-center rounded-admin-panel border border-admin-border bg-admin-surface text-sm">Đang tải tồn kho...</div> : result.items.length === 0 ? <div className="rounded-admin-panel border border-dashed border-admin-border bg-admin-surface px-5 py-14 text-center"><p className="font-semibold">Chưa có hàng tồn phù hợp</p><p className="mt-1 text-sm text-admin-text-secondary">Tạo hàng tồn không size hoặc khai báo các size thực tế để bắt đầu.</p></div> : <section className="overflow-hidden rounded-admin-panel border border-admin-border bg-admin-surface shadow-admin-panel">
         <div className="hidden grid-cols-[minmax(13rem,1.4fr)_8rem_9rem_9rem_12rem] gap-4 border-b border-admin-border bg-admin-muted/45 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-admin-text-muted md:grid"><span>Hàng tồn</span><span>Size</span><span className="text-right">Tồn / Ngưỡng</span><span>Trạng thái</span><span className="text-right">Thao tác</span></div>
-        <div className="divide-y divide-admin-border">{result.items.map((unit) => { const meta = statusMeta[unit.status]; return <article key={unit.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(13rem,1.4fr)_8rem_9rem_9rem_12rem] md:items-center md:gap-4 md:px-5"><div><p className="font-medium">{unit.inventoryItemName}</p><p className="mt-0.5 font-mono text-xs text-admin-text-muted">{unit.inventoryItemCode} · {unit.unitSymbol || unit.unitName}{unit.isActive ? '' : ' · Đã tắt'}</p></div><p className="text-sm text-admin-text-secondary">{unit.sizeName || <span className="sr-only">Không phân loại theo size</span>}</p><p className="text-right text-sm tabular-nums"><strong>{formatDecimalQuantity(unit.quantity)}</strong><span className="text-admin-text-muted"> / {formatDecimalQuantity(unit.lowStockThreshold)}</span></p><span className={`w-fit rounded-md px-2 py-1 text-xs font-semibold ${meta.className}`}>{meta.label}</span><div className="flex justify-end gap-1">{canManage && unit.isActive ? <><button type="button" onClick={() => openMovement(unit, 'issue')} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-status-error hover:bg-admin-status-error/10" aria-label={`Xuất kho ${unit.inventoryItemName}`}><PackageMinus size={17} /></button><button type="button" onClick={() => openMovement(unit, 'adjustment')} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control text-admin-primary hover:bg-admin-primary/10" aria-label={`Điều chỉnh tồn ${unit.inventoryItemName}`}><Scale size={17} /></button></> : null}<button type="button" onClick={() => void openLedger(unit)} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control hover:bg-admin-muted" aria-label={`Lịch sử ${unit.inventoryItemName}`}><History size={17} /></button>{canManage ? <button type="button" onClick={() => { const item = items.find((candidate) => candidate.id === unit.inventoryItemId); if (item) openEditItem(item); }} className="inline-flex h-11 w-11 items-center justify-center rounded-admin-control hover:bg-admin-muted" aria-label={`Sửa ${unit.inventoryItemName}`}><Pencil size={17} /></button> : null}</div></article>; })}</div>
+        <div className="divide-y divide-admin-border">
+          {result.items.map((unit) => {
+            const meta = statusMeta[unit.status];
+            return (
+              <article key={unit.id} className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-5 md:grid-cols-[minmax(13rem,1.4fr)_8rem_9rem_9rem_12rem] md:items-center md:gap-4 md:px-5">
+                <div className="col-span-2 md:col-span-1">
+                  <p className="font-semibold text-admin-text-primary">{unit.inventoryItemName}</p>
+                  <p className="mt-1 font-mono text-xs text-admin-text-muted">{unit.inventoryItemCode} · {unit.unitSymbol || unit.unitName}{unit.isActive ? '' : ' · Đã tắt'}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-[0.6875rem] text-admin-text-muted md:sr-only">Quy cách</p>
+                  <p className="text-sm text-admin-text-secondary">{unit.sizeName || 'Tiêu chuẩn'}</p>
+                </div>
+                <div className="md:text-right">
+                  <p className="mb-1 text-[0.6875rem] text-admin-text-muted md:sr-only">Tồn / ngưỡng</p>
+                  <p className="text-sm tabular-nums"><strong>{formatDecimalQuantity(unit.quantity)}</strong><span className="text-admin-text-muted"> / {formatDecimalQuantity(unit.lowStockThreshold)}</span></p>
+                </div>
+                <div>
+                  <p className="mb-1 text-[0.6875rem] text-admin-text-muted md:sr-only">Trạng thái</p>
+                  <span className={`inline-flex w-fit rounded-md px-2 py-1 text-xs font-semibold ${meta.className}`}>{meta.label}</span>
+                </div>
+                <div>
+                  <p className="mb-1 text-[0.6875rem] text-admin-text-muted md:sr-only">Thao tác</p>
+                  <div className="flex gap-1 md:justify-end">
+                    {canManage && unit.isActive ? (
+                      <>
+                        <button type="button" onClick={() => openMovement(unit, 'issue')} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control text-admin-status-error hover:bg-admin-status-error/10" aria-label={`Xuất kho ${unit.inventoryItemName}`}><PackageMinus size={17} /></button>
+                        <button type="button" onClick={() => openMovement(unit, 'adjustment')} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control text-admin-primary hover:bg-admin-primary/10" aria-label={`Điều chỉnh tồn ${unit.inventoryItemName}`}><Scale size={17} /></button>
+                      </>
+                    ) : null}
+                    <button type="button" onClick={() => void openLedger(unit)} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control hover:bg-admin-muted" aria-label={`Lịch sử ${unit.inventoryItemName}`}><History size={17} /></button>
+                    {canManage ? <button type="button" onClick={() => { const item = items.find((candidate) => candidate.id === unit.inventoryItemId); if (item) openEditItem(item); }} className="inline-flex h-10 w-10 items-center justify-center rounded-admin-control hover:bg-admin-muted" aria-label={`Sửa ${unit.inventoryItemName}`}><Pencil size={17} /></button> : null}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </section>}
       {result.totalPages > 1 ? <div className="flex justify-end gap-2"><button disabled={!result.hasPrevious} onClick={() => setPage((value) => value - 1)} className="h-10 rounded-admin-control border px-3 disabled:opacity-40">Trước</button><span className="py-2 text-sm">{result.page}/{result.totalPages}</span><button disabled={!result.hasNext} onClick={() => setPage((value) => value + 1)} className="h-10 rounded-admin-control border px-3 disabled:opacity-40">Sau</button></div> : null}
     </div>

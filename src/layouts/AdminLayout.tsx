@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { Menu } from 'lucide-react';
-import { PrimaryColorPicker } from '@/shared/components/PrimaryColorPicker';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { ChevronRight, Menu, Palette } from '@/shared/icons/lucideAnimated';
 import { Sidebar, findActiveNavigationLabel } from '@/shared/components/Sidebar';
 import { useNavigation } from '@/features/navigation/context/NavigationContext';
+import { ThemeApplyBar } from '@/shared/components/ThemeApplyBar';
+import { ThemeFeedbackToast } from '@/shared/components/ThemeFeedbackToast';
+import { useAdminTheme } from '@/shared/theme/ThemeContext';
 
 const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)';
 const SIDEBAR_STORAGE_KEY = 'lamie_admin_sidebar_collapsed';
@@ -18,6 +20,14 @@ const FOCUSABLE_SELECTOR = [
 
 const getIsDesktop = () =>
   typeof window === 'undefined' ? true : window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+
+const formatWorkspaceDate = () => new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  weekday: 'long',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+}).format(new Date());
 
 const getInitialDesktopCollapsed = () => {
   if (typeof window === 'undefined') return false;
@@ -39,11 +49,15 @@ export const AdminLayout: React.FC = () => {
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { items, routes } = useNavigation();
+  const { activeThemeName, hasUnappliedPreview } = useAdminTheme();
 
   const currentPageLabel = useMemo(
-    () => findActiveNavigationLabel(items, location.pathname, routes),
+    () => location.pathname === '/admin/appearance'
+      ? 'Chủ đề giao diện'
+      : findActiveNavigationLabel(items, location.pathname, routes),
     [items, location.pathname, routes],
   );
+  const workspaceDate = useMemo(formatWorkspaceDate, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
@@ -144,7 +158,7 @@ export const AdminLayout: React.FC = () => {
           'lg:static lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:transition-[width] lg:duration-200',
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
-        style={isDesktop ? { width: desktopSidebarCollapsed ? '4.75rem' : '16rem' } : undefined}
+        style={isDesktop ? { width: desktopSidebarCollapsed ? '4.75rem' : '14rem' } : undefined}
         aria-hidden={!isDesktop && !mobileSidebarOpen}
         inert={!isDesktop && !mobileSidebarOpen}
       >
@@ -163,7 +177,7 @@ export const AdminLayout: React.FC = () => {
         aria-hidden={!isDesktop && mobileSidebarOpen}
         inert={!isDesktop && mobileSidebarOpen}
       >
-        <header className="relative z-admin-header flex h-admin-header shrink-0 items-center justify-between gap-3 border-b border-admin-border bg-admin-card/95 px-3 shadow-admin-panel sm:px-5 lg:px-6">
+        <header className="relative z-admin-header flex h-admin-header shrink-0 items-center justify-between gap-3 border-b border-admin-border bg-admin-card px-3 sm:px-5 lg:px-7">
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               ref={menuButtonRef}
@@ -176,20 +190,37 @@ export const AdminLayout: React.FC = () => {
             >
               <Menu size={20} strokeWidth={1.8} aria-hidden="true" />
             </button>
-            <p className="truncate text-sm font-semibold text-admin-text-primary" aria-live="polite">{currentPageLabel}</p>
+            <span className="hidden text-xs text-admin-text-muted sm:inline">Không gian làm việc</span>
+            <ChevronRight size={14} strokeWidth={1.7} className="hidden shrink-0 text-admin-text-muted sm:block" aria-hidden="true" />
+            <p className="truncate text-xs font-medium text-admin-text-primary" aria-live="polite">{currentPageLabel}</p>
           </div>
-          <PrimaryColorPicker />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <time className="hidden text-xs text-admin-text-muted md:block">{workspaceDate}</time>
+            <Link
+              to="/admin/appearance"
+              className="inline-flex min-h-10 items-center gap-2 rounded-admin-control border border-admin-border bg-admin-card px-2.5 text-xs font-semibold text-admin-text-secondary transition-colors hover:bg-admin-muted hover:text-admin-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-admin-primary"
+              aria-label={`Mở chủ đề giao diện. Đang xem ${activeThemeName}`}
+            >
+              <Palette size={16} strokeWidth={1.8} aria-hidden="true" />
+              <span className="hidden max-w-28 truncate sm:inline">{activeThemeName}</span>
+            </Link>
+          </div>
         </header>
 
         <main
           id="admin-main-content"
           tabIndex={-1}
-          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 sm:px-5 sm:py-6 lg:px-8 lg:py-8 wide:px-10"
+          className={`min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[1.125rem] py-6 sm:px-6 lg:px-[1.875rem] lg:py-[1.875rem] wide:px-10 ${location.pathname === '/admin/appearance' || hasUnappliedPreview ? 'pb-36 sm:pb-28 lg:pb-28' : ''}`}
         >
           <div className="mx-auto w-full min-w-0 max-w-admin-content">
             <Outlet />
           </div>
         </main>
+        <ThemeApplyBar
+          forceVisible={location.pathname === '/admin/appearance'}
+          desktopOffset={isDesktop ? (desktopSidebarCollapsed ? '4.75rem' : '14rem') : '0px'}
+        />
+        <ThemeFeedbackToast />
       </div>
     </div>
   );

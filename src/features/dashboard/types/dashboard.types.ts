@@ -90,5 +90,34 @@ export type DashboardData = {
   revenue: DashboardRevenueData | null;
   inventory: DashboardInventoryData | null;
   sourceErrors: DashboardSourceError[];
+  v2?: {
+    upcoming: {
+      from: string;
+      to: string;
+      orderCount: number;
+      attentionCount: number;
+      orderValue: number;
+      paidAmount: number;
+      remainingAmount: number;
+      overdueBeforeTodayCount: number;
+      days: Array<{ date: string; orderCount: number }>;
+      nextOrders: OrderListItemDto[];
+    };
+    todayFinance: {
+      date: string;
+      completedOrderCount: number;
+      productRevenue: number;
+      shippingRevenue: number;
+      revenue: number;
+      cashIn: number;
+      cashOut: number;
+      netCash: number;
+      deposits: number;
+      remainders: number;
+      shippingPaid: number;
+      otherExpensesPaid: number;
+      incompleteHistoryCount: number;
+    };
+  };
 };
 

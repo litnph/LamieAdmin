@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardPaste, LoaderCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardPaste, LoaderCircle } from '@/shared/icons/lucideAnimated';
 import { getApiErrorMessage } from '@/shared/utils/apiError';
 import { administrativeAddressApi } from '../api/administrativeAddressApi';
 import type { AddressResolutionDto } from '../types/administrativeAddress.types';

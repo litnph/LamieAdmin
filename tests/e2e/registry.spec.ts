@@ -72,7 +72,7 @@ test('all existing business pages and routes are covered by feature-owned manife
   expect(inventory.permissions).toEqual(expect.arrayContaining([
     'inventory.view', 'inventory.manage', 'tasks.view', 'catalog-settings.view',
   ]));
-  expect(inventory.pages).toHaveLength(38);
+  expect(inventory.pages).toHaveLength(40);
   expect(inventory.pages.every((item) => item.componentType === 'function')).toBe(true);
   expect(inventory.pages.map((item) => item.defaultPath).sort()).toEqual([
     '/admin/customers',
@@ -82,6 +82,8 @@ test('all existing business pages and routes are covered by feature-owned manife
     '/admin/content/history',
     '/admin/dashboard',
     '/admin/expenses',
+    '/admin/finance/period-close',
+    '/admin/finance/purchases',
     '/admin/ingredients',
     '/admin/ingredients/demand',
     '/admin/ingredients/inventory',
@@ -114,13 +116,15 @@ test('all existing business pages and routes are covered by feature-owned manife
     '/admin/users/new',
     '/admin/tasks',
   ].sort());
-  expect(inventory.navigation).toHaveLength(44);
+  expect(inventory.navigation).toHaveLength(46);
   expect(inventory.navigation.filter((item) => item.isVisible && item.defaultPath)
     .map((item) => item.defaultPath).sort()).toEqual([
     '/admin/customers',
     '/admin/content',
     '/admin/dashboard',
     '/admin/expenses',
+    '/admin/finance/period-close',
+    '/admin/finance/purchases',
     '/admin/ingredients/inventory',
     '/admin/orders',
     '/admin/orders/calendar',

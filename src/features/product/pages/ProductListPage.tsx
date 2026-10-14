@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Loader2, Plus, RefreshCw, RotateCcw, ScanSearch, Search } from 'lucide-react';
+import { Download, Loader2, Plus, RefreshCw, RotateCcw, ScanSearch, Search } from '@/shared/icons/lucideAnimated';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProductApi, type ProductDto } from '@/features/product/api/productApi';
 import { ProductTable, type ProductListItem, type ProductStockStatus } from '@/features/product/components/ProductTable';

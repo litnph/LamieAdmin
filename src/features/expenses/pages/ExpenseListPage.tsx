@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign,
   ListFilter,
@@ -8,7 +8,7 @@ import {
   Search,
   Tags,
   Trash2,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';
@@ -38,6 +38,10 @@ type ExpenseDraft = {
   amount: string;
   description: string;
   notes: string;
+  paid: boolean;
+  paidAt: string;
+  paymentMethod: string;
+  vendor: string;
 };
 
 const PAGE_SIZE = 20;
@@ -54,6 +58,10 @@ const emptyDraft = (categoryId = ''): ExpenseDraft => ({
   amount: '',
   description: '',
   notes: '',
+  paid: false,
+  paidAt: '',
+  paymentMethod: '1',
+  vendor: '',
 });
 
 const draftFromExpense = (expense: Expense): ExpenseDraft => ({
@@ -62,6 +70,10 @@ const draftFromExpense = (expense: Expense): ExpenseDraft => ({
   amount: String(expense.amount),
   description: expense.description,
   notes: expense.notes ?? '',
+  paid: Boolean(expense.paidAt),
+  paidAt: expense.paidAt ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(expense.paidAt)).replace(' ', 'T') : '',
+  paymentMethod: String(expense.paymentMethod ?? 1),
+  vendor: expense.vendor ?? '',
 });
 
 const SummaryCard: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
@@ -99,6 +111,27 @@ export const ExpenseListPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<Expense | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [paying, setPaying] = useState<Expense | null>(null);
+  const [paymentDraft, setPaymentDraft] = useState({ amount: '', paidAt: '', method: '1', note: '' });
+  const paymentIdempotencyKeyRef = useRef(globalThis.crypto?.randomUUID?.() ?? `expense-${Date.now()}`);
+
+  const openPayment = (expense: Expense) => {
+    setPaying(expense);
+    setPaymentDraft({ amount: String(expense.outstandingAmount), paidAt: `${localDateInputValue()}T12:00`, method: '1', note: '' });
+    setFormError(null);
+  };
+
+  const savePayment = async () => {
+    if (!paying) return;
+    setSaving(true); setFormError(null);
+    try {
+      await expensesApi.addPayment(paying.id, {
+        amount: Number(paymentDraft.amount), paidAt: `${paymentDraft.paidAt}:00+07:00`, method: Number(paymentDraft.method),
+        idempotencyKey: globalThis.crypto?.randomUUID?.() ?? `expense-payment-${Date.now()}`, note: paymentDraft.note || null,
+      });
+      setPaying(null); setSuccessMessage('Đã ghi nhận lần thanh toán chi phí.'); await loadExpenses(); await loadSummary();
+    } catch (error) { setFormError(getApiErrorMessage(error)); } finally { setSaving(false); }
+  };
 
   const loadCategories = useCallback(async () => {
     try {
@@ -166,9 +199,11 @@ export const ExpenseListPage: React.FC = () => {
     draft.expenseCategoryId.length > 0 &&
     draft.expenseDate.length > 0 &&
     validAmount &&
-    draft.description.trim().length > 0;
+    draft.description.trim().length > 0 &&
+    (!draft.paid || draft.paidAt.length > 0);
 
   const openCreate = () => {
+    paymentIdempotencyKeyRef.current = globalThis.crypto?.randomUUID?.() ?? `expense-${Date.now()}`;
     setEditing(null);
     setDraft(emptyDraft(activeCategories[0]?.id));
     setFormError(null);
@@ -191,7 +226,9 @@ export const ExpenseListPage: React.FC = () => {
 
   const saveExpense = async () => {
     if (!formValid) {
-      setFormError('Vui lòng chọn danh mục, ngày chi, nhập số tiền lớn hơn 0 và nội dung chi.');
+      setFormError(draft.paid && !draft.paidAt
+        ? 'Vui lòng nhập thời điểm thực chi.'
+        : 'Vui lòng chọn danh mục, ngày chi, nhập số tiền lớn hơn 0 và nội dung chi.');
       return;
     }
 
@@ -201,6 +238,10 @@ export const ExpenseListPage: React.FC = () => {
       amount: Number(draft.amount),
       description: draft.description.trim(),
       notes: draft.notes.trim() || null,
+      paidAt: draft.paid && draft.paidAt ? `${draft.paidAt}:00+07:00` : null,
+      paymentMethod: draft.paid ? Number(draft.paymentMethod) : null,
+      vendor: draft.vendor.trim() || null,
+      paymentIdempotencyKey: draft.paid ? (editing?.paidAt ? null : paymentIdempotencyKeyRef.current) : null,
     };
     setSaving(true);
     setFormError(null);
@@ -477,8 +518,10 @@ export const ExpenseListPage: React.FC = () => {
                     </p>
                   </div>
                   {expense.notes ? <p className="mt-3 text-sm leading-6 text-admin-text-secondary">{expense.notes}</p> : null}
+                  <p className="mt-2 text-xs text-admin-text-secondary">Đã trả {formatExpenseCurrency(expense.paidAmount)} qua {expense.payments?.length || (expense.paidAt ? 1 : 0)} lần · Còn nợ {formatExpenseCurrency(expense.outstandingAmount)}</p>
                   {canManage ? (
-                    <div className="mt-4 flex gap-2 border-t border-admin-border pt-3">
+                    <div className="mt-4 grid grid-cols-3 gap-2 border-t border-admin-border pt-3">
+                      <button type="button" onClick={() => openPayment(expense)} disabled={expense.outstandingAmount <= 0} className="btn-press inline-flex min-h-11 items-center justify-center rounded-admin-control border border-admin-border text-sm font-semibold disabled:opacity-35">Trả tiền</button>
                       <button
                         type="button"
                         onClick={() => openEdit(expense)}
@@ -508,10 +551,11 @@ export const ExpenseListPage: React.FC = () => {
                 <caption className="sr-only">Danh sách các khoản chi</caption>
                 <thead className="border-b border-admin-border bg-admin-muted/55 text-xs text-admin-text-secondary">
                   <tr>
-                    <th scope="col" className="px-4 py-3 font-semibold">Ngày chi</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Ngày phát sinh / phân bổ</th>
                     <th scope="col" className="px-4 py-3 font-semibold">Nội dung</th>
                     <th scope="col" className="px-4 py-3 font-semibold">Danh mục</th>
                     <th scope="col" className="px-4 py-3 text-right font-semibold">Số tiền</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Đã trả / còn nợ</th>
                     <th scope="col" className="px-4 py-3 font-semibold">Ghi chú</th>
                     {canManage ? <th scope="col" className="px-4 py-3 text-right font-semibold">Hành động</th> : null}
                   </tr>
@@ -525,12 +569,14 @@ export const ExpenseListPage: React.FC = () => {
                       <td className="whitespace-nowrap px-4 py-3.5 text-right font-semibold tabular-nums text-admin-text-primary">
                         {formatExpenseCurrency(expense.amount)}
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-right tabular-nums text-admin-text-secondary">{formatExpenseCurrency(expense.paidAmount)} <span className="text-xs">({expense.payments?.length || (expense.paidAt ? 1 : 0)} lần)</span><span className="block text-xs text-admin-status-warning">Nợ {formatExpenseCurrency(expense.outstandingAmount)}</span></td>
                       <td className="max-w-64 px-4 py-3.5 text-admin-text-secondary">
                         <span className="line-clamp-2">{expense.notes || 'Không có'}</span>
                       </td>
                       {canManage ? (
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex justify-end gap-1">
+                            <button type="button" onClick={() => openPayment(expense)} disabled={expense.outstandingAmount <= 0} className="inline-flex min-h-11 items-center rounded-admin-control px-2 text-xs font-semibold text-admin-primary disabled:opacity-35" aria-label={`Ghi trả tiền ${expense.description}`}>Trả tiền</button>
                             <button
                               type="button"
                               onClick={() => openEdit(expense)}
@@ -615,7 +661,7 @@ export const ExpenseListPage: React.FC = () => {
             </select>
           </div>
           <div>
-            <label htmlFor="expense-form-date" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Ngày chi</label>
+            <label htmlFor="expense-form-date" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Ngày phát sinh / phân bổ</label>
             <input
               id="expense-form-date"
               type="date"
@@ -650,6 +696,11 @@ export const ExpenseListPage: React.FC = () => {
               placeholder="Ví dụ: Phí giao hoa đơn buổi sáng"
             />
           </div>
+          <div className="sm:col-span-2 rounded-admin-control border border-admin-border bg-admin-muted/40 p-3">
+            <label className="flex min-h-9 items-center gap-2 text-sm font-semibold text-admin-text-primary"><input type="checkbox" checked={draft.paid} onChange={event => setDraft(current => ({ ...current, paid: event.target.checked }))} className="h-4 w-4 rounded border-admin-input-border text-admin-primary" />Đã thực chi khoản này</label>
+            {draft.paid ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-admin-text-secondary">Thời điểm thực chi<input type="datetime-local" value={draft.paidAt} onChange={event => setDraft(current => ({ ...current, paidAt: event.target.value }))} className={`${fieldClass} mt-1.5`} /></label><label className="text-xs font-medium text-admin-text-secondary">Phương thức<select value={draft.paymentMethod} onChange={event => setDraft(current => ({ ...current, paymentMethod: event.target.value }))} className={`${fieldClass} mt-1.5`}><option value="1">Tiền mặt</option><option value="2">Chuyển khoản</option><option value="3">Thẻ</option><option value="99">Khác</option></select></label></div> : <p className="mt-1 text-xs text-admin-text-muted">Chi phí vẫn được ghi nhận theo ngày phát sinh, nhưng chưa tính vào tiền ra.</p>}
+          </div>
+          <div className="sm:col-span-2"><label htmlFor="expense-form-vendor" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Nhà cung cấp / người nhận tiền</label><input id="expense-form-vendor" value={draft.vendor} onChange={event => setDraft(current => ({ ...current, vendor: event.target.value }))} className={fieldClass} maxLength={200} placeholder="Không bắt buộc" /></div>
           <div className="sm:col-span-2">
             <label htmlFor="expense-form-notes" className="mb-1.5 block text-sm font-medium text-admin-text-primary">Ghi chú</label>
             <textarea
@@ -662,6 +713,17 @@ export const ExpenseListPage: React.FC = () => {
             />
           </div>
         </div>
+        {formError ? <p className="mt-4 text-sm text-admin-status-error" role="alert">{formError}</p> : null}
+      </SettingsDialog>
+
+      <SettingsDialog
+        open={Boolean(paying)}
+        title="Ghi nhận lần thanh toán"
+        description={paying ? `${paying.description} · còn nợ ${formatExpenseCurrency(paying.outstandingAmount)}` : undefined}
+        onRequestClose={() => { if (!saving) setPaying(null); }}
+        footer={<><button type="button" className="h-11 rounded-admin-control border border-admin-border px-4" onClick={() => setPaying(null)} disabled={saving}>Hủy</button><button type="button" className="h-11 rounded-admin-control bg-admin-primary px-4 font-semibold text-admin-primary-foreground disabled:opacity-50" onClick={() => void savePayment()} disabled={saving || Number(paymentDraft.amount) <= 0 || !paymentDraft.paidAt}>Lưu giao dịch</button></>}
+      >
+        <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Số tiền<input className={`${fieldClass} mt-1.5`} type="number" min="1" max={paying?.outstandingAmount} value={paymentDraft.amount} onChange={(event) => setPaymentDraft((current) => ({ ...current, amount: event.target.value }))} /></label><label className="text-sm font-medium">Thời điểm thực trả<input className={`${fieldClass} mt-1.5`} type="datetime-local" value={paymentDraft.paidAt} onChange={(event) => setPaymentDraft((current) => ({ ...current, paidAt: event.target.value }))} /></label><label className="text-sm font-medium">Phương thức<select className={`${fieldClass} mt-1.5`} value={paymentDraft.method} onChange={(event) => setPaymentDraft((current) => ({ ...current, method: event.target.value }))}><option value="1">Tiền mặt</option><option value="2">Chuyển khoản</option><option value="3">Thẻ</option><option value="99">Khác</option></select></label><label className="text-sm font-medium">Ghi chú<input className={`${fieldClass} mt-1.5`} value={paymentDraft.note} onChange={(event) => setPaymentDraft((current) => ({ ...current, note: event.target.value }))} /></label></div>
         {formError ? <p className="mt-4 text-sm text-admin-status-error" role="alert">{formError}</p> : null}
       </SettingsDialog>
 

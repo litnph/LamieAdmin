@@ -8,7 +8,7 @@ import {
   Search,
   Trash2,
   UsersRound,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { getDefaultNavigationSeeds } from '@/app/modules/registry';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';

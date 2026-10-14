@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { captureResponsivePage } from './visualQa';
 
 const browserErrors = new WeakMap<Page, string[]>();
 
@@ -11,18 +12,19 @@ const order = {
   id: ORDER_ID,
   orderCode: 'L260801-AB12',
   ordererName: 'Nguyễn Lan',
-  ordererPhone: '',
+  ordererPhone: '0901000001',
   channelId: CHANNEL_ID,
+  channelName: 'Admin',
   recipientName: 'Trần Minh',
   recipientPhone: '0912345678',
   pickupAtShop: false,
   provinceShipping: false,
-  deliveryAddress: null,
+  deliveryAddress: '461 Phan Văn Trị, TP.HCM',
   deliveryAddressDescription: null,
   deliveryLatitude: null,
   deliveryLongitude: null,
-  deliveryAt: '2026-08-02T03:00:00.000Z',
-  deliveryTo: '2026-08-02T05:00:00.000Z',
+  deliveryAt: '2026-10-10T03:00:00.000Z',
+  deliveryTo: '2026-10-10T05:00:00.000Z',
   depositAmount: 100000,
   shippingFee: 0,
   shippingFeeActual: null,
@@ -35,6 +37,21 @@ const order = {
   updatedAt: '2026-08-01T02:00:00.000Z',
   description: null,
   contentNote: 'Gói giấy màu kem',
+  productSummary: 'Bó hồng kem · Bó hoa theo mẫu riêng',
+  paidAmount: 100000,
+  remainingAmount: 350000,
+  paymentHistoryIncomplete: false,
+  rowVersion: 'AQIDBA==',
+  quantityTotal: 2,
+  hasCard: true,
+  hasBanner: true,
+  cardMessage: 'Chúc mừng sinh nhật\nLuôn rạng rỡ nhé!',
+  bannerMessage: 'Happy birthday Minh',
+  trackingGroup: 'today',
+  preparationDate: '2026-10-09',
+  assigneeName: 'Lan Florist',
+  completedAt: null,
+  payments: [],
   items: [
     {
       id: ITEM_ID,
@@ -190,6 +207,35 @@ const installApiMocks = async (page: Page) => {
       return route.fulfill({ status: 204 });
     }
     if (url.pathname === `/api/orders/${ORDER_ID}`) return json(route, order);
+    if (url.pathname === '/api/orders/delivery-board') {
+      const items = deleted ? [] : [order];
+      return json(route, {
+        items,
+        summary: {
+          orderCount: items.length,
+          todayCount: items.length,
+          lateTodayCount: items.length,
+          totalAmount: items.reduce((sum, item) => sum + item.totalAmount, 0),
+          paidAmount: items.reduce((sum, item) => sum + item.paidAmount, 0),
+          remainingAmount: items.reduce((sum, item) => sum + item.remainingAmount, 0),
+          overdueBeforeTodayCount: 2,
+        },
+        generatedAt: '2026-10-10T08:00:00+07:00',
+      });
+    }
+    if (url.pathname === `/api/orders/${ORDER_ID}/payment-status` && request.method() === 'PATCH') {
+      return route.fulfill({ status: 204 });
+    }
+    if (url.pathname === `/api/orders/${ORDER_ID}/shipping-fee-actual` && request.method() === 'PATCH') {
+      return route.fulfill({ status: 204 });
+    }
+    if (url.pathname === `/api/orders/${ORDER_ID}/status/override` && request.method() === 'PATCH') {
+      const payload = request.postDataJSON() as { status: number };
+      return json(route, { ...order, orderStatus: payload.status, rowVersion: 'AQIDBQ==' });
+    }
+    if (url.pathname.startsWith(`/api/orders/${ORDER_ID}/actions/`) && request.method() === 'POST') {
+      return json(route, order);
+    }
     if (url.pathname === '/api/orders') {
       const items = deleted ? [] : [order];
       return json(route, {
@@ -207,6 +253,7 @@ const installApiMocks = async (page: Page) => {
 };
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-10T02:00:00Z'));
   const errors: string[] = [];
   browserErrors.set(page, errors);
   page.on('console', (message) => {
@@ -220,64 +267,152 @@ test.afterEach(async ({ page }) => {
   expect(browserErrors.get(page) ?? []).toEqual([]);
 });
 
-test('order list uses the requested columns, range and advanced filter dialog', async ({ page }) => {
+test('order list uses the workflow columns and defaults to seven calendar days', async ({ page }) => {
   await page.goto('/admin/orders');
   await expect(page.getByRole('heading', { name: 'Đơn hàng', level: 1 })).toBeVisible();
   await expect(page.getByRole('columnheader').allTextContents()).resolves.toEqual([
-    'Mã đơn',
-    'Ảnh',
-    'Thời gian giao',
-    'Người nhận',
-    'Ghi chú',
-    'Số tiền',
+    'Đơn / lịch hẹn',
+    'Người đặt / kênh',
+    'Nhận hàng',
+    'Tiến trình',
     'Thanh toán',
-    'Trạng thái',
-    'Hành động',
+    'Nội dung thêm',
+    'Thao tác',
   ]);
-  await expect(page.getByRole('table').getByText('10:00–12:00 02/08/2026')).toBeVisible();
-  await expect(page.getByRole('table').getByText('Gói giấy màu kem')).toBeVisible();
-  await expect(page.getByRole('table').getByText('450.000 ₫')).toBeVisible();
-  await expect(page.getByRole('table').getByAltText(`Ảnh đơn ${order.orderCode}`)).toBeVisible();
-  const today = await page.evaluate(() => {
-    const date = new Date();
-    const pad = (value: number) => String(value).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  });
-  await expect(page.getByLabel('Giao từ ngày')).toHaveValue(today);
-  await expect(page.getByLabel('Giao đến ngày')).toHaveValue(today);
-
-  await page.getByRole('button', { name: 'Lọc nâng cao' }).click();
-  await expect(page.getByRole('dialog', { name: 'Lọc đơn hàng nâng cao' })).toBeVisible();
-  await expect(page.getByLabel('Tạo từ ngày')).toBeVisible();
-  await expect(page.getByLabel('Tạo đến ngày')).toBeVisible();
+  await expect(page.getByRole('table').getByText('10:00', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table').getByText('Bó hồng kem · Bó hoa theo mẫu riêng')).toBeVisible();
+  await expect(page.getByRole('table').getByText('450.000 ₫', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '7 ngày', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('select').first()).toHaveValue('all');
+  await captureResponsivePage(page, 'orders');
 });
 
-test('order list deletes with an explicit irreversible confirmation', async ({ page }) => {
+test('order grid prioritizes late, upcoming, unpaid and completed orders with semantic row emphasis', async ({ page }) => {
+  const priorityOrders = [
+    {
+      ...order,
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4',
+      orderCode: 'L261009-DONE',
+      orderStatus: 4,
+      paymentStatus: 3,
+      trackingGroup: 'completed',
+      deliveryAt: '2026-10-09T03:00:00.000Z',
+      paidAmount: 450000,
+      remainingAmount: 0,
+    },
+    {
+      ...order,
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
+      orderCode: 'L261012-UNPAID',
+      orderStatus: 7,
+      paymentStatus: 2,
+      trackingGroup: 'delivered-unpaid',
+      deliveryAt: '2026-10-12T03:00:00.000Z',
+    },
+    {
+      ...order,
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
+      orderCode: 'L261011-SOON',
+      orderStatus: 1,
+      paymentStatus: 3,
+      trackingGroup: 'upcoming',
+      deliveryAt: '2026-10-11T03:00:00.000Z',
+      paidAmount: 0,
+      remainingAmount: 450000,
+    },
+    {
+      ...order,
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+      orderCode: 'L261008-LATE',
+      orderStatus: 1,
+      paymentStatus: 3,
+      trackingGroup: 'late',
+      deliveryAt: '2026-10-08T03:00:00.000Z',
+      paidAmount: 450000,
+      remainingAmount: 0,
+    },
+  ];
+  await page.route('**/api/orders/delivery-board**', route => json(route, {
+    items: priorityOrders,
+    summary: {
+      orderCount: 4,
+      todayCount: 0,
+      lateTodayCount: 1,
+      totalAmount: 1800000,
+      paidAmount: 1450000,
+      remainingAmount: 350000,
+      overdueBeforeTodayCount: 1,
+      lateCount: 1,
+      upcomingCount: 1,
+      deliveredUnpaidCount: 1,
+      completedCount: 1,
+    },
+    generatedAt: '2026-10-10T08:00:00+07:00',
+    totalCount: 4,
+    page: 1,
+    pageSize: 25,
+    totalPages: 1,
+  }));
+
   await page.goto('/admin/orders');
-  await page.getByRole('button', { name: `Xóa đơn ${order.orderCode}` }).click();
-  const dialog = page.getByRole('dialog', { name: 'Xác nhận xóa đơn' });
-  await expect(dialog).toContainText('không thể hoàn tác');
-  await dialog.getByRole('button', { name: 'Xóa đơn', exact: true }).click();
-  await expect(page.getByText(`Đã xóa đơn ${order.orderCode}.`)).toBeVisible();
-  await expect(page.getByRole('table').getByText(order.orderCode)).toHaveCount(0);
+
+  const rows = page.locator('tr[data-priority]');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.evaluateAll(elements => elements.map(element => ({
+    priority: element.getAttribute('data-priority'),
+    code: element.querySelector('a')?.textContent?.trim(),
+  })))).resolves.toEqual([
+    { priority: 'late', code: 'L261008-LATE' },
+    { priority: 'upcoming', code: 'L261011-SOON' },
+    { priority: 'unpaid', code: 'L261012-UNPAID' },
+    { priority: 'completed', code: 'L261009-DONE' },
+  ]);
+  await expect(rows.nth(0)).toHaveClass(/bg-admin-status-error-bg/);
+  await expect(rows.nth(1).getByLabel('Trạng thái thanh toán: Đã thanh toán')).toBeVisible();
+  await expect(rows.nth(1).getByText('Còn 450.000 ₫', { exact: true })).toHaveCount(0);
+  await expect(rows.nth(2)).toHaveClass(/bg-admin-status-warning-bg/);
+  await expect(rows.nth(2).getByLabel('Trạng thái đơn: Công nợ')).toBeVisible();
+  await expect(rows.nth(3)).toHaveClass(/bg-admin-status-success-bg/);
+  await expect(rows.nth(3).getByLabel('Trạng thái đơn: Hoàn tất')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const paidMobileCard = page.locator('article[data-priority]').filter({ hasText: 'L261011-SOON' });
+  await expect(paidMobileCard.getByText('Đã thanh toán', { exact: true })).toBeVisible();
+  await expect(paidMobileCard.getByText('Còn 450.000 ₫', { exact: true })).toHaveCount(0);
+  await captureResponsivePage(page, 'orders-priority');
 });
 
-test('create order exposes optional contact fields and an exact-or-range delivery control', async ({ page }) => {
+test('Tất cả removes the date range and preserves the other filters', async ({ page }) => {
+  await page.goto('/admin/orders');
+  const requestPromise = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/orders/delivery-board' && !url.searchParams.has('deliveryFrom');
+  });
+  await page.getByRole('button', { name: 'Tất cả', exact: true }).click();
+  const request = await requestPromise;
+  const url = new URL(request.url());
+  expect(url.searchParams.has('statusGroup')).toBe(false);
+  expect(url.searchParams.has('deliveryTo')).toBe(false);
+});
+
+test('create order requires the orderer, keeps recipient optional, and supports active copy', async ({ page }) => {
   await page.goto('/admin/orders/new');
   await expect(page.getByRole('heading', { name: 'Tạo đơn hàng', level: 1 })).toBeVisible();
+  await captureResponsivePage(page, 'new-order');
   await expect(page.getByRole('button', { name: 'Quay lại' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Hủy' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
   const pageHeader = page.getByRole('heading', { name: 'Tạo đơn hàng', level: 1 }).locator('xpath=ancestor::header');
   await expect(pageHeader.getByRole('link', { name: 'Hủy' })).toBeVisible();
   await expect(pageHeader.getByRole('button', { name: 'Tạo đơn' })).toBeVisible();
-  await expect(page.getByText('SĐT người đặt (không bắt buộc)')).toBeVisible();
-  await page.getByLabel('Người nhận', { exact: true }).fill('Nguyễn An');
-  await page.getByLabel('SĐT người nhận').fill('0909000111');
-  await page.getByLabel('Người nhận là người đặt').check();
-  await expect(page.getByLabel('Người đặt', { exact: true })).toHaveValue('Nguyễn An');
-  await expect(page.getByLabel('SĐT người đặt')).toHaveValue('0909000111');
-  await expect(page.getByLabel('Người đặt', { exact: true })).toBeDisabled();
+  await expect(page.getByLabel('Tên người đặt')).toHaveAttribute('required', '');
+  await expect(page.getByLabel('SĐT người đặt')).toHaveAttribute('required', '');
+  await expect(page.getByLabel('Tên người nhận')).toHaveValue('');
+  await expect(page.getByLabel('SĐT người nhận')).toHaveValue('');
+  await page.getByLabel('Tên người đặt').fill('Nguyễn An');
+  await page.getByLabel('SĐT người đặt').fill('0909000111');
+  await page.getByRole('button', { name: 'Người nhận là người đặt' }).click();
+  await expect(page.getByLabel('Tên người nhận')).toHaveValue('Nguyễn An');
+  await expect(page.getByLabel('SĐT người nhận')).toHaveValue('0909000111');
   await expect(page.getByLabel('Địa chỉ chi tiết')).toBeVisible();
   const noteBox = await page.getByRole('heading', { name: 'Ghi chú đơn hàng' }).boundingBox();
   const summaryBox = await page.getByRole('heading', { name: 'Tóm tắt & chi phí' }).boundingBox();
@@ -300,7 +435,7 @@ test('create order exposes optional contact fields and an exact-or-range deliver
 test('detail merges customer and delivery, then places timeline under actions with both image kinds', async ({ page }) => {
   await page.goto(`/admin/orders/${ORDER_ID}`);
   await expect(page.getByRole('heading', { name: 'Giao hàng và khách hàng' })).toBeVisible();
-  await expect(page.getByText('Chưa có số điện thoại')).toBeVisible();
+  await expect(page.getByText('0901000001')).toBeVisible();
   const asideHeadings = await page.locator('aside h2').allTextContents();
   expect(asideHeadings).toEqual(['Trạng thái và hành động', 'Timeline trạng thái và thay đổi']);
   await expect(page.locator('img[alt="Ảnh đại diện sản phẩm Bó hồng kem"]:visible')).toBeVisible();
@@ -355,9 +490,99 @@ test('image preview stays inside a mobile viewport', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Đóng xem ảnh lớn' }).click();
 });
 
-test('mobile order list keeps delete action accessible without the desktop table', async ({ page }) => {
+test('mobile order list keeps detail action accessible without the desktop table', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/admin/orders');
   await expect(page.getByRole('table')).toBeHidden();
-  await expect(page.getByRole('button', { name: `Xóa đơn ${order.orderCode}` })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Xem chi tiết' })).toBeVisible();
+});
+
+test('summary stays modal and payment confirmation sends a real receipt payload', async ({ page }) => {
+  await page.goto('/admin/orders');
+  await page.getByRole('button', { name: 'Xem tóm tắt' }).first().click();
+
+  const dialog = page.getByRole('dialog', { name: /L260801-AB12 - Tóm tắt/ });
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/orders(?:\?|$)/);
+  await expect(dialog.getByText('Còn lại')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Đánh dấu đã thanh toán' }).click();
+  await expect(dialog.getByText(/không tự tạo giao dịch ngân hàng/i)).toBeVisible();
+  await expect(dialog.getByLabel('Phương thức')).toHaveCount(0);
+  const paymentRequest = page.waitForRequest(request =>
+    new URL(request.url()).pathname === `/api/orders/${ORDER_ID}/payment-status`
+      && request.method() === 'PATCH');
+  await dialog.getByRole('button', { name: 'Xác nhận đã nhận tiền' }).click();
+  const payload = (await paymentRequest).postDataJSON();
+
+  expect(payload.status).toBe(3);
+  expect(payload.amount).toBe(350000);
+  expect(payload.method).toBe(99);
+  expect(payload.paidAt).toMatch(/^2026-10-10T\d{2}:\d{2}:00\+07:00$/);
+  expect(payload.idempotencyKey).toBeTruthy();
+});
+
+test('card and banner are keyboard-accessible and keep multiline content', async ({ page }) => {
+  await page.goto('/admin/orders');
+  const trigger = page.getByRole('button', { name: /Xem Thiệp và banner của đơn L260801-AB12/ });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+
+  const dialog = page.getByRole('dialog', { name: /L260801-AB12 - Nội dung thêm/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Chúc mừng sinh nhật\nLuôn rạng rỡ nhé!')).toBeVisible();
+  await expect(dialog.getByText('Happy birthday Minh')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+});
+
+test('quick actual shipping preserves zero and sends concurrency token', async ({ page }) => {
+  await page.goto('/admin/orders');
+  await page.getByRole('button', { name: /Ship thực tế: chưa chốt/ }).click();
+  const dialog = page.getByRole('dialog', { name: /L260801-AB12 - Phí ship thực tế/ });
+  const input = dialog.getByLabel('Phí ship thực tế');
+  await input.fill('0');
+
+  const shippingRequest = page.waitForRequest(request =>
+    new URL(request.url()).pathname === `/api/orders/${ORDER_ID}/shipping-fee-actual`
+      && request.method() === 'PATCH');
+  await dialog.getByRole('button', { name: 'Lưu phí ship' }).click();
+  const payload = (await shippingRequest).postDataJSON();
+
+  expect(payload.shippingFeeActual).toBe(0);
+  expect(payload.rowVersion).toBe('AQIDBA==');
+});
+
+test('summary modal edits actual shipping without opening the full editor', async ({ page }) => {
+  await page.goto('/admin/orders');
+  await page.getByRole('button', { name: 'Xem tóm tắt' }).click();
+  const dialog = page.getByRole('dialog', { name: /L260801-AB12 - Tóm tắt/ });
+  await dialog.getByRole('button', { name: 'Sửa phí ship' }).click();
+  await dialog.getByLabel('Số tiền thực tế').fill('35000');
+
+  const shippingRequest = page.waitForRequest(request =>
+    new URL(request.url()).pathname === `/api/orders/${ORDER_ID}/shipping-fee-actual`
+      && request.method() === 'PATCH');
+  await dialog.getByRole('button', { name: 'Lưu phí ship' }).click();
+  expect((await shippingRequest).postDataJSON()).toMatchObject({ shippingFeeActual: 35000, rowVersion: 'AQIDBA==' });
+});
+
+test('privileged status change is a separate audited action', async ({ page }) => {
+  await page.goto(`/admin/orders/${ORDER_ID}`);
+  await expect(page.getByRole('button', { name: 'Chuẩn bị đơn' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Chuyển trạng thái' }).click();
+  const dialog = page.getByRole('dialog', { name: /Chuyển trạng thái đơn L260801-AB12/ });
+  await dialog.getByLabel('Trạng thái đích').selectOption('6');
+  await dialog.getByLabel('Lý do / ghi chú').fill('Khớp tình trạng thực tế');
+
+  const statusRequest = page.waitForRequest(request =>
+    new URL(request.url()).pathname === `/api/orders/${ORDER_ID}/status/override`
+      && request.method() === 'PATCH');
+  await dialog.getByRole('button', { name: 'Xác nhận chuyển' }).click();
+  expect((await statusRequest).postDataJSON()).toMatchObject({
+    status: 6,
+    rowVersion: 'AQIDBA==',
+    reason: 'Khớp tình trạng thực tế',
+  });
+  await expect(page.getByText('Đã chuyển trạng thái đơn thành thành phẩm.')).toBeVisible();
 });

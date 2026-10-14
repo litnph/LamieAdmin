@@ -14,7 +14,7 @@ import {
   Pencil,
   SearchX,
   Trash2,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { formatCurrency, formatInteger } from '@/features/dashboard/utils/dashboardFormatters';
 
 export type ProductStockStatus = 'made-to-order' | 'in-stock' | 'low-stock' | 'out-of-stock';
@@ -120,7 +120,7 @@ const FeVisibilityToggle: React.FC<{
     className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-admin-control text-xs font-semibold text-admin-text-secondary transition-colors hover:text-admin-primary disabled:cursor-wait disabled:opacity-55"
   >
     <span className={`relative h-5 w-9 rounded-full transition-colors ${product.isVisibleOnFE ? 'bg-admin-primary' : 'bg-admin-border'}`} aria-hidden="true">
-      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${product.isVisibleOnFE ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
+      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-admin-primary-foreground shadow-sm transition-transform ${product.isVisibleOnFE ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
     </span>
     <Globe2 size={14} aria-hidden="true" /> {product.isVisibleOnFE ? 'Có trên FE' : 'Ẩn khỏi FE'}
   </button>

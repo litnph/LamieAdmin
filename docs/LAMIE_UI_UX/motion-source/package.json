@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "esbuild": "^0.28.2",
+    "motion": "^13.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.7.0"
+  },
+  "name": "lamie-lucide-animated-adapter",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs"
+  }
+}

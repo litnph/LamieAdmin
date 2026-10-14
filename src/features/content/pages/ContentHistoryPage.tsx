@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Clipboard, Eye, History, RefreshCw, Save } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clipboard, Eye, History, RefreshCw, Save } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { SettingsDialog } from '@/features/settings/components/SettingsDialog';
 import { getApiErrorMessage } from '@/shared/utils/apiError';

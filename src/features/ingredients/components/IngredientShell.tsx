@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChartNoAxesCombined, Flower2, Ruler } from 'lucide-react';
+import { ChartNoAxesCombined, Flower2, Ruler } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { PageHeader } from '@/shared/components/PageHeader';
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { KeyRound, LockKeyhole, Pencil, Plus, RefreshCw, Search, ShieldOff, UsersRound } from 'lucide-react';
+import { KeyRound, LockKeyhole, Pencil, Plus, RefreshCw, Search, ShieldOff, UsersRound } from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Permission } from '@/features/auth/permissions';
 import { useNavigation } from '@/features/navigation/context/NavigationContext';

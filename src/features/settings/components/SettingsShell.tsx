@@ -17,7 +17,7 @@ import {
   Tags,
   WandSparkles,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/shared/icons/lucideAnimated';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { PageHeader } from '@/shared/components/PageHeader';
 
@@ -123,12 +123,13 @@ type SettingsShellProps = {
   title: string;
   description: string;
   actions?: React.ReactNode;
+  hideContentHeader?: boolean;
   children: React.ReactNode;
 };
 
 const isNavigationItemActive = (pathname: string, to: string) => pathname === to;
 
-export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description, actions, children }) => {
+export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description, actions, hideContentHeader = false, children }) => {
   const { hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -142,7 +143,7 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
     <div className="min-w-0">
       <PageHeader
         title="Cấu hình cửa hàng"
-        description="Quản lý nhận diện shop, sản phẩm, nguyên liệu, hàng tồn kho, chi phí, thuộc tính và kênh bán trong một không gian thống nhất."
+        description="Sắp xếp dữ liệu nền, giữ vận hành nhất quán."
       />
 
       <div className="mb-5 lg:hidden">
@@ -170,20 +171,19 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
         </p>
       </div>
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:gap-8">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] xl:gap-6">
         <aside className="hidden lg:block" aria-label="Các nhóm cài đặt">
-          <nav className="sticky top-0 space-y-5 rounded-admin-panel border border-admin-border bg-admin-card p-3 shadow-admin-panel">
+          <nav className="sticky top-0 space-y-6 border-r border-admin-border pr-5">
             {visibleNavigation.map((group) => (
               <section key={group.label} aria-labelledby={`settings-group-${group.label.replace(/\s+/g, '-').toLowerCase()}`}>
                 <h2
                   id={`settings-group-${group.label.replace(/\s+/g, '-').toLowerCase()}`}
-                  className="mb-1.5 px-2 text-xs font-semibold text-admin-text-muted"
+                  className="mb-1.5 px-2 text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-admin-text-muted"
                 >
                   {group.label}
                 </h2>
                 <div className="space-y-1">
                   {group.items.map((item) => {
-                    const Icon = item.icon;
                     return (
                       <NavLink
                         key={item.to}
@@ -191,21 +191,15 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
                         end
                         className={({ isActive }) =>
                           [
-                            'group flex min-h-11 items-center gap-2.5 rounded-admin-control px-2.5 py-2 text-sm transition-colors',
+                            'group flex min-h-9 items-center gap-2 rounded-admin-control px-2.5 py-1.5 text-sm transition-colors',
                             isActive
                               ? 'bg-admin-primary/10 font-semibold text-admin-primary'
                               : 'text-admin-text-secondary hover:bg-admin-muted hover:text-admin-text-primary',
                           ].join(' ')
                         }
                       >
-                        {Icon ? <Icon size={17} strokeWidth={1.8} aria-hidden="true" /> : null}
                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                        <ChevronRight
-                          size={15}
-                          strokeWidth={1.8}
-                          className="shrink-0 opacity-45 group-hover:opacity-75"
-                          aria-hidden="true"
-                        />
+                        <ChevronRight size={14} strokeWidth={1.8} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-60" aria-hidden="true" />
                       </NavLink>
                     );
                   })}
@@ -215,16 +209,22 @@ export const SettingsShell: React.FC<SettingsShellProps> = ({ title, description
           </nav>
         </aside>
 
-        <section className="min-w-0" aria-labelledby="settings-content-title">
-          <header className="mb-5 flex min-w-0 flex-col gap-4 border-b border-admin-border pb-5 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h2 id="settings-content-title" className="text-xl font-semibold tracking-[-0.015em] text-admin-text-primary">
-                {title}
-              </h2>
-              <p className="mt-1 max-w-[65ch] text-sm leading-6 text-admin-text-secondary">{description}</p>
-            </div>
-            {actions ? <div className="flex w-full min-w-0 shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">{actions}</div> : null}
-          </header>
+        <section
+          className="min-w-0"
+          aria-label={hideContentHeader ? title : undefined}
+          aria-labelledby={hideContentHeader ? undefined : 'settings-content-title'}
+        >
+          {!hideContentHeader ? (
+            <header className="mb-5 flex min-w-0 flex-col gap-4 border-b border-admin-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <h2 id="settings-content-title" className="text-xl font-semibold tracking-[-0.015em] text-admin-text-primary">
+                  {title}
+                </h2>
+                <p className="mt-1 max-w-[65ch] text-sm leading-6 text-admin-text-secondary">{description}</p>
+              </div>
+              {actions ? <div className="flex w-full min-w-0 shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">{actions}</div> : null}
+            </header>
+          ) : null}
           {children}
         </section>
       </div>

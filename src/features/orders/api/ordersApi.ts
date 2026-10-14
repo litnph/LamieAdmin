@@ -12,6 +12,14 @@ import type {
   CreateOrderPayload,
   BatchCreateOrderPayload,
   BatchCreateOrdersDto,
+  CreateOrderPaymentPayload,
+  OrderDeliveryBoard,
+  OrderPaymentDto,
+  PaymentMethod,
+  OrderWorkflowCommand,
+  UpdateOrderChecklistPayload,
+  UpdateOrderAssignmentPayload,
+  UpdateOrderRecipientPayload,
 } from '../types/order.types';
 
 const stripUndefined = (obj: object): Record<string, unknown> =>
@@ -27,8 +35,8 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
   if (payload.customerId) fd.append(field('customerId'), payload.customerId);
   if (payload.createMember !== undefined) fd.append(field('createMember'), String(payload.createMember));
   fd.append(field('channelId'), payload.channelId);
-  fd.append(field('recipientName'), payload.recipientName);
-  fd.append(field('recipientPhone'), payload.recipientPhone);
+  if (payload.recipientName) fd.append(field('recipientName'), payload.recipientName);
+  if (payload.recipientPhone) fd.append(field('recipientPhone'), payload.recipientPhone);
   if (payload.senderName) fd.append(field('senderName'), payload.senderName);
   if (payload.senderPhone) fd.append(field('senderPhone'), payload.senderPhone);
   fd.append(field('pickupAtShop'), String(payload.pickupAtShop));
@@ -50,6 +58,10 @@ const appendCreateOrder = (fd: FormData, payload: CreateOrderPayload, prefix = '
   if (payload.deliveryTo) fd.append(field('deliveryTo'), payload.deliveryTo);
   if (payload.depositAmount != null) fd.append(field('depositAmount'), String(payload.depositAmount));
   fd.append(field('isPaid'), String(payload.isPaid));
+  if (payload.confirmPaymentReceived !== undefined) fd.append(field('confirmPaymentReceived'), String(payload.confirmPaymentReceived));
+  if (payload.paymentReceivedAt) fd.append(field('paymentReceivedAt'), payload.paymentReceivedAt);
+  if (payload.paymentMethod != null) fd.append(field('paymentMethod'), String(payload.paymentMethod));
+  if (payload.paymentIdempotencyKey) fd.append(field('paymentIdempotencyKey'), payload.paymentIdempotencyKey);
   fd.append(field('shippingFee'), String(payload.shippingFee));
   if (payload.shippingFeeActual != null) fd.append(field('shippingFeeActual'), String(payload.shippingFeeActual));
   if (payload.description) fd.append(field('description'), payload.description);
@@ -249,16 +261,87 @@ export const ordersApi = {
     await apiClient.patch(`/api/orders/${id}/status`, { status });
   },
 
-  returnToPreviousStatus: async (id: string): Promise<void> => {
-    await apiClient.patch(`/api/orders/${id}/status/previous`);
+  runWorkflowAction: async (
+    id: string,
+    action: 'confirm' | 'prepare-order' | 'start-preparation' | 'ready' | 'dispatch' | 'delivered' | 'delivery-failed' | 'retry-delivery' | 'cancel',
+    payload: OrderWorkflowCommand = {},
+  ): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.post<OrderDetailDto>(`/api/orders/${id}/actions/${action}`, payload);
+    return data;
   },
 
-  changePaymentStatus: async (id: string, status: PaymentStatus): Promise<void> => {
-    await apiClient.patch(`/api/orders/${id}/payment-status`, { status });
+  updateRecipient: async (id: string, payload: UpdateOrderRecipientPayload): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.patch<OrderDetailDto>(`/api/orders/${id}/recipient`, payload);
+    return data;
   },
 
-  updateShippingFeeActual: async (id: string, shippingFeeActual: number | null): Promise<void> => {
-    await apiClient.patch(`/api/orders/${id}/shipping-fee-actual`, { shippingFeeActual });
+  updateChecklist: async (id: string, payload: UpdateOrderChecklistPayload): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.patch<OrderDetailDto>(`/api/orders/${id}/checklist`, payload);
+    return data;
+  },
+
+  updateAssignment: async (id: string, payload: UpdateOrderAssignmentPayload): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.patch<OrderDetailDto>(`/api/orders/${id}/assignment`, payload);
+    return data;
+  },
+
+  hold: async (id: string, reason: string, rowVersion?: string | null): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.post<OrderDetailDto>(`/api/orders/${id}/hold`, { reason, rowVersion });
+    return data;
+  },
+
+  resume: async (id: string, rowVersion?: string | null): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.post<OrderDetailDto>(`/api/orders/${id}/resume`, { rowVersion });
+    return data;
+  },
+
+  deliveryBoard: async (query: OrderListQuery): Promise<OrderDeliveryBoard> => {
+    const { data } = await apiClient.get<OrderDeliveryBoard>('/api/orders/delivery-board', { params: stripUndefined(query) });
+    return data;
+  },
+
+  returnToPreviousStatus: async (id: string, rowVersion?: string): Promise<void> => {
+    await apiClient.patch(`/api/orders/${id}/status/previous`, { rowVersion });
+  },
+
+  overrideStatus: async (
+    id: string,
+    status: OrderStatus,
+    rowVersion?: string | null,
+    reason?: string,
+  ): Promise<OrderDetailDto> => {
+    const { data } = await apiClient.patch<OrderDetailDto>(`/api/orders/${id}/status/override`, {
+      status,
+      rowVersion,
+      reason,
+    });
+    return data;
+  },
+
+  changePaymentStatus: async (
+    id: string,
+    status: PaymentStatus,
+    receipt?: { amount?: number; paidAt: string; method: PaymentMethod; idempotencyKey: string; note?: string },
+  ): Promise<void> => {
+    await apiClient.patch(`/api/orders/${id}/payment-status`, { status, ...receipt });
+  },
+
+  listPayments: async (id: string): Promise<OrderPaymentDto[]> => {
+    const { data } = await apiClient.get<OrderPaymentDto[]>(`/api/orders/${id}/payments`);
+    return data;
+  },
+
+  addPayment: async (id: string, payload: CreateOrderPaymentPayload): Promise<OrderPaymentDto> => {
+    const { data } = await apiClient.post<OrderPaymentDto>(`/api/orders/${id}/payments`, payload);
+    return data;
+  },
+
+  updateShippingFeeActual: async (
+    id: string,
+    shippingFeeActual: number | null,
+    payment?: { incurredAt?: string; paidAt?: string; method?: PaymentMethod; idempotencyKey?: string; rowVersion?: string | null },
+  ): Promise<void> => {
+    await apiClient.patch(`/api/orders/${id}/shipping-fee-actual`, { shippingFeeActual, ...payment });
   },
 
   delete: async (id: string): Promise<void> => {
